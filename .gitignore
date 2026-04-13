@@ -1,0 +1,17 @@
+# Tool/editor generated metadata
+_metadata/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+build/
