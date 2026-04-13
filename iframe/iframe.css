@@ -535,7 +535,7 @@ button:disabled {
   border: 1px dashed var(--border-color);
   border-radius: 18px;
   color: var(--text-muted);
-  background: #fff;
+  background: #e7e7e7;
 }
 
 @media (max-width: 900px) {
