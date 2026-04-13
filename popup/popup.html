@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 批量搜索</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <h1 class="popup-title">AI 批量搜索</h1>
+      <p class="popup-subtitle">输入问题后，选择搜索组进行执行。</p>
+      <textarea
+        id="popupQueryInput"
+        class="popup-query-input"
+        rows="4"
+        placeholder="输入你要提问的问题"
+      ></textarea>
+      <div id="popupGroups" class="popup-groups"></div>
+      <div class="popup-actions">
+        <button id="openSettingsBtn" class="secondary-btn" type="button">设置</button>
+      </div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

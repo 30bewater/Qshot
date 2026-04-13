@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "AI批量搜索 MVP",
+  "version": "0.1.0",
+  "description": "在一个扩展页面中以多卡片 iframe 形式并排展示多个 AI 站点。",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src *; img-src 'self' chrome-extension: data: blob:;"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "打开 AI 批量搜索",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "config/baseConfig.js",
+        "iframe/inject.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "iframe/*",
+        "config/*",
+        "popup/*"
+      ],
+      "matches": [
+        "<all_urls>",
+        "chrome-extension://*/*"
+      ]
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "iframe_rules",
+        "enabled": true,
+        "path": "config/rules.json"
+      }
+    ]
+  }
+}

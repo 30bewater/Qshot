@@ -1,0 +1,920 @@
+{
+  "sites": [
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "url": "https://chatgpt.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "chatgpt.com",
+        "chat.openai.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 ChatGPT，若目标站点仍拦截嵌入则显示受限提示。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "#prompt-textarea",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "description": "聚焦输入框"
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "#prompt-textarea",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto",
+            "description": "写入查询内容"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "#prompt-textarea",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ],
+            "description": "触发输入事件"
+          },
+          {
+            "action": "wait",
+            "duration": 150,
+            "description": "短暂等待"
+          },
+          {
+            "action": "click",
+            "selectors": [
+              "button[data-testid='send-button']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']"
+            ],
+            "optional": true,
+            "description": "尝试点击发送按钮"
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "#prompt-textarea",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true,
+            "description": "回车作为备用发送方式"
+          }
+        ]
+      }
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "url": "https://chat.deepseek.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "chat.deepseek.com",
+        "deepseek.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 DeepSeek，并通过通用输入框选择器尝试自动填充。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']",
+              "[placeholder*='发送']",
+              "[placeholder*='问点']"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']",
+              "[placeholder*='发送']",
+              "[placeholder*='问点']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']",
+              "[placeholder*='发送']",
+              "[placeholder*='问点']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "click",
+            "selectors": [
+              "button[type='submit']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "kimi",
+      "name": "Kimi",
+      "url": "https://kimi.moonshot.cn/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "kimi.moonshot.cn"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 Kimi，优先匹配 textarea 和 contenteditable 输入区。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "div.chat-input-editor[contenteditable='true']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "textarea",
+              "div[contenteditable='true']"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "div.chat-input-editor[contenteditable='true']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "div.chat-input-editor[contenteditable='true']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "click",
+            "selectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "button[title*='发送']",
+              "button[title*='Send']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div.chat-input-editor[contenteditable='true']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "textarea",
+              "div[contenteditable='true']",
+              "[placeholder*='发送']",
+              "[placeholder*='问点']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "button[title*='发送']",
+              "button[title*='Send']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']",
+              "div[role='button'][tabindex='0']",
+              "button:not([disabled]) svg"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div.chat-input-editor[contenteditable='true']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "qwen",
+      "name": "Qwen / 通义千问",
+      "url": "https://tongyi.aliyun.com/qianwen/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "tongyi.aliyun.com",
+        "qwen.ai",
+        "chat.qwen.ai"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 Qwen / 通义千问，自动发送依赖页面当前 DOM 结构。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "click",
+            "selectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "button[title*='发送']",
+              "button[title*='Send']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "button[title*='发送']",
+              "button[title*='Send']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "doubao",
+      "name": "豆包",
+      "url": "https://www.doubao.com/chat/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "www.doubao.com",
+        "doubao.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载豆包，先走通用输入框选择器。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "click",
+            "selectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "url": "https://gemini.google.com/app",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "gemini.google.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 Gemini，使用通用输入与发送选择器。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']",
+              "[role='button'][aria-label*='Send']",
+              "[role='button'][aria-label*='发送']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "zhipu",
+      "name": "智谱清言",
+      "url": "https://chatglm.cn/main/alltoolsdetail",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "chatglm.cn",
+        "www.chatglm.cn"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载智谱清言，尝试匹配 textarea 或 contenteditable 输入区。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "button[title*='发送']",
+              "button[title*='Send']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "yuanbao",
+      "name": "腾讯元宝",
+      "url": "https://yuanbao.tencent.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "yuanbao.tencent.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载腾讯元宝，使用通用输入与发送逻辑。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 150
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "xiaohongshu",
+      "name": "小红书",
+      "url": "https://www.xiaohongshu.com/search_result?keyword={query}",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": true,
+      "matchPatterns": [
+        "www.xiaohongshu.com",
+        "xiaohongshu.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中打开小红书搜索结果页。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[placeholder*='大家都在搜']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[placeholder*='大家都在搜']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto",
+            "optional": true
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[placeholder*='大家都在搜']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ],
+            "optional": true
+          },
+          {
+            "action": "wait",
+            "duration": 120,
+            "optional": true
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[placeholder*='大家都在搜']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='搜索']",
+              "button[title*='搜索']",
+              "[role='button'][aria-label*='搜索']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[placeholder*='大家都在搜']",
+              "textarea",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "bilibili",
+      "name": "B站",
+      "url": "https://search.bilibili.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "search.bilibili.com",
+        "www.bilibili.com",
+        "bilibili.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 B站搜索页，默认尝试填写搜索框并提交。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[name='keyword']",
+              "textarea"
+            ]
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[name='keyword']",
+              "textarea"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[name='keyword']",
+              "textarea"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 120
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[name='keyword']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='搜索']",
+              "button[title*='搜索']",
+              "[role='button'][aria-label*='搜索']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "input[name='keyword']",
+              "textarea"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "zhihu",
+      "name": "知乎",
+      "url": "https://www.zhihu.com/search?type=content&q={query}",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": true,
+      "matchPatterns": [
+        "www.zhihu.com",
+        "zhihu.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中打开知乎搜索结果页。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "optional": true
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "inputType": "auto",
+            "optional": true
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "events": [
+              "input",
+              "change"
+            ],
+            "optional": true
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='搜索']",
+              "button[title*='搜索']"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "douyin",
+      "name": "抖音",
+      "url": "https://www.douyin.com/search/{query}",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": true,
+      "matchPatterns": [
+        "www.douyin.com",
+        "douyin.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中打开抖音搜索结果页。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "optional": true
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "inputType": "auto",
+            "optional": true
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "events": [
+              "input",
+              "change"
+            ],
+            "optional": true
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "input[type='search']",
+              "input[placeholder*='搜索']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='搜索']",
+              "button[title*='搜索']"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    }
+  ]
+}

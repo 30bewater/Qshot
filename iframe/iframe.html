@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 批量搜索 MVP</title>
+    <link rel="stylesheet" href="iframe.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="cards-panel">
+        <div id="iframes-container" class="iframes-container" data-columns="1"></div>
+      </section>
+
+      <aside id="historyPanel" class="history-panel" hidden>
+        <div class="history-panel-header">
+          <h3>搜索记录</h3>
+          <button id="closeHistoryPanelBtn" class="history-close-btn" type="button">×</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </aside>
+
+      <section class="bottom-composer">
+        <span id="globalStatus" class="global-status visually-hidden">正在加载站点配置...</span>
+        <textarea
+          id="queryInput"
+          class="bottom-query-input"
+          placeholder="在这里输入问题，然后发送到当前选中的 AI 卡片"
+          rows="2"
+        ></textarea>
+        <div class="composer-right-tools">
+          <button id="historyToggleBtn" class="composer-tool-btn" type="button">历史</button>
+          <button id="exportBtn" class="composer-tool-btn" type="button">导出</button>
+          <div class="layout-menu-wrap">
+            <button id="layoutToggleBtn" class="composer-tool-btn" type="button">布局</button>
+            <div id="layoutPopover" class="layout-popover" hidden>
+              <div class="layout-option-group">
+                <div class="layout-option-title">呈现形式</div>
+                <div class="layout-option-row">
+                  <button class="layout-option-btn" type="button" data-layout-rows="1">1排</button>
+                  <button class="layout-option-btn" type="button" data-layout-rows="2">2排</button>
+                  <button class="layout-option-btn" type="button" data-layout-rows="3">3排</button>
+                </div>
+              </div>
+              <div id="cardSizeGroup" class="layout-option-group">
+                <div class="layout-option-title">宽度</div>
+                <div class="layout-option-row">
+                  <button class="layout-option-btn" type="button" data-card-size="small">小</button>
+                  <button class="layout-option-btn" type="button" data-card-size="medium">中</button>
+                  <button class="layout-option-btn" type="button" data-card-size="large">大</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button id="sendSelectedBtn" class="primary-btn bottom-send-btn" type="button">发送</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="../config/baseConfig.js"></script>
+    <script src="iframe.js"></script>
+  </body>
+</html>

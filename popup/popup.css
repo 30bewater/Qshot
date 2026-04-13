@@ -1,0 +1,105 @@
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #f8fafc;
+  color: #1f2937;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.popup-shell {
+  width: 340px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.popup-title {
+  margin: 0;
+  width: 100%;
+  font-size: 18px;
+  text-align: left;
+}
+
+.popup-subtitle {
+  width: 100%;
+  margin: 8px 0 12px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: left;
+}
+
+.popup-query-input {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+  outline: none;
+  background: #fff;
+}
+
+.popup-query-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.popup-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 14px;
+  gap: 8px;
+}
+
+.popup-groups {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.popup-group-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 96px;
+}
+
+.popup-group-name {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.popup-group-meta {
+  font-size: 11px;
+  opacity: 0.82;
+}
+
+.primary-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.primary-btn {
+  background: #2563eb;
+  color: #fff;
+}
+
+.secondary-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+}
