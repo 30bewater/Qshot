@@ -22,37 +22,78 @@
 
       <section class="bottom-composer">
         <span id="globalStatus" class="global-status visually-hidden">正在加载站点配置...</span>
-        <textarea
-          id="queryInput"
-          class="bottom-query-input"
-          placeholder="在这里输入问题，然后发送到当前选中的 AI 卡片"
-          rows="2"
-        ></textarea>
-        <div class="composer-right-tools">
-          <button id="historyToggleBtn" class="composer-tool-btn" type="button">历史</button>
-          <button id="exportBtn" class="composer-tool-btn" type="button">导出</button>
-          <div class="layout-menu-wrap">
-            <button id="layoutToggleBtn" class="composer-tool-btn" type="button">布局</button>
-            <div id="layoutPopover" class="layout-popover" hidden>
-              <div class="layout-option-group">
-                <div class="layout-option-title">呈现形式</div>
-                <div class="layout-option-row">
-                  <button class="layout-option-btn" type="button" data-layout-rows="1">1排</button>
-                  <button class="layout-option-btn" type="button" data-layout-rows="2">2排</button>
-                  <button class="layout-option-btn" type="button" data-layout-rows="3">3排</button>
+
+        <div class="bottom-composer-bar">
+          <div class="composer-input-shell">
+            <div class="composer-input-row">
+              <textarea
+                id="queryInput"
+                class="bottom-query-input"
+                placeholder="在这里输入问题，然后发送到当前选中的 AI 卡片"
+                rows="2"
+              ></textarea>
+            </div>
+
+            <div class="composer-toolbar-row">
+              <div class="composer-left-tools">
+                <button id="historyToggleBtn" class="composer-tool-btn composer-tool-icon-btn" type="button" aria-label="历史搜索">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                      <path d="M12 8v4l2 2"></path>
+                      <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
+                    </g>
+                  </svg>
+                </button>
+                <button id="exportBtn" class="composer-tool-btn composer-tool-icon-btn" type="button" aria-label="导出文档">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M712.533333 371.2l-128 128-59.733333-59.733333 128-128L597.333333 256l-42.666666-42.666667h256v256l-42.666667-42.666666-55.466667-55.466667zM657.066667 256H768v110.933333V256h-110.933333zM298.666667 298.666667v426.666666h426.666666v-256l85.333334 85.333334v256H213.333333V213.333333h256l85.333334 85.333334H298.666667z"></path>
+                  </svg>
+                </button>
+                <div class="layout-menu-wrap">
+                  <button id="layoutToggleBtn" class="composer-tool-btn composer-tool-icon-btn" type="button" aria-label="布局设置">
+                    <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                      <path d="M640 426.666667v469.333333H128a42.666667 42.666667 0 0 1-42.666667-42.666667V426.666667h554.666667z m298.666667 0v426.666666a42.666667 42.666667 0 0 1-42.666667 42.666667h-170.666667V426.666667h213.333334z m-42.666667-298.666667a42.666667 42.666667 0 0 1 42.666667 42.666667v170.666666H85.333333V170.666667a42.666667 42.666667 0 0 1 42.666667-42.666667h768z"></path>
+                    </svg>
+                  </button>
+                  <div id="layoutPopover" class="layout-popover" hidden>
+                    <div class="layout-option-group">
+                      <div class="layout-option-title">呈现形式</div>
+                      <div class="layout-option-row">
+                        <button class="layout-option-btn" type="button" data-layout-rows="1">1排</button>
+                        <button class="layout-option-btn" type="button" data-layout-rows="2">2排</button>
+                        <button class="layout-option-btn" type="button" data-layout-rows="3">3排</button>
+                      </div>
+                    </div>
+                    <div id="cardSizeGroup" class="layout-option-group">
+                      <div class="layout-option-title">宽度</div>
+                      <div class="layout-option-row">
+                        <button class="layout-option-btn" type="button" data-card-size="small">小</button>
+                        <button class="layout-option-btn" type="button" data-card-size="medium">中</button>
+                        <button class="layout-option-btn" type="button" data-card-size="large">大</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div id="cardSizeGroup" class="layout-option-group">
-                <div class="layout-option-title">宽度</div>
-                <div class="layout-option-row">
-                  <button class="layout-option-btn" type="button" data-card-size="small">小</button>
-                  <button class="layout-option-btn" type="button" data-card-size="medium">中</button>
-                  <button class="layout-option-btn" type="button" data-card-size="large">大</button>
+
+              <div class="composer-inline-actions">
+                <div class="composer-prompt-wrap">
+                  <button id="promptAssistBtn" class="composer-inline-icon" type="button" aria-label="提示词" aria-expanded="false">
+                    <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                      <path d="M855.071605 339.499431l-10.216418 26.934193c-7.430122 19.718401-31.077915 19.718401-38.508037 0l-10.144975-26.934193c-18.146645-48.010021-50.724873-86.303727-91.447658-107.165224l-31.435132-16.146227c-16.860662-8.716105-16.860662-37.150611 0-45.866717l29.649045-15.217461c41.722994-21.433045 75.015657-61.084178 92.805084-110.737399l10.430749-29.148941c7.287235-20.289949 31.506576-20.289949 38.793811 0l10.430749 29.148941c17.860871 49.653221 51.08209 89.304354 92.876528 110.737399l29.577602 15.217461c16.932105 8.716105 16.932105 37.150611 0 45.866717l-31.363689 16.074783c-40.722785 20.932941-73.372457 59.226647-91.447659 107.236668zM413.265106 95.234163h164.891559v95.305606H413.265106c-136.671383 0-247.480225 127.883835-247.480225 285.773932 0 171.89302 101.592633 284.130732 329.926005 403.87001v-118.096078h82.445779c136.671383 0 247.480225-127.955278 247.480225-285.773932h82.44578c0 210.401057-147.673679 381.008095-329.926005 381.008095v166.677646C371.970773 928.765279 83.339102 785.878313 83.339102 476.313701 83.339102 265.769757 231.012781 95.234163 413.265106 95.234163z"></path>
+                    </svg>
+                  </button>
+                  <div id="promptPicker" class="composer-prompt-picker" hidden></div>
                 </div>
+
+                <button id="sendSelectedBtn" class="composer-inline-icon composer-inline-icon-send" type="button" aria-label="发送">
+                  <svg t="1776240171615" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4751" aria-hidden="true">
+                    <path d="M514 114.3c-219.9 0-398.8 178.9-398.8 398.8 0 220 178.9 398.9 398.8 398.9s398.8-178.9 398.8-398.9c0-219.8-178.9-398.8-398.8-398.8z m208.8 494.5c-11.5 11.5-26.5 17.2-41.5 17.2s-30.1-5.7-41.5-17.2L517.1 486.3 394.6 608.8c-22.9 22.9-60.2 22.9-83.1 0-22.9-22.9-22.9-60.2 0-83.1l164.1-164.1c22.9-22.9 60.2-22.9 83.1 0l164.1 164.1c22.9 23 22.9 60.2 0 83.1z" fill="currentColor" p-id="4752"></path>
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
-          <button id="sendSelectedBtn" class="primary-btn bottom-send-btn" type="button">发送</button>
         </div>
       </section>
     </div>

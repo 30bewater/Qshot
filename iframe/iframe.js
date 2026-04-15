@@ -3,7 +3,8 @@
   const STORAGE_KEYS = {
     cardSizeLevel: "cardSizeLevel",
     layoutRows: "layoutRows",
-    searchHistory: "searchHistory"
+    searchHistory: "searchHistory",
+    promptGroups: "promptGroups"
   };
 
   const state = {
@@ -18,6 +19,10 @@
     cardSizeLevel: "medium",
     layoutRows: 1,
     searchHistory: [],
+    currentHistoryEntryId: null,
+    promptGroups: [],
+    activePromptGroupId: null,
+    isPromptPickerOpen: false,
     lockedScrollLeft: null,
     scrollUnlockTimerId: null,
     isScrollLocked: false,
@@ -35,6 +40,7 @@
       bindEvents();
       hydrateQueryFromUrl();
       await restorePreferences();
+      bindPromptPickerEvents();
       await loadSites();
       renderCards();
       setGlobalStatus(`已加载 ${getSelectedSites().length} 个站点。`);
@@ -47,6 +53,8 @@
   function cacheElements() {
     elements.queryInput = document.getElementById("queryInput");
     elements.sendSelectedBtn = document.getElementById("sendSelectedBtn");
+    elements.promptAssistBtn = document.getElementById("promptAssistBtn");
+    elements.promptPicker = document.getElementById("promptPicker");
     elements.globalStatus = document.getElementById("globalStatus");
     elements.iframesContainer = document.getElementById("iframes-container");
     elements.layoutToggleBtn = document.getElementById("layoutToggleBtn");
@@ -63,6 +71,13 @@
 
   function bindEvents() {
     elements.sendSelectedBtn.addEventListener("click", handleSendSelected);
+    elements.promptAssistBtn?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePromptPicker();
+    });
+    elements.queryInput.addEventListener("input", () => {
+      closePromptPicker();
+    });
     elements.queryInput.addEventListener("keydown", async (event) => {
       if (event.key !== "Enter" || event.shiftKey) {
         return;
@@ -159,7 +174,8 @@
     const stored = await chrome.storage.local.get([
       STORAGE_KEYS.cardSizeLevel,
       STORAGE_KEYS.layoutRows,
-      STORAGE_KEYS.searchHistory
+      STORAGE_KEYS.searchHistory,
+      STORAGE_KEYS.promptGroups
     ]);
 
     if (typeof stored[STORAGE_KEYS.cardSizeLevel] === "string") {
@@ -171,9 +187,14 @@
     if (Array.isArray(stored[STORAGE_KEYS.searchHistory])) {
       state.searchHistory = stored[STORAGE_KEYS.searchHistory];
     }
+    state.promptGroups = normalizePromptGroups(stored[STORAGE_KEYS.promptGroups]);
+    if (!state.promptGroups.some((group) => group.id === state.activePromptGroupId)) {
+      state.activePromptGroupId = state.promptGroups[0]?.id || null;
+    }
     elements.iframesContainer.dataset.columns = "1";
     updateLayoutUi();
     renderHistoryList();
+    renderPromptPicker();
   }
 
   async function savePreferences() {
@@ -228,24 +249,32 @@
     const card = document.createElement("article");
     card.className = "iframe-card";
     card.dataset.siteId = site.id;
-
-    const header = document.createElement("div");
-    header.className = "iframe-card-header";
+    card.tabIndex = 0;
+    card.addEventListener("mouseenter", () => {
+      card.classList.add("is-actions-visible");
+    });
+    card.addEventListener("mouseleave", () => {
+      card.classList.remove("is-actions-visible");
+    });
+    card.addEventListener("focusin", () => {
+      card.classList.add("is-actions-visible");
+    });
+    card.addEventListener("focusout", () => {
+      card.classList.remove("is-actions-visible");
+    });
 
     const title = document.createElement("h3");
     title.className = "site-title";
     title.textContent = site.name;
+
+    const body = document.createElement("div");
+    body.className = "iframe-card-body";
 
     const status = document.createElement("div");
     status.className = "site-status visually-hidden";
     status.textContent = site.supportIframe
       ? "等待 iframe 加载"
       : "该站点默认使用新标签页模式";
-
-    header.appendChild(title);
-
-    const body = document.createElement("div");
-    body.className = "iframe-card-body";
 
     const iconJump =
       '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
@@ -324,8 +353,9 @@
     state.cardRefs.set(site.id, ref);
     createIframeBody(ref);
 
-    card.appendChild(header);
+    card.appendChild(title);
     card.appendChild(body);
+    card.appendChild(hoverActions);
     return card;
   }
 
@@ -374,7 +404,6 @@
 
     ref.bodyEl.innerHTML = "";
     ref.bodyEl.appendChild(iframe);
-    ref.bodyEl.appendChild(ref.hoverActionEl);
     ref.iframeEl = iframe;
 
     setTimeout(() => {
@@ -404,8 +433,8 @@
         window.open(ref.site.url, "_blank", "noopener,noreferrer");
       });
     }
-    if (ref.hoverActionEl && !ref.bodyEl.contains(ref.hoverActionEl)) {
-      ref.bodyEl.appendChild(ref.hoverActionEl);
+    if (ref.hoverActionEl && !ref.cardEl.contains(ref.hoverActionEl)) {
+      ref.cardEl.appendChild(ref.hoverActionEl);
     }
     setSiteStatus(ref.site.id, "该站点暂时无法在卡片内嵌入。");
   }
@@ -488,6 +517,7 @@
       const ref = state.cardRefs.get(payload.siteId);
       if (ref && payload.currentUrl) {
         ref.currentUrl = payload.currentUrl;
+        updateLatestHistoryUrl(payload.siteId, payload.currentUrl);
       }
       return;
     }
@@ -524,10 +554,20 @@
 
   function toggleGlobalButtons(isBusy) {
     elements.sendSelectedBtn.disabled = isBusy;
+    if (elements.promptAssistBtn) {
+      elements.promptAssistBtn.disabled = isBusy;
+    }
   }
 
   function lockContainerScroll() {
     if (!elements.iframesContainer) {
+      return;
+    }
+
+    if (state.layoutRows === 1) {
+      state.lockedScrollLeft = null;
+      state.isScrollLocked = false;
+      stopScrollLockLoop();
       return;
     }
 
@@ -548,6 +588,14 @@
   function scheduleScrollUnlock() {
     if (state.scrollUnlockTimerId) {
       window.clearTimeout(state.scrollUnlockTimerId);
+    }
+
+    if (state.layoutRows === 1) {
+      state.lockedScrollLeft = null;
+      state.isScrollLocked = false;
+      stopScrollLockLoop();
+      state.scrollUnlockTimerId = null;
+      return;
     }
 
     state.scrollUnlockTimerId = window.setTimeout(() => {
@@ -622,6 +670,14 @@
         : "calc(100vh - 190px)";
     }
 
+    state.lockedScrollLeft = null;
+    state.isScrollLocked = false;
+    stopScrollLockLoop();
+    if (state.scrollUnlockTimerId) {
+      window.clearTimeout(state.scrollUnlockTimerId);
+      state.scrollUnlockTimerId = null;
+    }
+
     elements.iframesContainer.style.setProperty("--effective-card-width", `${effectiveWidth}px`);
     elements.iframesContainer.style.setProperty("--row-height", rowHeight);
     document.documentElement.style.setProperty("--card-width", `${effectiveWidth}px`);
@@ -644,14 +700,152 @@
     elements.historyPanel.hidden = !elements.historyPanel.hidden;
   }
 
+  function bindPromptPickerEvents() {
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !state.isPromptPickerOpen) {
+        return;
+      }
+
+      if (target.closest("#promptAssistBtn") || target.closest("#promptPicker")) {
+        return;
+      }
+
+      closePromptPicker();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && state.isPromptPickerOpen) {
+        closePromptPicker();
+        elements.queryInput?.focus();
+      }
+    });
+  }
+
+  function togglePromptPicker() {
+    state.isPromptPickerOpen = !state.isPromptPickerOpen;
+    renderPromptPicker();
+  }
+
+  function closePromptPicker() {
+    if (!state.isPromptPickerOpen) {
+      return;
+    }
+
+    state.isPromptPickerOpen = false;
+    renderPromptPicker();
+  }
+
+  function renderPromptPicker() {
+    if (!elements.promptPicker || !elements.promptAssistBtn) {
+      return;
+    }
+
+    elements.promptAssistBtn.style.display = state.promptGroups.length > 0 ? "inline-flex" : "none";
+
+    elements.promptPicker.innerHTML = "";
+    elements.promptAssistBtn.setAttribute("aria-expanded", String(state.isPromptPickerOpen));
+
+    if (!state.isPromptPickerOpen) {
+      elements.promptPicker.hidden = true;
+      return;
+    }
+
+    elements.promptPicker.hidden = false;
+
+    if (!state.promptGroups.length) {
+      const empty = document.createElement("div");
+      empty.className = "popup-prompt-picker-empty";
+      empty.textContent = "还没有提示词分组，请先去设置里添加。";
+      elements.promptPicker.appendChild(empty);
+      return;
+    }
+
+    const activeGroup = state.promptGroups.find((group) => group.id === state.activePromptGroupId) || state.promptGroups[0];
+    if (!activeGroup) {
+      return;
+    }
+
+    const groupsColumn = document.createElement("div");
+    groupsColumn.className = "popup-prompt-groups";
+
+    state.promptGroups.forEach((group) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `popup-prompt-group-item${group.id === activeGroup.id ? " is-active" : ""}`;
+      button.textContent = group.name || "未命名分组";
+      button.addEventListener("mouseenter", () => {
+        if (state.activePromptGroupId === group.id) {
+          return;
+        }
+        state.activePromptGroupId = group.id;
+        renderPromptPicker();
+      });
+      button.addEventListener("click", () => {
+        state.activePromptGroupId = group.id;
+        renderPromptPicker();
+      });
+      groupsColumn.appendChild(button);
+    });
+
+    const promptsColumn = document.createElement("div");
+    promptsColumn.className = "popup-prompt-list";
+
+    if (!activeGroup.prompts.length) {
+      const empty = document.createElement("div");
+      empty.className = "popup-prompt-picker-empty";
+      empty.textContent = "这个分组里还没有提示词。";
+      promptsColumn.appendChild(empty);
+    } else {
+      activeGroup.prompts.forEach((prompt) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "popup-prompt-item";
+        button.textContent = prompt.title || "未命名提示词";
+        button.addEventListener("click", () => {
+          elements.queryInput.value = prompt.content || "";
+          closePromptPicker();
+          elements.queryInput.focus();
+        });
+        promptsColumn.appendChild(button);
+      });
+    }
+
+    elements.promptPicker.appendChild(groupsColumn);
+    elements.promptPicker.appendChild(promptsColumn);
+  }
+
+  function normalizePromptGroups(source) {
+    const list = Array.isArray(source) ? source : [];
+    return list.map((group, groupIndex) => ({
+      id: String(group.id || `prompt-group-${groupIndex}`),
+      name: String(group.name || "未命名分组"),
+      prompts: Array.isArray(group.prompts)
+        ? group.prompts.map((prompt, promptIndex) => ({
+            id: String(prompt.id || `prompt-${groupIndex}-${promptIndex}`),
+            title: String(prompt.title || "未命名提示词"),
+            content: String(prompt.content || "")
+          }))
+        : []
+    }));
+  }
+
   async function saveSearchHistory(query, sites) {
     const entry = {
       id: createRequestId(),
       query,
-      sites: sites.map((site) => site.name),
+      sites: sites.map((site) => {
+        const ref = state.cardRefs.get(site.id);
+        return {
+          id: site.id,
+          name: site.name,
+          url: ref?.currentUrl || site.url
+        };
+      }),
       createdAt: new Date().toISOString()
     };
 
+    state.currentHistoryEntryId = entry.id;
     state.searchHistory = [entry, ...state.searchHistory].slice(0, 50);
     await savePreferences();
     renderHistoryList();
@@ -672,18 +866,114 @@
     }
 
     state.searchHistory.forEach((entry) => {
+      const normalizedSites = Array.isArray(entry.sites)
+        ? entry.sites.map((site, index) => {
+            if (typeof site === "string") {
+              return {
+                id: `legacy-${index}`,
+                name: site,
+                url: ""
+              };
+            }
+
+            return {
+              id: String(site.id || `site-${index}`),
+              name: String(site.name || "未命名站点"),
+              url: String(site.url || "")
+            };
+          })
+        : [];
+
       const item = document.createElement("div");
       item.className = "history-item";
-      item.innerHTML = `
-        <div class="history-item-title">${escapeHtml(entry.query)}</div>
-        <div class="history-item-meta">${escapeHtml(entry.sites.join(" / "))}</div>
-      `;
+
+      const title = document.createElement("div");
+      title.className = "history-item-title";
+      title.textContent = entry.query;
+
+      const meta = document.createElement("div");
+      meta.className = "history-item-meta";
+      meta.textContent = formatHistoryTime(entry.createdAt);
+
+      const links = document.createElement("div");
+      links.className = "history-site-links";
+
+      normalizedSites.forEach((site) => {
+        const link = document.createElement(site.url ? "a" : "button");
+        link.className = "history-site-link";
+        link.textContent = site.name;
+
+        if (site.url) {
+          link.href = site.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+        } else {
+          link.type = "button";
+          link.disabled = true;
+        }
+
+        link.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+        links.appendChild(link);
+      });
+
+      item.appendChild(title);
+      item.appendChild(meta);
+      item.appendChild(links);
       item.addEventListener("click", () => {
         elements.queryInput.value = entry.query;
         elements.historyPanel.hidden = true;
       });
       elements.historyList.appendChild(item);
     });
+  }
+
+  function formatHistoryTime(value) {
+    if (!value) {
+      return "";
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    return date.toLocaleString();
+  }
+
+  async function updateLatestHistoryUrl(siteId, url) {
+    if (!siteId || !url || !state.currentHistoryEntryId) {
+      return;
+    }
+
+    let changed = false;
+    state.searchHistory = state.searchHistory.map((entry) => {
+      if (entry.id !== state.currentHistoryEntryId || !Array.isArray(entry.sites)) {
+        return entry;
+      }
+
+      const updatedSites = entry.sites.map((site) => {
+        if (!site || site.id !== siteId || site.url === url) {
+          return site;
+        }
+
+        changed = true;
+        return {
+          ...site,
+          url
+        };
+      });
+
+      return changed ? { ...entry, sites: updatedSites } : entry;
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    await savePreferences();
+    renderHistoryList();
   }
 
   function showExportModal() {
@@ -702,14 +992,16 @@
     modal.innerHTML = `
       <div class="export-modal-content">
         <div class="export-modal-header">
-          <h3 class="export-modal-title">导出当前搜索结果</h3>
+          <h3 class="export-modal-title">导出AI比一比结果</h3>
           <button class="export-close-btn" type="button">×</button>
         </div>
+        <div class="export-warning-box">⚠ 功能在开发中，可能会有错误或不足</div>
         <div class="export-section">
           <div class="export-section-title">导出格式</div>
           <div class="export-option-row">
             <button class="export-option-btn is-active" data-export-format="markdown">Markdown</button>
             <button class="export-option-btn" data-export-format="txt">纯文本</button>
+            <button class="export-option-btn" data-export-format="html">HTML</button>
           </div>
         </div>
         <div class="export-section">
@@ -721,8 +1013,8 @@
           <pre class="export-preview">正在生成预览...</pre>
         </div>
         <div class="export-actions">
-          <button class="composer-tool-btn export-cancel-btn" type="button">取消</button>
-          <button class="primary-btn export-confirm-btn" type="button">导出</button>
+          <button class="export-cancel-btn" type="button">取消</button>
+          <button class="export-confirm-btn" type="button">导出</button>
         </div>
       </div>
     `;
@@ -778,8 +1070,9 @@
     modal.querySelector(".export-confirm-btn").addEventListener("click", async () => {
       const responses = await collectVisibleResponses(selectedSiteIds);
       const content = generateExportContent(responses, selectedFormat);
-      const extension = selectedFormat === "markdown" ? "md" : "txt";
-      downloadFile(content, `ai-compare-export.${extension}`, "text/plain");
+      const extension = selectedFormat === "markdown" ? "md" : selectedFormat;
+      const mimeType = selectedFormat === "html" ? "text/html" : "text/plain";
+      downloadFile(content, `ai-compare-export.${extension}`, mimeType);
       closeModal();
     });
 
@@ -798,14 +1091,44 @@
       if (selectedSiteIds && !selectedSiteIds.has(siteId)) {
         continue;
       }
-      if (!ref.iframeEl) {
-        continue;
-      }
 
-      const response = await requestIframeContent(ref.iframeEl, ref.site);
+      const response = await collectResponseForSite(ref);
       responses.push(response);
     }
     return responses;
+  }
+
+  async function collectResponseForSite(ref) {
+    if (!ref.iframeEl) {
+      return {
+        siteName: ref.site.name,
+        content: "暂未提取到内容",
+        url: ref.currentUrl || ref.site.url
+      };
+    }
+
+    const response = await requestIframeContent(ref.iframeEl, ref.site);
+    if (response.content && response.content !== "暂未提取到内容") {
+      return response;
+    }
+
+    return {
+      ...response,
+      content: extractFallbackContent(ref)
+    };
+  }
+
+  function extractFallbackContent(ref) {
+    if (!ref || !ref.bodyEl) {
+      return "暂未提取到内容";
+    }
+
+    const fallbackPanel = ref.bodyEl.querySelector(".fallback-panel");
+    if (fallbackPanel) {
+      return String(fallbackPanel.textContent || "暂未提取到内容").trim() || "暂未提取到内容";
+    }
+
+    return ref.statusEl?.textContent?.trim() || "暂未提取到内容";
   }
 
   function requestIframeContent(iframe, site) {
@@ -820,17 +1143,28 @@
         window.removeEventListener("message", handler);
         resolve({
           siteName: site.name,
-          content: event.data.content || "",
+          content: cleanExtractedContent(event.data.content || ""),
           url: event.data.url || site.url
         });
       };
 
       window.addEventListener("message", handler);
-      iframe.contentWindow.postMessage({
-        type: "AI_COMPARE_EXTRACT",
-        requestId,
-        site
-      }, "*");
+
+      try {
+        iframe.contentWindow.postMessage({
+          type: "AI_COMPARE_EXTRACT",
+          requestId,
+          site
+        }, "*");
+      } catch (_error) {
+        window.removeEventListener("message", handler);
+        resolve({
+          siteName: site.name,
+          content: "暂未提取到内容",
+          url: site.url
+        });
+        return;
+      }
 
       window.setTimeout(() => {
         window.removeEventListener("message", handler);
@@ -843,15 +1177,35 @@
     });
   }
 
+  function cleanExtractedContent(content) {
+    const text = String(content || "").trim();
+    if (!text) {
+      return "暂未提取到内容";
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => !/window\.__|requestAnimationFrame|function\s*\(|use strict|theme-host/i.test(line));
+
+    const result = lines.join("\n\n").trim();
+    return result || text.slice(0, 4000) || "暂未提取到内容";
+  }
+
   function generateExportContent(responses, format) {
     const query = getQuery() || "未填写问题";
     const time = new Date().toLocaleString();
 
     if (format === "markdown") {
-      return `# AI 对比结果\n\n问题：${query}\n\n导出时间：${time}\n\n${responses.map((item) => `## ${item.siteName}\n\nURL: ${item.url}\n\n${item.content}`).join("\n\n---\n\n")}`;
+      return `# AI 对比结果\n\n> 问题：${query}\n> 导出时间：${time}\n\n${responses.map((item) => `## ${item.siteName}\n\n**URL:** ${item.url}\n\n${item.content || "暂未提取到内容"}`).join("\n\n---\n\n")}`;
     }
 
-    return `AI 对比结果\n\n问题：${query}\n导出时间：${time}\n\n${responses.map((item) => `${item.siteName}\nURL: ${item.url}\n${item.content}`).join("\n\n====================\n\n")}`;
+    if (format === "html") {
+      return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>AI 对比结果</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.7}section{margin-bottom:28px}pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:16px;border-radius:12px}</style></head><body><h1>AI 对比结果</h1><p><strong>问题：</strong>${escapeHtml(query)}</p><p><strong>导出时间：</strong>${escapeHtml(time)}</p>${responses.map((item) => `<section><h2>${escapeHtml(item.siteName)}</h2><p><strong>URL:</strong> ${escapeHtml(item.url)}</p><pre>${escapeHtml(item.content || "暂未提取到内容")}</pre></section>`).join("")}</body></html>`;
+    }
+
+    return `AI 对比结果\n\n问题：${query}\n导出时间：${time}\n\n${responses.map((item) => `${item.siteName}\nURL: ${item.url}\n\n${item.content || "暂未提取到内容"}`).join("\n\n====================\n\n")}`;
   }
 
   function generateExportPreview(responses, format) {

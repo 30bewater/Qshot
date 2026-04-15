@@ -3,25 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>搜索组设置</title>
+    <title>设置</title>
     <link rel="stylesheet" href="settings.css" />
   </head>
   <body>
     <main class="settings-shell">
-      <header class="settings-header">
-        <div>
-          <p class="settings-eyebrow">搜索组</p>
-          <h1>分组与调用内容</h1>
-          <p class="settings-subtitle">左边设置搜索组名称与打开方式，右边直接增删该组调用的网站或 AI 模型。</p>
-        </div>
-        <div class="settings-header-actions">
-          <span id="saveStatus" class="save-status">已保存</span>
-          <button id="saveSettingsBtn" class="secondary-btn" type="button">保存设置</button>
-          <button id="addGroupBtn" class="primary-btn" type="button">新增搜索组</button>
-        </div>
-      </header>
-      <div id="settingsGroups" class="settings-groups"></div>
+      <aside class="settings-sidebar">
+        
+
+        <nav class="settings-nav" aria-label="设置菜单">
+          <button class="settings-nav-item is-active" type="button" data-section="groups">
+            <span class="settings-nav-title">搜索组设置</span>
+            <span class="settings-nav-desc">管理分组与调用站点</span>
+          </button>
+          <button class="settings-nav-item" type="button" data-section="prompts">
+            <span class="settings-nav-title">提示词设置</span>
+            <span class="settings-nav-desc">管理提示词分组与内容</span>
+          </button>
+          <button class="settings-nav-item" type="button" data-section="other">
+            <span class="settings-nav-title">其他设置</span>
+            <span class="settings-nav-desc">控制首页显示与隐藏项</span>
+          </button>
+        </nav>
+      </aside>
+
+      <section class="settings-content">
+        <header class="settings-content-header">
+          <div>
+            <p id="sectionEyebrow" class="settings-eyebrow">搜索组设置</p>
+            <h2 id="sectionTitle">分组与调用内容</h2>
+            <p id="sectionSubtitle" class="settings-subtitle">管理搜索组名称、启用状态、打开方式，以及每个组内调用的网站或 AI 模型。</p>
+          </div>
+          
+        </header>
+
+        <section id="groupsSection" class="settings-section"></section>
+        <section id="promptsSection" class="settings-section" hidden></section>
+        <section id="otherSection" class="settings-section" hidden></section>
+      </section>
     </main>
+
     <script src="../config/baseConfig.js"></script>
     <script src="settings.js"></script>
   </body>
