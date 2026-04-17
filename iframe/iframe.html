@@ -12,10 +12,16 @@
         <div id="iframes-container" class="iframes-container" data-columns="1"></div>
       </section>
 
-      <aside id="historyPanel" class="history-panel" hidden>
+      <aside id="siteNavPanel" class="site-nav-panel" hidden>
+        <div class="site-nav-header">AI 模型</div>
+        <div id="siteNavList" class="site-nav-list"></div>
+      </aside>
+
+      <aside id="historyPanel" class="history-panel">
+        <button id="closeHistoryPanelBtn" class="history-close-btn" type="button" aria-label="关闭">×</button>
         <div class="history-panel-header">
           <h3>搜索记录</h3>
-          <button id="closeHistoryPanelBtn" class="history-close-btn" type="button">×</button>
+          <button id="clearHistoryBtn" class="history-clear-btn" type="button">清空</button>
         </div>
         <div id="historyList" class="history-list"></div>
       </aside>
@@ -62,6 +68,7 @@
                         <button class="layout-option-btn" type="button" data-layout-rows="1">1排</button>
                         <button class="layout-option-btn" type="button" data-layout-rows="2">2排</button>
                         <button class="layout-option-btn" type="button" data-layout-rows="3">3排</button>
+                        <button class="layout-option-btn" type="button" data-layout-mode="sidebar">侧边</button>
                       </div>
                     </div>
                     <div id="cardSizeGroup" class="layout-option-group">

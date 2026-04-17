@@ -3,6 +3,7 @@
   const STORAGE_KEYS = {
     cardSizeLevel: "cardSizeLevel",
     layoutRows: "layoutRows",
+    layoutMode: "layoutMode",
     searchHistory: "searchHistory",
     promptGroups: "promptGroups"
   };
@@ -18,6 +19,8 @@
     pendingDispatches: new Map(),
     cardSizeLevel: "medium",
     layoutRows: 1,
+    layoutMode: "grid",
+    activeSidebarSiteId: null,
     searchHistory: [],
     currentHistoryEntryId: null,
     promptGroups: [],
@@ -26,7 +29,10 @@
     lockedScrollLeft: null,
     scrollUnlockTimerId: null,
     isScrollLocked: false,
-    scrollLockFrameId: null
+    scrollGuardActive: false,
+    scrollGuardLeft: 0,
+    userIsScrolling: false,
+    userScrollTimer: null
   };
 
   const elements = {};
@@ -67,6 +73,10 @@
     elements.historyPanel = document.getElementById("historyPanel");
     elements.historyList = document.getElementById("historyList");
     elements.closeHistoryPanelBtn = document.getElementById("closeHistoryPanelBtn");
+    elements.clearHistoryBtn = document.getElementById("clearHistoryBtn");
+    elements.siteNavPanel = document.getElementById("siteNavPanel");
+    elements.siteNavList = document.getElementById("siteNavList");
+    elements.sidebarLayoutBtn = document.querySelector("[data-layout-mode='sidebar']");
   }
 
   function bindEvents() {
@@ -87,9 +97,28 @@
       await handleSendSelected();
     });
     elements.exportBtn.addEventListener("click", showExportModal);
-    elements.historyToggleBtn.addEventListener("click", toggleHistoryPanel);
-    elements.closeHistoryPanelBtn.addEventListener("click", () => {
-      elements.historyPanel.hidden = true;
+    elements.historyToggleBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleHistoryPanel();
+    });
+    elements.closeHistoryPanelBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeHistoryPanel();
+    });
+    document.addEventListener("click", (event) => {
+      if (
+        elements.historyPanel.classList.contains("is-open") &&
+        !elements.historyPanel.contains(event.target) &&
+        !elements.historyToggleBtn.contains(event.target)
+      ) {
+        closeHistoryPanel();
+      }
+    });
+    elements.clearHistoryBtn?.addEventListener("click", async () => {
+      if (state.searchHistory.length === 0) {
+        return;
+      }
+      await clearAllHistory();
     });
     elements.layoutToggleBtn.addEventListener("click", () => {
       const isHidden = elements.layoutPopover.hasAttribute("hidden");
@@ -116,6 +145,24 @@
       });
     });
 
+    elements.sidebarLayoutBtn?.addEventListener("click", async () => {
+      if (state.layoutMode === "sidebar") {
+        state.layoutMode = "grid";
+      } else {
+        state.layoutMode = "sidebar";
+        const firstSite = getSelectedSites()[0];
+        if (!state.activeSidebarSiteId || !state.cardRefs.has(state.activeSidebarSiteId)) {
+          state.activeSidebarSiteId = firstSite?.id || null;
+        }
+        state.cardRefs.forEach((ref, siteId) => {
+          if (ref.cardEl) ref.cardEl.hidden = siteId !== state.activeSidebarSiteId;
+        });
+        renderSiteNav();
+      }
+      updateLayoutUi();
+      await savePreferences();
+    });
+
     document.addEventListener("click", (event) => {
       if (!elements.layoutPopover || elements.layoutPopover.hasAttribute("hidden")) {
         return;
@@ -128,17 +175,46 @@
       }
     });
 
+    elements.iframesContainer.addEventListener("wheel", () => {
+      state.userIsScrolling = true;
+      clearTimeout(state.userScrollTimer);
+      state.userScrollTimer = setTimeout(() => {
+        state.userIsScrolling = false;
+        state.userScrollTimer = null;
+        if (state.scrollGuardActive) {
+          state.scrollGuardLeft = elements.iframesContainer.scrollLeft;
+        }
+      }, 400);
+    }, { passive: true });
+
+    elements.iframesContainer.addEventListener("pointerdown", () => {
+      state.userIsScrolling = true;
+    }, { passive: true });
+
+    window.addEventListener("pointerup", () => {
+      if (state.userIsScrolling) {
+        state.userIsScrolling = false;
+        if (state.scrollGuardActive) {
+          state.scrollGuardLeft = elements.iframesContainer.scrollLeft;
+        }
+      }
+    }, { passive: true });
+
     elements.iframesContainer.addEventListener("scroll", () => {
-      if (state.isScrollLocked) {
-        restoreLockedScrollPosition();
+      if (state.scrollGuardActive && !state.userIsScrolling) {
+        elements.iframesContainer.scrollLeft = state.scrollGuardLeft;
       }
     }, { passive: true });
 
     elements.iframesContainer.addEventListener("wheel", (event) => {
-      if (state.isScrollLocked) {
-        event.preventDefault();
-        restoreLockedScrollPosition();
+      if (state.layoutRows !== 1 || state.layoutMode === "sidebar") {
+        return;
       }
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+        return;
+      }
+      event.preventDefault();
+      elements.iframesContainer.scrollLeft += event.deltaY * 1.2;
     }, { passive: false });
 
     window.addEventListener("resize", () => {
@@ -174,6 +250,7 @@
     const stored = await chrome.storage.local.get([
       STORAGE_KEYS.cardSizeLevel,
       STORAGE_KEYS.layoutRows,
+      STORAGE_KEYS.layoutMode,
       STORAGE_KEYS.searchHistory,
       STORAGE_KEYS.promptGroups
     ]);
@@ -183,6 +260,9 @@
     }
     if (typeof stored[STORAGE_KEYS.layoutRows] === "number") {
       state.layoutRows = stored[STORAGE_KEYS.layoutRows];
+    }
+    if (stored[STORAGE_KEYS.layoutMode] === "sidebar" || stored[STORAGE_KEYS.layoutMode] === "grid") {
+      state.layoutMode = stored[STORAGE_KEYS.layoutMode];
     }
     if (Array.isArray(stored[STORAGE_KEYS.searchHistory])) {
       state.searchHistory = stored[STORAGE_KEYS.searchHistory];
@@ -201,6 +281,7 @@
     await chrome.storage.local.set({
       [STORAGE_KEYS.cardSizeLevel]: state.cardSizeLevel,
       [STORAGE_KEYS.layoutRows]: state.layoutRows,
+      [STORAGE_KEYS.layoutMode]: state.layoutMode,
       [STORAGE_KEYS.searchHistory]: state.searchHistory
     });
   }
@@ -224,7 +305,7 @@
   function renderCards() {
     elements.iframesContainer.innerHTML = "";
     elements.iframesContainer.dataset.columns = "1";
-    elements.iframesContainer.dataset.layoutRows = String(state.layoutRows);
+    elements.iframesContainer.dataset.layoutRows = state.layoutMode === "sidebar" ? "sidebar" : String(state.layoutRows);
     state.cardRefs.clear();
 
     const selectedSites = getSelectedSites();
@@ -243,6 +324,18 @@
       }
       elements.iframesContainer.appendChild(card);
     });
+
+    if (state.layoutMode === "sidebar") {
+      if (!state.activeSidebarSiteId || !state.cardRefs.has(state.activeSidebarSiteId)) {
+        state.activeSidebarSiteId = selectedSites[0]?.id || null;
+      }
+      state.cardRefs.forEach((ref, siteId) => {
+        if (ref.cardEl) ref.cardEl.hidden = siteId !== state.activeSidebarSiteId;
+      });
+      renderSiteNav();
+    }
+
+    elements.iframesContainer.scrollLeft = 0;
   }
 
   function createSiteCard(site) {
@@ -324,6 +417,16 @@
       if (state.maximizedSiteId === site.id) {
         state.maximizedSiteId = null;
       }
+      if (state.layoutMode === "sidebar" && state.activeSidebarSiteId === site.id) {
+        const nextSite = getSelectedSites().find((s) => s.id !== site.id && state.cardRefs.has(s.id));
+        state.activeSidebarSiteId = nextSite?.id || null;
+        if (state.activeSidebarSiteId) {
+          state.cardRefs.forEach((r, id) => {
+            if (r.cardEl) r.cardEl.hidden = id !== state.activeSidebarSiteId;
+          });
+        }
+        renderSiteNav();
+      }
       ensureCardsNotEmpty();
       setGlobalStatus(`已关闭 ${site.name} 卡片。`);
     });
@@ -378,8 +481,6 @@
     iframe.src = buildSiteUrl(ref.site, "");
     iframe.loading = "eager";
     iframe.allow = "clipboard-read; clipboard-write; microphone; camera; geolocation; autoplay; fullscreen; picture-in-picture; storage-access; web-share";
-    iframe.addEventListener("focus", restoreLockedScrollPosition, true);
-    iframe.addEventListener("mouseenter", restoreLockedScrollPosition);
 
     let resolved = false;
     iframe.addEventListener("load", () => {
@@ -421,12 +522,20 @@
         </div>
         <p>${escapeHtml(message || ref.site.notes || "该站点可能限制 iframe 嵌入。")}</p>
         <div class="inline-action-row">
+          <button class="site-action-btn" type="button" data-retry-load>重新加载</button>
           <button class="site-action-btn" type="button" data-open-site="${escapeHtml(ref.site.url)}">在新标签页打开</button>
         </div>
       </div>
     `;
     ref.iframeEl = null;
     ref.loaded = false;
+    const retryButton = ref.bodyEl.querySelector("[data-retry-load]");
+    if (retryButton) {
+      retryButton.addEventListener("click", () => {
+        createIframeBody(ref);
+        setSiteStatus(ref.site.id, "正在重新加载…");
+      });
+    }
     const openButton = ref.bodyEl.querySelector("[data-open-site]");
     if (openButton) {
       openButton.addEventListener("click", () => {
@@ -440,7 +549,7 @@
   }
 
   async function handleSendSelected(options = {}) {
-    const { clearInputAfterSend = false } = options;
+    const { clearInputAfterSend = true } = options;
     const query = getQuery();
     if (!query) {
       setGlobalStatus("请输入问题后再发送。", true);
@@ -457,17 +566,25 @@
     toggleGlobalButtons(true);
     setGlobalStatus(`正在向 ${selectedSites.length} 个站点分发问题...`);
 
+    state.scrollGuardActive = true;
+    state.scrollGuardLeft = elements.iframesContainer.scrollLeft;
+
+    if (clearInputAfterSend) {
+      elements.queryInput.value = "";
+    }
+
     const results = await Promise.all(selectedSites.map((site) => sendSmartToSite(site, query)));
     const successCount = results.filter((item) => item && item.ok).length;
     const failedCount = results.length - successCount;
 
     await saveSearchHistory(query, selectedSites);
     setGlobalStatus(`发送完成：成功 ${successCount} 个，失败 ${failedCount} 个。`, failedCount > 0);
-    if (clearInputAfterSend) {
-      elements.queryInput.value = "";
-    }
     toggleGlobalButtons(false);
     scheduleScrollUnlock();
+
+    setTimeout(() => {
+      state.scrollGuardActive = false;
+    }, 3000);
   }
 
   async function maybeAutoSendFromUrl() {
@@ -504,6 +621,8 @@
       });
     }
 
+    ref.pendingQuery = "";
+    ref.pendingQueryResolver = null;
     return dispatchSearchWithRetries(ref, query, 120);
   }
 
@@ -567,14 +686,11 @@
     if (state.layoutRows === 1) {
       state.lockedScrollLeft = null;
       state.isScrollLocked = false;
-      stopScrollLockLoop();
       return;
     }
 
     state.lockedScrollLeft = elements.iframesContainer.scrollLeft;
     state.isScrollLocked = true;
-    restoreLockedScrollPosition();
-    startScrollLockLoop();
   }
 
   function restoreLockedScrollPosition() {
@@ -593,7 +709,6 @@
     if (state.layoutRows === 1) {
       state.lockedScrollLeft = null;
       state.isScrollLocked = false;
-      stopScrollLockLoop();
       state.scrollUnlockTimerId = null;
       return;
     }
@@ -601,35 +716,10 @@
     state.scrollUnlockTimerId = window.setTimeout(() => {
       state.lockedScrollLeft = null;
       state.isScrollLocked = false;
-      stopScrollLockLoop();
       state.scrollUnlockTimerId = null;
     }, 2200);
   }
 
-  function startScrollLockLoop() {
-    if (state.scrollLockFrameId !== null) {
-      return;
-    }
-
-    const tick = () => {
-      if (!state.isScrollLocked) {
-        state.scrollLockFrameId = null;
-        return;
-      }
-
-      restoreLockedScrollPosition();
-      state.scrollLockFrameId = window.requestAnimationFrame(tick);
-    };
-
-    state.scrollLockFrameId = window.requestAnimationFrame(tick);
-  }
-
-  function stopScrollLockLoop() {
-    if (state.scrollLockFrameId !== null) {
-      window.cancelAnimationFrame(state.scrollLockFrameId);
-      state.scrollLockFrameId = null;
-    }
-  }
 
   function getSelectedSites() {
     return state.sites.filter((site) => !state.hiddenSiteIds.has(site.id));
@@ -656,6 +746,23 @@
   }
 
   function updateLayoutUi() {
+    const appShell = document.querySelector(".app-shell");
+
+    if (state.layoutMode === "sidebar") {
+      appShell?.classList.add("is-sidebar-mode");
+      elements.iframesContainer.dataset.layoutRows = "sidebar";
+      if (elements.siteNavPanel) elements.siteNavPanel.hidden = false;
+      if (elements.cardSizeGroup) elements.cardSizeGroup.hidden = true;
+      elements.sidebarLayoutBtn?.classList.add("is-active");
+      elements.layoutRowsButtons.forEach((btn) => btn.classList.remove("is-active"));
+      elements.cardSizeButtons.forEach((btn) => btn.classList.remove("is-active"));
+      return;
+    }
+
+    appShell?.classList.remove("is-sidebar-mode");
+    if (elements.siteNavPanel) elements.siteNavPanel.hidden = true;
+    elements.sidebarLayoutBtn?.classList.remove("is-active");
+
     const singleRowWidthMap = {
       small: 480,
       medium: 640,
@@ -663,16 +770,15 @@
     };
 
     let effectiveWidth = singleRowWidthMap[state.cardSizeLevel] || singleRowWidthMap.medium;
-    let rowHeight = "calc(100vh - 132px)";
+    let rowHeight = "calc(100vh - 163px)";
     if (state.layoutRows > 1) {
       rowHeight = state.layoutRows === 2
-        ? "calc(100vh - 170px)"
-        : "calc(100vh - 190px)";
+        ? "calc(100vh - 159px)"
+        : "calc(100vh - 179px)";
     }
 
     state.lockedScrollLeft = null;
     state.isScrollLocked = false;
-    stopScrollLockLoop();
     if (state.scrollUnlockTimerId) {
       window.clearTimeout(state.scrollUnlockTimerId);
       state.scrollUnlockTimerId = null;
@@ -696,8 +802,47 @@
     }
   }
 
+  function renderSiteNav() {
+    if (!elements.siteNavList) return;
+    elements.siteNavList.innerHTML = "";
+    const selectedSites = getSelectedSites();
+    selectedSites.forEach((site) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "site-nav-item" + (site.id === state.activeSidebarSiteId ? " is-active" : "");
+      btn.dataset.siteId = site.id;
+      btn.innerHTML = `<span class="site-nav-item-indicator"></span><span>${escapeHtml(site.name)}</span>`;
+      btn.addEventListener("click", () => activateSidebarSite(site.id));
+      elements.siteNavList.appendChild(btn);
+    });
+  }
+
+  function activateSidebarSite(siteId) {
+    state.activeSidebarSiteId = siteId;
+    state.cardRefs.forEach((ref, id) => {
+      if (ref.cardEl) ref.cardEl.hidden = id !== siteId;
+    });
+    if (elements.siteNavList) {
+      elements.siteNavList.querySelectorAll(".site-nav-item").forEach((item) => {
+        item.classList.toggle("is-active", item.dataset.siteId === siteId);
+      });
+    }
+  }
+
+  function openHistoryPanel() {
+    elements.historyPanel.classList.add("is-open");
+  }
+
+  function closeHistoryPanel() {
+    elements.historyPanel.classList.remove("is-open");
+  }
+
   function toggleHistoryPanel() {
-    elements.historyPanel.hidden = !elements.historyPanel.hidden;
+    if (elements.historyPanel.classList.contains("is-open")) {
+      closeHistoryPanel();
+    } else {
+      openHistoryPanel();
+    }
   }
 
   function bindPromptPickerEvents() {
@@ -918,15 +1063,39 @@
         links.appendChild(link);
       });
 
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "history-item-delete-btn";
+      deleteBtn.textContent = "×";
+      deleteBtn.setAttribute("aria-label", "删除记录");
+      deleteBtn.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        await deleteHistoryEntry(entry.id);
+      });
+
       item.appendChild(title);
       item.appendChild(meta);
       item.appendChild(links);
+      item.appendChild(deleteBtn);
       item.addEventListener("click", () => {
         elements.queryInput.value = entry.query;
-        elements.historyPanel.hidden = true;
+        closeHistoryPanel();
       });
       elements.historyList.appendChild(item);
     });
+  }
+
+  async function deleteHistoryEntry(id) {
+    state.searchHistory = state.searchHistory.filter((entry) => entry.id !== id);
+    await savePreferences();
+    renderHistoryList();
+  }
+
+  async function clearAllHistory() {
+    state.searchHistory = [];
+    state.currentHistoryEntryId = null;
+    await savePreferences();
+    renderHistoryList();
   }
 
   function formatHistoryTime(value) {
@@ -992,25 +1161,27 @@
     modal.innerHTML = `
       <div class="export-modal-content">
         <div class="export-modal-header">
-          <h3 class="export-modal-title">导出AI比一比结果</h3>
-          <button class="export-close-btn" type="button">×</button>
+          <h3 class="export-modal-title">导出 AI 对比结果</h3>
+          <button class="export-close-btn" type="button" aria-label="关闭">×</button>
         </div>
-        <div class="export-warning-box">⚠ 功能在开发中，可能会有错误或不足</div>
-        <div class="export-section">
-          <div class="export-section-title">导出格式</div>
-          <div class="export-option-row">
-            <button class="export-option-btn is-active" data-export-format="markdown">Markdown</button>
-            <button class="export-option-btn" data-export-format="txt">纯文本</button>
-            <button class="export-option-btn" data-export-format="html">HTML</button>
+        <div class="export-notice">将读取各卡片当前已加载的 AI 回答内容，结果取决于页面加载状态。</div>
+        <div class="export-modal-body">
+          <div class="export-section">
+            <div class="export-section-title">导出格式</div>
+            <div class="export-option-row">
+              <button class="export-option-btn is-active" data-export-format="markdown">Markdown</button>
+              <button class="export-option-btn" data-export-format="txt">纯文本</button>
+              <button class="export-option-btn" data-export-format="html">HTML</button>
+            </div>
           </div>
-        </div>
-        <div class="export-section">
-          <div class="export-section-title">选择站点</div>
-          <div class="export-site-list"></div>
-        </div>
-        <div class="export-section">
-          <div class="export-section-title">预览</div>
-          <pre class="export-preview">正在生成预览...</pre>
+          <div class="export-section">
+            <div class="export-section-title">选择站点</div>
+            <div class="export-site-list"></div>
+          </div>
+          <div class="export-section export-section--preview">
+            <div class="export-section-title">预览</div>
+            <pre class="export-preview">正在读取内容...</pre>
+          </div>
         </div>
         <div class="export-actions">
           <button class="export-cancel-btn" type="button">取消</button>
@@ -1173,7 +1344,7 @@
           content: "暂未提取到内容",
           url: site.url
         });
-      }, 3000);
+      }, 5000);
     });
   }
 
@@ -1183,14 +1354,16 @@
       return "暂未提取到内容";
     }
 
+    const junkPattern = /window\.__|\brequestAnimationFrame\b|function\s*\(|'use strict'|"use strict"|theme-host|__webpack|__NEXT_DATA__|gtag\(|ga\(/i;
+
     const lines = text
       .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .filter((line) => !/window\.__|requestAnimationFrame|function\s*\(|use strict|theme-host/i.test(line));
+      .map((line) => line.trimEnd())
+      .filter((line) => !junkPattern.test(line))
+      .filter((line, index, arr) => !(line === "" && arr[index - 1] === ""));
 
-    const result = lines.join("\n\n").trim();
-    return result || text.slice(0, 4000) || "暂未提取到内容";
+    const result = lines.join("\n").trim();
+    return result || text.slice(0, 6000) || "暂未提取到内容";
   }
 
   function generateExportContent(responses, format) {
@@ -1261,8 +1434,8 @@
         query,
         resolve,
         attempts: 0,
-        maxAttempts: 6,
-        retryDelayMs: BASE_CONFIG.tabSendRetryDelayMs || 350,
+        maxAttempts: 3,
+        retryDelayMs: BASE_CONFIG.tabSendRetryDelayMs || 1800,
         timerId: null,
         completed: false
       };

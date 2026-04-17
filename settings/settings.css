@@ -1895,3 +1895,32 @@ textarea {
 .settings-sidebar::after {
   right: 14px;
 }
+
+/* --- definitive delete-button position: top-right corner --- */
+.group-delete-corner-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: auto;
+  left: auto;
+  z-index: 4;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e1d9d1;
+  border-radius: 50%;
+  background: #fff;
+  color: #aaa;
+  font-size: 17px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.group-delete-corner-btn:hover {
+  background: #fff0f0;
+  color: #ef4444;
+  border-color: #fca5a5;
+}

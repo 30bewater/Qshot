@@ -2,7 +2,7 @@
   const config = {
     appName: "AI 批量搜索 MVP",
     defaultColumns: 1,
-    embedTimeoutMs: 8000,
+    embedTimeoutMs: 18000,
     postLoadSendDelayMs: 250,
     tabSendRetryCount: 6,
     tabSendRetryDelayMs: 350,
