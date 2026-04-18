@@ -18,16 +18,25 @@
       </aside>
 
       <aside id="historyPanel" class="history-panel">
-        <button id="closeHistoryPanelBtn" class="history-close-btn" type="button" aria-label="关闭">×</button>
         <div class="history-panel-header">
           <h3>搜索记录</h3>
-          <button id="clearHistoryBtn" class="history-clear-btn" type="button">清空</button>
+          <div class="history-header-actions">
+            <button id="clearHistoryBtn" class="history-clear-btn" type="button">清空</button>
+            <button id="closeHistoryPanelBtn" class="history-close-btn" type="button" aria-label="关闭"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
         </div>
         <div id="historyList" class="history-list"></div>
       </aside>
 
       <section class="bottom-composer">
         <span id="globalStatus" class="global-status visually-hidden">正在加载站点配置...</span>
+
+        <div class="bottom-composer-row">
+          <button id="scrollToStartBtn" class="scroll-edge-btn scroll-edge-btn--left" type="button" aria-label="滚到最左" hidden>
+            <svg viewBox="0 0 1024 1024" aria-hidden="true">
+              <path d="M368.576 116.672a16 16 0 0 0-22.656 0l-45.248 45.248a16 16 0 0 0 0 22.656l327.936 327.936-327.936 327.936a16 16 0 0 0 0 22.592l45.248 45.248a16 16 0 0 0 22.656 0l384.512-384.448a16 16 0 0 0 0-22.656L368.576 116.672z" fill="currentColor"></path>
+            </svg>
+          </button>
 
         <div class="bottom-composer-bar">
           <div class="composer-input-shell">
@@ -42,7 +51,7 @@
 
             <div class="composer-toolbar-row">
               <div class="composer-left-tools">
-                <button id="historyToggleBtn" class="composer-tool-btn composer-tool-icon-btn" type="button" aria-label="历史搜索">
+                <button id="historyToggleBtn" class="composer-tool-btn composer-tool-icon-btn composer-tooltip-btn" type="button" aria-label="历史搜索" data-tooltip="历史记录">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
                     <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
                       <path d="M12 8v4l2 2"></path>
@@ -50,15 +59,17 @@
                     </g>
                   </svg>
                 </button>
-                <button id="exportBtn" class="composer-tool-btn composer-tool-icon-btn" type="button" aria-label="导出文档">
+                <button id="exportBtn" class="composer-tool-btn composer-tool-icon-btn composer-tooltip-btn" type="button" aria-label="导出文档" data-tooltip="导出为文档">
                   <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                    <path d="M712.533333 371.2l-128 128-59.733333-59.733333 128-128L597.333333 256l-42.666666-42.666667h256v256l-42.666667-42.666666-55.466667-55.466667zM657.066667 256H768v110.933333V256h-110.933333zM298.666667 298.666667v426.666666h426.666666v-256l85.333334 85.333334v256H213.333333V213.333333h256l85.333334 85.333334H298.666667z"></path>
+                    <path d="M750.952139 1023.999132H195.742046A156.152839 156.152839 0 0 1 39.589207 859.171136V173.833678A173.503154 173.503154 0 0 1 74.289838 52.38147 182.178312 182.178312 0 0 1 213.092361 0.330524h485.808831l34.700631 17.350315 164.827996 190.853469a43.375789 43.375789 0 0 1 17.350316 34.700631v52.050946a52.050946 52.050946 0 0 1-43.375789 43.375789 43.375789 43.375789 0 0 1-43.375788-43.375789V260.585255L681.550877 87.082101H213.092361a86.751577 86.751577 0 0 0-69.401262 26.025473A104.101892 104.101892 0 0 0 126.340784 173.833678v685.337458c0 78.076419 60.726104 78.076419 69.401262 78.076419h555.210093a86.751577 86.751577 0 0 0 86.751577-69.401261 43.375789 43.375789 0 0 1 52.050946-26.025473c26.025473 0 34.700631 26.025473 34.700631 52.050946a190.853469 190.853469 0 0 1-173.503154 130.127365z" fill="currentColor"></path>
+                    <path d="M933.13045 624.941878H438.646461a43.375789 43.375789 0 0 1-43.375788-43.375788 43.375789 43.375789 0 0 1 43.375788-43.375789h399.057255l-78.07642-78.076419c-8.675158-17.350315-8.675158-52.050946 8.675158-60.726104a43.375789 43.375789 0 0 1 60.726104 0l138.802523 156.152839a26.025473 26.025473 0 0 1 8.675158 43.375788 43.375789 43.375789 0 0 1-43.375789 26.025473z" fill="currentColor"></path>
+                    <path d="M785.652769 763.744401h-34.70063a34.700631 34.700631 0 0 1 8.675157-69.401261L907.104977 555.540617a43.375789 43.375789 0 0 1 60.726104 60.726103L811.678242 755.069244z" fill="currentColor"></path>
                   </svg>
                 </button>
                 <div class="layout-menu-wrap">
-                  <button id="layoutToggleBtn" class="composer-tool-btn composer-tool-icon-btn" type="button" aria-label="布局设置">
-                    <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                      <path d="M640 426.666667v469.333333H128a42.666667 42.666667 0 0 1-42.666667-42.666667V426.666667h554.666667z m298.666667 0v426.666666a42.666667 42.666667 0 0 1-42.666667 42.666667h-170.666667V426.666667h213.333334z m-42.666667-298.666667a42.666667 42.666667 0 0 1 42.666667 42.666667v170.666666H85.333333V170.666667a42.666667 42.666667 0 0 1 42.666667-42.666667h768z"></path>
+                  <button id="layoutToggleBtn" class="composer-tool-btn composer-tool-icon-btn composer-tooltip-btn" type="button" aria-label="布局设置" data-tooltip="布局调整">
+                      <svg viewBox="0 0 1024 1024" stroke="currentColor" stroke-width="26" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M169 169v686h686V169H169z m640 46v146H215V215h594zM215 407h145.8v402H215V407z m191.8 402V407H809v402H406.8z" fill="currentColor"></path>
                     </svg>
                   </button>
                   <div id="layoutPopover" class="layout-popover" hidden>
@@ -93,14 +104,28 @@
                   <div id="promptPicker" class="composer-prompt-picker" hidden></div>
                 </div>
 
-                <button id="sendSelectedBtn" class="composer-inline-icon composer-inline-icon-send" type="button" aria-label="发送">
-                  <svg t="1776240171615" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="4751" aria-hidden="true">
-                    <path d="M514 114.3c-219.9 0-398.8 178.9-398.8 398.8 0 220 178.9 398.9 398.8 398.9s398.8-178.9 398.8-398.9c0-219.8-178.9-398.8-398.8-398.8z m208.8 494.5c-11.5 11.5-26.5 17.2-41.5 17.2s-30.1-5.7-41.5-17.2L517.1 486.3 394.6 608.8c-22.9 22.9-60.2 22.9-83.1 0-22.9-22.9-22.9-60.2 0-83.1l164.1-164.1c22.9-22.9 60.2-22.9 83.1 0l164.1 164.1c22.9 23 22.9 60.2 0 83.1z" fill="currentColor" p-id="4752"></path>
+                <button id="newChatBtn" class="composer-inline-icon composer-tooltip-btn" type="button" aria-label="新建对话" data-tooltip="新建对话">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+
+                <button id="sendSelectedBtn" class="composer-inline-icon composer-inline-icon-send is-empty" type="button" aria-label="发送">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M554.666667 268.8v601.6h-85.333334V268.8L337.066667 401.066667 277.333333 341.333333 512 106.666667 746.666667 341.333333l-59.733334 59.733334L554.666667 268.8z" fill="currentColor"/>
                   </svg>
                 </button>
               </div>
             </div>
           </div>
+        </div>
+
+          <button id="scrollToEndBtn" class="scroll-edge-btn scroll-edge-btn--right" type="button" aria-label="滚到最右" hidden>
+            <svg viewBox="0 0 1024 1024" aria-hidden="true">
+              <path d="M368.576 116.672a16 16 0 0 0-22.656 0l-45.248 45.248a16 16 0 0 0 0 22.656l327.936 327.936-327.936 327.936a16 16 0 0 0 0 22.592l45.248 45.248a16 16 0 0 0 22.656 0l384.512-384.448a16 16 0 0 0 0-22.656L368.576 116.672z" fill="currentColor"></path>
+            </svg>
+          </button>
         </div>
       </section>
     </div>

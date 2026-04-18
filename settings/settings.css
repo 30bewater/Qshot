@@ -1,3 +1,4 @@
+:root{--r-sm:6px;--r-md:12px;--r-lg:18px;--fs-sm:12px;--fs-md:14px;--fs-lg:16px}
 body {
   margin: 0;
   font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif;
@@ -24,7 +25,7 @@ textarea {
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 34px;
   align-items: start;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 400;
   line-height: 1.6;
 }
@@ -74,7 +75,7 @@ textarea {
 .site-selection-empty,
 .hover-picker-empty,
 .settings-add-copy span {
-  font-size: 14px;
+  font-size: var(--fs-md);
   font-weight: 400;
   line-height: 1.5;
   color: #666666;
@@ -165,7 +166,7 @@ textarea {
 .prompt-group-card,
 .settings-add-card {
   border: 1px solid #e8e6e0;
-  border-radius: 18px;
+  border-radius: var(--r-lg);
   background: #ffffff;
   box-shadow: none;
 }
@@ -204,7 +205,7 @@ textarea {
 .hover-picker-option,
 .site-chip,
 .selected-chip {
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 400;
   line-height: 1.6;
 }
@@ -215,7 +216,7 @@ textarea {
 .prompt-content-input {
   width: 100%;
   border: 1px solid #ddd9d1;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: #fff;
   color: #000000;
 }
@@ -307,22 +308,33 @@ textarea {
 }
 
 .group-mode-pill {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 16px;
-  border: 1px solid #d8d3cb;
-  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
   background: #ffffff;
-  color: #000000;
-  font-size: 15px;
+  color: #111827;
+  font-size: var(--fs-md);
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+.group-mode-pill:hover:not(.is-active) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 
 .group-mode-pill.is-active {
-  background: #4f5b66;
+  background: #000000;
   color: #ffffff;
-  border-color: #4f5b66;
+  border-color: #000000;
+}
+
+.group-mode-pill:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
 }
 
 .group-control-placeholder {
@@ -393,7 +405,7 @@ textarea {
 
 .site-chip-list.is-drag-over {
   background: #f4f2ed;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   box-shadow: inset 0 0 0 1px #ddd7ce;
 }
 
@@ -444,7 +456,7 @@ textarea {
 .site-selection-empty {
   padding: 16px;
   border: 1px dashed #d8d3cb;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: #fbfaf8;
 }
 
@@ -462,8 +474,8 @@ textarea {
 .add-section-btn {
   min-height: 38px;
   padding: 0 16px;
-  border-radius: 10px;
-  font-size: 15px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-lg);
   font-weight: 500;
   line-height: 1;
 }
@@ -496,7 +508,7 @@ textarea {
   width: 200px;
   padding: 8px;
   border: 1px solid #e0dbd4;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: #fff;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
   z-index: 20;
@@ -511,7 +523,7 @@ textarea {
   min-height: 40px;
   padding: 0 12px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: #fff;
   color: #000000;
   display: flex;
@@ -540,7 +552,7 @@ textarea {
   min-width: 240px;
   padding: 8px;
   border: 1px solid #e0dbd4;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: #fff;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
   opacity: 0;
@@ -562,7 +574,7 @@ textarea {
   gap: 14px;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   cursor: pointer;
 }
 
@@ -577,8 +589,32 @@ textarea {
   accent-color: #666666;
 }
 
+.hover-picker-site-group + .hover-picker-site-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e6e1d9;
+}
+
+.hover-picker-site-group-title {
+  padding: 4px 12px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #8c867c;
+}
+
 .hover-picker-empty {
   padding: 10px 12px;
+}
+
+.hover-picker-tip {
+  margin: 2px 6px 8px;
+  padding: 8px 10px;
+  border: 1px solid #ebe5dc;
+  border-radius: 8px;
+  background: #faf8f4;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #7b7468;
 }
 
 .prompt-group-card {
@@ -599,7 +635,7 @@ textarea {
 .prompt-item {
   padding: 20px;
   border: 1px solid #e6e1d9;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: #fff;
 }
 
@@ -637,7 +673,7 @@ textarea {
 
 .other-settings-card {
   border: 1px solid #e8e6e0;
-  border-radius: 18px;
+  border-radius: var(--r-lg);
   background: #ffffff;
   box-shadow: none;
   padding: 24px;
@@ -660,7 +696,7 @@ textarea {
 
 .other-settings-intro span,
 .other-setting-desc {
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: #666666;
 }
@@ -678,7 +714,7 @@ textarea {
   gap: 20px;
   padding: 18px;
   border: 1px solid #ece9e2;
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   background: #fcfbf8;
 }
 
@@ -689,7 +725,7 @@ textarea {
 }
 
 .other-setting-title {
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 500;
   line-height: 1.5;
   color: #000000;
@@ -856,22 +892,33 @@ textarea {
 }
 
 .group-mode-pill {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 16px;
-  border: 1px solid #d8d3cb;
-  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
   background: #ffffff;
-  color: #000000;
-  font-size: 15px;
+  color: #111827;
+  font-size: var(--fs-md);
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+.group-mode-pill:hover:not(.is-active) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 
 .group-mode-pill.is-active {
-  background: #4f5b66;
+  background: #000000;
   color: #ffffff;
-  border-color: #4f5b66;
+  border-color: #000000;
+}
+
+.group-mode-pill:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
 }
 
 .group-control-placeholder {
@@ -953,7 +1000,7 @@ textarea {
   background: transparent;
   text-align: left;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   cursor: pointer;
 }
 
@@ -963,7 +1010,7 @@ textarea {
 }
 
 .prompt-group-nav-name {
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1.5;
 }
 
@@ -976,8 +1023,8 @@ textarea {
 .prompt-editor-save-btn {
   min-height: 40px;
   padding: 0 18px;
-  border-radius: 10px;
-  font-size: 15px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-lg);
   font-weight: 500;
   cursor: pointer;
 }
@@ -1026,7 +1073,7 @@ textarea {
 
 .prompt-content-subtitle {
   margin-top: 8px;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: #666666;
 }
@@ -1044,10 +1091,10 @@ textarea {
 .prompt-editor-content-input {
   width: 100%;
   border: 1px solid #ddd9d1;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: #ffffff;
   color: #000000;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1.6;
 }
 
@@ -1071,16 +1118,92 @@ textarea {
 .prompt-cards-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
   flex: 1;
 }
 
 .prompt-card-item {
   position: relative;
-  padding: 18px 20px;
-  border: 1px solid #ece8e1;
-  border-radius: 16px;
+  padding: 12px 4px;
+  border-bottom: 1px solid #ece8e1;
   background: #ffffff;
+}
+
+.prompt-card-item:first-child {
+  border-top: 1px solid #ece8e1;
+}
+
+.prompt-card-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt-card-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.prompt-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #aaa9a4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.prompt-icon-btn:hover {
+  color: #444440;
+  background: #f0ede8;
+}
+
+.prompt-preview-wrap {
+  position: relative;
+}
+
+.prompt-preview-popup {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  padding: 14px 16px;
+  border: 1px solid #e0dbd4;
+  border-radius: var(--r-md);
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+  pointer-events: none;
+}
+
+.prompt-preview-popup.is-visible {
+  pointer-events: auto;
+}
+
+.prompt-preview-popup-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: #444440;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.prompt-preview-popup-body {
+  font-size: var(--fs-md);
+  line-height: 1.65;
+  color: #666662;
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 .prompt-card-head {
@@ -1091,15 +1214,15 @@ textarea {
 }
 
 .prompt-card-title {
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 1.4;
-  color: #000000;
+  font-size: var(--fs-lg);
+  font-weight: 400;
+  line-height: 1.5;
+  color: #111111;
 }
 
 .prompt-card-content {
   margin-top: 12px;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1.6;
   color: #000000;
   white-space: pre-wrap;
@@ -1136,7 +1259,7 @@ textarea {
 .prompt-editor-modal {
   width: min(720px, 100%);
   background: #ffffff;
-  border-radius: 18px;
+  border-radius: var(--r-lg);
   padding: 28px;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.12);
   display: flex;
@@ -1215,7 +1338,7 @@ textarea {
     right: 14px;
     bottom: 14px;
     transform: none;
-    border-radius: 12px;
+    border-radius: var(--r-md);
   }
 }
 
@@ -1464,7 +1587,7 @@ textarea {
   border-radius: 999px;
   background: #ffffff;
   color: #000000;
-  font-size: 15px;
+  font-size: var(--fs-lg);
   line-height: 1;
   appearance: none;
   -webkit-appearance: none;
@@ -1569,7 +1692,7 @@ textarea {
   min-width: 126px;
   padding: 8px;
   border: 1px solid #e4dfd7;
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   background: #ffffff;
   box-shadow: 0 14px 30px rgba(31, 24, 16, 0.08);
   display: flex;
@@ -1582,18 +1705,28 @@ textarea {
   min-height: 36px;
   padding: 0 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: 999px;
   background: #ffffff;
-  color: #000000;
+  color: #111827;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: background .1s, color .1s;
 }
 
-.group-mode-option:hover,
+.group-mode-option:hover:not(.is-active) {
+  background: #f3f4f6;
+}
+
 .group-mode-option.is-active {
-  background: #f4f1eb;
+  background: #000000;
+  color: #ffffff;
+}
+
+.group-mode-option:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
 }
 
 .settings-sidebar-header {
@@ -1755,23 +1888,10 @@ textarea {
 }
 
 .prompt-card-title {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: var(--fs-lg);
+  font-weight: 400;
+  line-height: 1.5;
   color: #111111;
-}
-
-.prompt-card-content {
-  margin-top: 10px;
-  font-size: 15px;
-  line-height: 1.65;
-  color: #7a766f;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .prompt-group-nav-item.is-empty {
@@ -1896,13 +2016,13 @@ textarea {
   right: 14px;
 }
 
-/* --- definitive delete-button position: top-right corner --- */
-.group-delete-corner-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: auto;
-  left: auto;
+/* --- definitive delete-button position: top-right corner (higher specificity wins all overhangs) --- */
+.settings-group-card > .group-delete-corner-btn {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  bottom: auto !important;
+  left: auto !important;
   z-index: 4;
   width: 28px;
   height: 28px;
@@ -1910,7 +2030,7 @@ textarea {
   border-radius: 50%;
   background: #fff;
   color: #aaa;
-  font-size: 17px;
+  font-size: var(--fs-lg);
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -1919,7 +2039,7 @@ textarea {
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
-.group-delete-corner-btn:hover {
+.settings-group-card > .group-delete-corner-btn:hover {
   background: #fff0f0;
   color: #ef4444;
   border-color: #fca5a5;

@@ -1,13 +1,17 @@
-﻿(function initSettingsPage() {
+(function initSettingsPage() {
   const GROUPS_STORAGE_KEY = "searchGroups";
   const PROMPTS_STORAGE_KEY = "promptGroups";
   const UI_PREFS_STORAGE_KEY = "uiPrefs";
   const PICKER_CLOSE_DELAY_MS = 320;
   const SITE_CATEGORIES = {
-    ai: { label: "AI", siteIds: ["deepseek", "doubao", "kimi", "gemini", "chatgpt", "zhipu", "yuanbao", "qwen"] },
+    ai: { label: "AI", siteIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "perplexity", "grok"] },
     other: { label: "社媒平台", siteIds: ["xiaohongshu", "bilibili", "zhihu", "douyin"] },
     custom: { label: "自定义", siteIds: [] }
   };
+  const AI_SITE_GROUPS = [
+    { label: "国内", siteIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso"] },
+    { label: "国外", siteIds: ["gemini", "chatgpt", "claude", "perplexity", "grok"] }
+  ];
   const SECTION_META = {
     groups: {
       eyebrow: "搜索组设置",
@@ -196,7 +200,8 @@
     return {
       showHistory: source.showHistory !== false,
       showRandomButton: source.showRandomButton !== false,
-      showPromptButton: source.showPromptButton !== false
+      showPromptButton: source.showPromptButton !== false,
+      prewarmEnabled: source.prewarmEnabled !== false
     };
   }
 
@@ -531,34 +536,40 @@
         empty.className = "hover-picker-empty";
         empty.textContent = "自定义暂未开放";
         submenu.appendChild(empty);
+      } else if (key === "ai") {
+        AI_SITE_GROUPS.forEach((marketGroup) => {
+          const groupSites = marketGroup.siteIds
+            .map((siteId) => categorySites.find((site) => site.id === siteId))
+            .filter(Boolean);
+          if (!groupSites.length) {
+            return;
+          }
+
+          const section = document.createElement("div");
+          section.className = "hover-picker-site-group";
+
+          const sectionTitle = document.createElement("div");
+          sectionTitle.className = "hover-picker-site-group-title";
+          sectionTitle.textContent = marketGroup.label;
+          section.appendChild(sectionTitle);
+
+          groupSites.forEach((site) => {
+            section.appendChild(createPickerSiteOption(group, site, key));
+          });
+          submenu.appendChild(section);
+        });
+      } else if (key === "other") {
+        const tip = document.createElement("div");
+        tip.className = "hover-picker-tip";
+        tip.textContent = "社媒平台更推荐使用“新开标签”模式；卡片呈现的预览与打开体验可能不稳定。";
+        submenu.appendChild(tip);
+
+        categorySites.forEach((site) => {
+          submenu.appendChild(createPickerSiteOption(group, site, key));
+        });
       } else {
         categorySites.forEach((site) => {
-          const label = document.createElement("label");
-          label.className = "hover-picker-option";
-          const checked = group.siteIds.includes(site.id);
-          label.innerHTML = `
-            <span class="hover-picker-option-text">${escapeHtml(site.name)}</span>
-            <input type="checkbox" ${checked ? "checked" : ""} />
-          `;
-          const checkbox = label.querySelector("input");
-          checkbox.addEventListener("click", (event) => event.stopPropagation());
-          checkbox.addEventListener("change", async () => {
-            const currentGroup = getGroupById(group.id);
-            if (!currentGroup) {
-              return;
-            }
-            if (checkbox.checked) {
-              currentGroup.siteIds = [...currentGroup.siteIds, site.id];
-            } else {
-              currentGroup.siteIds = currentGroup.siteIds.filter((id) => id !== site.id);
-            }
-            await persistAll();
-            openPickerGroupId = currentGroup.id;
-            activePickerCategoryKey = key;
-            clearPickerCloseTimer();
-            renderGroupsSection();
-          });
-          submenu.appendChild(label);
+          submenu.appendChild(createPickerSiteOption(group, site, key));
         });
       }
 
@@ -634,68 +645,11 @@
         key: "showPromptButton",
         title: "显示提示词按钮",
         desc: "关闭后，输入框下方的提示词入口将隐藏。"
-      }
-    ].forEach((item) => {
-      list?.appendChild(createOtherSettingToggle(item.key, item.title, item.desc));
-    });
-
-    otherSection.appendChild(card);
-  }
-
-  function createOtherSettingToggle(key, title, desc) {
-    const row = document.createElement("article");
-    row.className = "other-setting-row";
-
-    const isOn = uiPrefs[key] !== false;
-    row.innerHTML = `
-      <div class="other-setting-copy">
-        <div class="other-setting-title">${escapeHtml(title)}</div>
-        <div class="other-setting-desc">${escapeHtml(desc)}</div>
-      </div>
-      <button class="other-setting-switch ${isOn ? "is-on" : "is-off"}" type="button" aria-pressed="${isOn ? "true" : "false"}">
-        <span class="other-setting-switch-thumb"></span>
-      </button>
-    `;
-
-    const toggle = row.querySelector(".other-setting-switch");
-    toggle?.addEventListener("click", async () => {
-      uiPrefs[key] = !(uiPrefs[key] !== false);
-      await persistAll();
-      renderOtherSection();
-    });
-
-    return row;
-  }
-
-  function renderOtherSection() {
-    otherSection.innerHTML = "";
-
-    const card = document.createElement("section");
-    card.className = "other-settings-card";
-    card.innerHTML = `
-      <div class="other-settings-intro">
-        <strong>首页显示项</strong>
-        <span>控制首页里哪些模块显示，哪些模块隐藏。</span>
-      </div>
-      <div class="other-settings-list"></div>
-    `;
-
-    const list = card.querySelector(".other-settings-list");
-    [
-      {
-        key: "showHistory",
-        title: "显示历史搜索记录",
-        desc: "关闭后，首页下方的历史搜索区域将不再显示。"
       },
       {
-        key: "showRandomButton",
-        title: "显示随机骰子按钮",
-        desc: "关闭后，输入框下方的随机问题按钮将隐藏。"
-      },
-      {
-        key: "showPromptButton",
-        title: "显示提示词按钮",
-        desc: "关闭后，输入框下方的提示词入口将隐藏。"
+        key: "prewarmEnabled",
+        title: "打开扩展时预热 AI 站点",
+        desc: "开启后，每次点开扩展会悄悄在后台预拉取 AI 站点首页，让随后搜索更快。会消耗少量流量，同一会话内 5 分钟只触发一次。"
       }
     ].forEach((item) => {
       list?.appendChild(createOtherSettingToggle(item.key, item.title, item.desc));
@@ -878,27 +832,104 @@
   function createPromptCard(group, prompt) {
     const item = document.createElement("article");
     item.className = "prompt-card-item";
-    item.innerHTML = `
-      <div class="prompt-card-head">
-        <div class="prompt-card-title">${escapeHtml(prompt.title || "未命名提示词")}</div>
-        <button class="prompt-card-edit-btn" type="button">编辑</button>
-      </div>
-      <div class="prompt-card-content">${escapeHtml(prompt.content || "")}</div>
-    `;
 
-    const editBtn = item.querySelector(".prompt-card-edit-btn");
-    if (editBtn) {
-      editBtn.addEventListener("click", () => {
-        promptEditorState = {
-          mode: "edit",
-          groupId: group.id,
-          promptId: prompt.id,
-          title: prompt.title || "",
-          content: prompt.content || ""
-        };
-        renderPromptsSection();
+    const inline = document.createElement("div");
+    inline.className = "prompt-card-inline";
+
+    const iconGroup = document.createElement("div");
+    iconGroup.className = "prompt-card-icon-group";
+
+    // 铅笔编辑按钮
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "prompt-icon-btn prompt-edit-icon-btn";
+    editBtn.setAttribute("aria-label", "编辑");
+    editBtn.title = "编辑";
+    editBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    editBtn.addEventListener("click", () => {
+      promptEditorState = {
+        mode: "edit",
+        groupId: group.id,
+        promptId: prompt.id,
+        title: prompt.title || "",
+        content: prompt.content || ""
+      };
+      renderPromptsSection();
+    });
+
+    // 眼睛预览按钮及悬浮浮层
+    const previewWrap = document.createElement("div");
+    previewWrap.className = "prompt-preview-wrap";
+
+    const previewBtn = document.createElement("button");
+    previewBtn.type = "button";
+    previewBtn.className = "prompt-icon-btn prompt-preview-icon-btn";
+    previewBtn.setAttribute("aria-label", "预览");
+    previewBtn.title = "预览内容";
+    previewBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+    const popup = document.createElement("div");
+    popup.className = "prompt-preview-popup";
+    popup.setAttribute("aria-hidden", "true");
+    popup.innerHTML = `
+      <div class="prompt-preview-popup-title">${escapeHtml(prompt.title || "未命名提示词")}</div>
+      <div class="prompt-preview-popup-body">${escapeHtml(prompt.content || "（暂无内容）")}</div>
+    `;
+    popup.style.display = "none";
+
+    let popupHideTimer = null;
+
+    function showPopup() {
+      if (popupHideTimer) {
+        clearTimeout(popupHideTimer);
+        popupHideTimer = null;
+      }
+      popup.style.display = "block";
+      popup.classList.add("is-visible");
+
+      // 防止超出右侧边界，动态调整弹出方向
+      requestAnimationFrame(() => {
+        const rect = popup.getBoundingClientRect();
+        if (rect.right > window.innerWidth - 8) {
+          popup.style.left = "auto";
+          popup.style.right = "0";
+        } else {
+          popup.style.left = "0";
+          popup.style.right = "auto";
+        }
       });
     }
+
+    function hidePopup() {
+      popupHideTimer = setTimeout(() => {
+        popup.style.display = "none";
+        popup.classList.remove("is-visible");
+      }, 120);
+    }
+
+    previewBtn.addEventListener("mouseenter", showPopup);
+    previewBtn.addEventListener("mouseleave", hidePopup);
+    popup.addEventListener("mouseenter", () => {
+      if (popupHideTimer) {
+        clearTimeout(popupHideTimer);
+        popupHideTimer = null;
+      }
+    });
+    popup.addEventListener("mouseleave", hidePopup);
+
+    previewWrap.appendChild(previewBtn);
+    previewWrap.appendChild(popup);
+
+    iconGroup.appendChild(editBtn);
+    iconGroup.appendChild(previewWrap);
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "prompt-card-title";
+    titleEl.textContent = prompt.title || "未命名提示词";
+
+    inline.appendChild(iconGroup);
+    inline.appendChild(titleEl);
+    item.appendChild(inline);
 
     return item;
   }
@@ -1095,6 +1126,35 @@
   }
 
   function markDirty() {}
+
+  function createPickerSiteOption(group, site, categoryKey) {
+    const label = document.createElement("label");
+    label.className = "hover-picker-option";
+    const checked = group.siteIds.includes(site.id);
+    label.innerHTML = `
+      <span class="hover-picker-option-text">${escapeHtml(site.name)}</span>
+      <input type="checkbox" ${checked ? "checked" : ""} />
+    `;
+    const checkbox = label.querySelector("input");
+    checkbox.addEventListener("click", (event) => event.stopPropagation());
+    checkbox.addEventListener("change", async () => {
+      const currentGroup = getGroupById(group.id);
+      if (!currentGroup) {
+        return;
+      }
+      if (checkbox.checked) {
+        currentGroup.siteIds = [...currentGroup.siteIds, site.id];
+      } else {
+        currentGroup.siteIds = currentGroup.siteIds.filter((id) => id !== site.id);
+      }
+      await persistAll();
+      openPickerGroupId = currentGroup.id;
+      activePickerCategoryKey = categoryKey;
+      clearPickerCloseTimer();
+      renderGroupsSection();
+    });
+    return label;
+  }
 
   async function persistAll() {
     groups = createNormalizedGroups(groups);

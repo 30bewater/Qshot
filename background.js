@@ -1,6 +1,10 @@
 const COMPARE_PAGE_BASE_URL = chrome.runtime.getURL("iframe/iframe.html");
 const SETTINGS_PAGE_URL = chrome.runtime.getURL("settings/settings.html");
 const SEARCH_GROUPS_STORAGE_KEY = "searchGroups";
+const UI_PREFS_STORAGE_KEY = "uiPrefs";
+const AI_SITE_IDS = ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "gemini", "chatgpt", "claude", "perplexity", "grok"];
+const WARMUP_COOLDOWN_MS = 5 * 60 * 1000;
+let lastWarmupAt = 0;
 
 chrome.runtime.onInstalled.addListener(async () => {
   console.log("AI 批量搜索 MVP 已安装");
@@ -38,8 +42,53 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "WARMUP_AI_SITES") {
+    warmupAiSites()
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   return false;
 });
+
+async function warmupAiSites() {
+  const now = Date.now();
+  if (now - lastWarmupAt < WARMUP_COOLDOWN_MS) {
+    return { skipped: true, reason: "cooldown" };
+  }
+
+  const stored = await chrome.storage.local.get([UI_PREFS_STORAGE_KEY]);
+  const prefs = stored[UI_PREFS_STORAGE_KEY] || {};
+  if (prefs.prewarmEnabled === false) {
+    return { skipped: true, reason: "disabled" };
+  }
+
+  const sites = await loadEnabledSites();
+  const targets = sites.filter((site) => AI_SITE_IDS.includes(site.id));
+  if (targets.length === 0) {
+    return { skipped: true, reason: "no-targets" };
+  }
+
+  lastWarmupAt = now;
+
+  await Promise.all(
+    targets.map((site) => {
+      const warmupUrl = (site.url || "").replace("{query}", "");
+      if (!warmupUrl || !/^https?:\/\//.test(warmupUrl)) {
+        return null;
+      }
+      return fetch(warmupUrl, {
+        credentials: "include",
+        mode: "no-cors",
+        cache: "default",
+        redirect: "follow"
+      }).catch(() => null);
+    })
+  );
+
+  return { warmed: targets.length };
+}
 
 async function openComparePage(query = "", siteIds = []) {
   const targetUrl = buildComparePageUrl(query, siteIds);
@@ -78,22 +127,42 @@ async function openSitesInTabs(siteIds, query) {
     ? sites.filter((site) => siteIds.includes(site.id))
     : sites;
 
-  const openedTabIds = [];
-  for (const [index, site] of targetSites.entries()) {
-    const tab = await chrome.tabs.create({
-      url: site.url,
-      active: false
-    });
-    openedTabIds.push(tab.id);
-
-    if (query) {
-      await waitForTabComplete(tab.id);
-      await sendQueryToTab(tab.id, site, query);
-    }
+  if (targetSites.length === 0) {
+    return { tabIds: [] };
   }
 
+  // 并发创建所有 tab：浏览器一次性把所有站点 tab 全部打开
+  const createdTabs = await Promise.all(
+    targetSites.map((site) =>
+      chrome.tabs.create({ url: buildSiteUrl(site, query), active: false }).catch(() => null)
+    )
+  );
+
+  const tabSitePairs = createdTabs
+    .map((tab, idx) => (tab ? { tab, site: targetSites[idx] } : null))
+    .filter(Boolean);
+
+  // 并发等待每个 tab 完成加载并独立发送查询，互不阻塞
+  if (query) {
+    await Promise.all(
+      tabSitePairs.map(async ({ tab, site }) => {
+        try {
+          await waitForTabComplete(tab.id);
+          await sendQueryToTab(tab.id, site, query);
+        } catch (_err) {
+          // 单个站点失败不影响其他
+        }
+      })
+    );
+  }
+
+  const openedTabIds = tabSitePairs.map(({ tab }) => tab.id);
   if (openedTabIds.length > 0) {
-    await chrome.tabs.update(openedTabIds[0], { active: true });
+    try {
+      await chrome.tabs.update(openedTabIds[0], { active: true });
+    } catch (_err) {
+      // 某些情况下首个 tab 可能已被关闭，忽略
+    }
   }
 
   return { tabIds: openedTabIds };
@@ -170,6 +239,24 @@ async function loadEnabledSites() {
 
   const payload = await response.json();
   return (payload.sites || []).filter((site) => site.enabled !== false);
+}
+
+function buildSiteUrl(site, query) {
+  const url = String(site?.url || "");
+  if (!url.includes("{query}")) {
+    return url;
+  }
+
+  if (query && site?.supportUrlQuery) {
+    return url.replace(/\{query\}/g, encodeURIComponent(query));
+  }
+
+  // 空 query 或站点不支持 URL 直达：剥离含 {query} 的参数段，回落到基础 URL
+  let next = url.replace(/([?&])[^=&]+=\{query\}/g, (_, sep) => (sep === "?" ? "?" : ""));
+  next = next.replace(/\?&/, "?");
+  next = next.replace(/[?&]$/, "");
+  // 兜底：万一还残留 {query}，粗暴清掉
+  return next.replace(/\{query\}/g, "");
 }
 
 function delay(ms) {

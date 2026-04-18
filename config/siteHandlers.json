@@ -18,27 +18,29 @@
             "action": "focus",
             "selectors": [
               "#prompt-textarea",
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
-            "description": "聚焦输入框"
+            "timeout": 10000,
+            "description": "聚焦输入框（等待页面就绪）"
           },
           {
             "action": "setValue",
             "selectors": [
               "#prompt-textarea",
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "inputType": "auto",
-            "description": "写入查询内容"
+            "waitAfter": 80,
+            "description": "写入查询内容，等待 React 状态更新"
           },
           {
             "action": "triggerEvents",
             "selectors": [
               "#prompt-textarea",
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "events": [
               "input",
@@ -48,8 +50,8 @@
           },
           {
             "action": "wait",
-            "duration": 150,
-            "description": "短暂等待"
+            "duration": 80,
+            "description": "等待发送按钮激活"
           },
           {
             "action": "click",
@@ -62,17 +64,33 @@
             "description": "尝试点击发送按钮"
           },
           {
+            "action": "smartSubmit",
+            "selectors": [
+              "#prompt-textarea",
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[data-testid='send-button']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']",
+              "button[type='submit']"
+            ],
+            "optional": true,
+            "description": "smartSubmit 兜底发送"
+          },
+          {
             "action": "sendKeys",
             "selectors": [
               "#prompt-textarea",
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "keys": [
               "Enter"
             ],
             "optional": true,
-            "description": "回车作为备用发送方式"
+            "description": "回车作为最终备用发送方式"
           }
         ]
       }
@@ -125,7 +143,7 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "click",
@@ -197,7 +215,7 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "click",
@@ -252,7 +270,7 @@
     },
     {
       "id": "qwen",
-      "name": "Qwen / 通义千问",
+      "name": "通义千问",
       "url": "https://tongyi.aliyun.com/qianwen/",
       "enabled": true,
       "supportIframe": true,
@@ -293,7 +311,7 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "click",
@@ -378,7 +396,7 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "click",
@@ -444,7 +462,7 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "smartSubmit",
@@ -475,39 +493,38 @@
       }
     },
     {
-      "id": "zhipu",
-      "name": "智谱清言",
-      "url": "https://chatglm.cn/main/alltoolsdetail",
+      "id": "claude",
+      "name": "Claude",
+      "url": "https://claude.ai/",
       "enabled": true,
       "supportIframe": true,
       "supportUrlQuery": false,
       "matchPatterns": [
-        "chatglm.cn",
-        "www.chatglm.cn"
+        "claude.ai"
       ],
-      "notes": "优先在页面内 iframe 卡片中加载智谱清言，尝试匹配 textarea 或 contenteditable 输入区。",
+      "notes": "优先在页面内 iframe 卡片中加载 Claude，使用通用输入与发送策略。",
       "searchHandler": {
         "steps": [
           {
             "action": "focus",
             "selectors": [
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ]
           },
           {
             "action": "setValue",
             "selectors": [
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "inputType": "auto"
           },
           {
             "action": "triggerEvents",
             "selectors": [
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "events": [
               "input",
@@ -516,27 +533,28 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "smartSubmit",
             "selectors": [
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "submitSelectors": [
               "button[type='submit']",
-              "button[aria-label*='发送']",
               "button[aria-label*='Send']",
-              "button[title*='发送']",
-              "button[title*='Send']"
+              "button[aria-label*='发送']",
+              "button[aria-label*='message']",
+              "[role='button'][aria-label*='Send']",
+              "[role='button'][aria-label*='发送']"
             ]
           },
           {
             "action": "sendKeys",
             "selectors": [
-              "textarea",
-              "div[contenteditable='true']"
+              "div[contenteditable='true']",
+              "textarea"
             ],
             "keys": [
               "Enter"
@@ -587,7 +605,7 @@
           },
           {
             "action": "wait",
-            "duration": 150
+            "duration": 60
           },
           {
             "action": "smartSubmit",
@@ -618,9 +636,94 @@
       }
     },
     {
+      "id": "metaso",
+      "name": "秘塔",
+      "url": "https://metaso.cn/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "metaso.cn"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载秘塔 AI 搜索，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea",
+              "input[type='search']",
+              "input[type='text']",
+              "div[contenteditable='true']"
+            ],
+            "timeout": 10000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea",
+              "input[type='search']",
+              "input[type='text']",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea",
+              "input[type='search']",
+              "input[type='text']",
+              "div[contenteditable='true']"
+            ],
+            "events": [
+              "input",
+              "change"
+            ]
+          },
+          {
+            "action": "wait",
+            "duration": 80
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea",
+              "input[type='search']",
+              "input[type='text']",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='搜索']",
+              "button[aria-label*='Search']",
+              "button[title*='搜索']",
+              "button[title*='Search']",
+              "[role='button'][aria-label*='搜索']",
+              "[role='button'][aria-label*='Search']"
+            ],
+            "optional": true
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea",
+              "input[type='search']",
+              "input[type='text']",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
       "id": "xiaohongshu",
       "name": "小红书",
-      "url": "https://www.xiaohongshu.com/search_result?keyword={query}",
+      "url": "https://www.xiaohongshu.com/search_result?keyword={query}&source=web_note_detail_r10",
       "enabled": true,
       "supportIframe": true,
       "supportUrlQuery": true,
@@ -671,7 +774,7 @@
           },
           {
             "action": "wait",
-            "duration": 120,
+            "duration": 60,
             "optional": true
           },
           {
@@ -757,7 +860,7 @@
           },
           {
             "action": "wait",
-            "duration": 120
+            "duration": 60
           },
           {
             "action": "smartSubmit",
@@ -911,6 +1014,142 @@
               "button[aria-label*='搜索']",
               "button[title*='搜索']"
             ],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "url": "https://www.perplexity.ai/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "perplexity.ai"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 Perplexity，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "textarea[placeholder*='Ask']",
+              "textarea"
+            ],
+            "timeout": 8000,
+            "description": "聚焦输入框"
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "textarea[placeholder*='Ask']",
+              "textarea"
+            ],
+            "inputType": "auto",
+            "waitAfter": 60
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "textarea[placeholder*='Ask']",
+              "textarea"
+            ],
+            "events": ["input", "change"]
+          },
+          {
+            "action": "wait",
+            "duration": 60
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea[placeholder*='Ask']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[aria-label='Submit']",
+              "button[type='submit']",
+              "button[aria-label*='Send']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea[placeholder*='Ask']",
+              "textarea"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "url": "https://grok.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "grok.com"
+      ],
+      "notes": "优先在页面内 iframe 卡片中加载 Grok，使用 contenteditable 输入框并尝试通用发送。",
+      "searchHandler": {
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "timeout": 8000,
+            "description": "聚焦输入框"
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "inputType": "auto",
+            "waitAfter": 80
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "events": ["input", "change"]
+          },
+          {
+            "action": "wait",
+            "duration": 60
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='Submit']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']",
+              "[role='button'][aria-label*='Send']"
+            ]
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea"
+            ],
+            "keys": ["Enter"],
             "optional": true
           }
         ]

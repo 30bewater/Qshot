@@ -31,8 +31,13 @@
     isScrollLocked: false,
     scrollGuardActive: false,
     scrollGuardLeft: 0,
+    scrollGuardTop: 0,
     userIsScrolling: false,
-    userScrollTimer: null
+    userScrollTimer: null,
+    isSending: false,
+    sessionSnapshots: [],
+    lastSearchQuery: null,
+    lastSearchTime: null
   };
 
   const elements = {};
@@ -45,6 +50,7 @@
       cacheElements();
       bindEvents();
       hydrateQueryFromUrl();
+      updateSendBtnState();
       await restorePreferences();
       bindPromptPickerEvents();
       await loadSites();
@@ -77,6 +83,9 @@
     elements.siteNavPanel = document.getElementById("siteNavPanel");
     elements.siteNavList = document.getElementById("siteNavList");
     elements.sidebarLayoutBtn = document.querySelector("[data-layout-mode='sidebar']");
+    elements.scrollToStartBtn = document.getElementById("scrollToStartBtn");
+    elements.scrollToEndBtn = document.getElementById("scrollToEndBtn");
+    elements.newChatBtn = document.getElementById("newChatBtn");
   }
 
   function bindEvents() {
@@ -87,9 +96,13 @@
     });
     elements.queryInput.addEventListener("input", () => {
       closePromptPicker();
+      updateSendBtnState();
     });
     elements.queryInput.addEventListener("keydown", async (event) => {
       if (event.key !== "Enter" || event.shiftKey) {
+        return;
+      }
+      if (event.isComposing || event.keyCode === 229) {
         return;
       }
 
@@ -132,8 +145,9 @@
     elements.layoutRowsButtons.forEach((button) => {
       button.addEventListener("click", async () => {
         state.layoutRows = Number(button.dataset.layoutRows);
+        state.layoutMode = "grid";
         updateLayoutUi();
-      await savePreferences();
+        await savePreferences();
       });
     });
 
@@ -183,6 +197,7 @@
         state.userScrollTimer = null;
         if (state.scrollGuardActive) {
           state.scrollGuardLeft = elements.iframesContainer.scrollLeft;
+          state.scrollGuardTop = elements.iframesContainer.scrollTop;
         }
       }, 400);
     }, { passive: true });
@@ -196,13 +211,23 @@
         state.userIsScrolling = false;
         if (state.scrollGuardActive) {
           state.scrollGuardLeft = elements.iframesContainer.scrollLeft;
+          state.scrollGuardTop = elements.iframesContainer.scrollTop;
         }
       }
     }, { passive: true });
 
+    // scrollGuard：加载阶段 iframe 内部 focus/selection 可能会把外层容器自动滚到"对齐可视区"的位置，
+    // 这里同时锁定 scrollLeft 和 scrollTop，横排/多排网格都能生效。
     elements.iframesContainer.addEventListener("scroll", () => {
-      if (state.scrollGuardActive && !state.userIsScrolling) {
-        elements.iframesContainer.scrollLeft = state.scrollGuardLeft;
+      if (!state.scrollGuardActive || state.userIsScrolling) {
+        return;
+      }
+      const container = elements.iframesContainer;
+      if (container.scrollLeft !== state.scrollGuardLeft) {
+        container.scrollLeft = state.scrollGuardLeft;
+      }
+      if (container.scrollTop !== state.scrollGuardTop) {
+        container.scrollTop = state.scrollGuardTop;
       }
     }, { passive: true });
 
@@ -217,9 +242,71 @@
       elements.iframesContainer.scrollLeft += event.deltaY * 1.2;
     }, { passive: false });
 
+    elements.scrollToStartBtn?.addEventListener("click", () => {
+      elements.iframesContainer.scrollTo({ left: 0, behavior: "smooth" });
+    });
+
+    elements.scrollToEndBtn?.addEventListener("click", () => {
+      elements.iframesContainer.scrollTo({ left: elements.iframesContainer.scrollWidth, behavior: "smooth" });
+    });
+
+    elements.iframesContainer.addEventListener("scroll", updateScrollEdgeBtns, { passive: true });
+
     window.addEventListener("resize", () => {
       updateLayoutUi();
     });
+
+    elements.newChatBtn?.addEventListener("click", () => {
+      elements.queryInput.value = "";
+      updateSendBtnState();
+
+      activateScrollGuard(
+        elements.iframesContainer.scrollLeft,
+        elements.iframesContainer.scrollTop,
+        getScrollGuardDurationMs(state.cardRefs.size)
+      );
+
+      state.cardRefs.forEach((ref) => {
+        refreshSiteCard(ref);
+      });
+      setGlobalStatus("已新建对话，所有卡片已重置。");
+    });
+  }
+
+  // 激活滚动守卫：在 iframe 加载 / 自动发送期间，锁定容器滚动位置，
+  // 防止 iframe 内部输入框 focus() 导致的祖先容器"对齐可视区"抖动。
+  function activateScrollGuard(left, top, durationMs) {
+    state.scrollGuardActive = true;
+    state.scrollGuardLeft = left;
+    state.scrollGuardTop = top;
+    if (state._scrollGuardTimerId) {
+      window.clearTimeout(state._scrollGuardTimerId);
+    }
+    state._scrollGuardTimerId = window.setTimeout(() => {
+      state.scrollGuardActive = false;
+      state._scrollGuardTimerId = null;
+    }, Math.max(1000, durationMs | 0));
+  }
+
+  // 根据卡片数量估算守卫时长：错峰加载 120ms/个 + 重型 SPA 冷启动需要的稳定时间。
+  function getScrollGuardDurationMs(cardCount) {
+    const staggerMs = (BASE_CONFIG.iframeStaggerMs != null) ? BASE_CONFIG.iframeStaggerMs : 120;
+    const base = 3000;
+    const extra = Math.max(0, (cardCount | 0) - 1) * staggerMs;
+    return Math.min(base + extra + 1500, 8000);
+  }
+
+  function updateScrollEdgeBtns() {
+    const show = state.layoutRows === 1 && state.layoutMode !== "sidebar";
+    const c = elements.iframesContainer;
+    const canScroll = c.scrollWidth > c.clientWidth + 2;
+    if (elements.scrollToStartBtn) elements.scrollToStartBtn.hidden = !(show && canScroll);
+    if (elements.scrollToEndBtn) elements.scrollToEndBtn.hidden = !(show && canScroll);
+  }
+
+  function updateSendBtnState() {
+    const hasContent = elements.queryInput.value.trim().length > 0;
+    elements.sendSelectedBtn.classList.toggle("is-empty", !hasContent);
   }
 
   function hydrateQueryFromUrl() {
@@ -317,8 +404,13 @@
       return;
     }
 
-    selectedSites.forEach((site) => {
-      const card = createSiteCard(site);
+    // 错峰加载：按顺序每隔 STAGGER_MS 才为下一个 iframe 赋 src，
+    // 避免一次性 6~8 个重型 SPA（DeepSeek/Kimi/Gemini 等）同时初始化导致白屏。
+    const STAGGER_MS = (BASE_CONFIG.iframeStaggerMs != null)
+      ? BASE_CONFIG.iframeStaggerMs
+      : 120;
+    selectedSites.forEach((site, index) => {
+      const card = createSiteCard(site, index * STAGGER_MS);
       if (isWideMediaSite(site.id)) {
         card.classList.add("iframe-card-wide-media");
       }
@@ -336,9 +428,11 @@
     }
 
     elements.iframesContainer.scrollLeft = 0;
+    elements.iframesContainer.scrollTop = 0;
+    activateScrollGuard(0, 0, getScrollGuardDurationMs(selectedSites.length));
   }
 
-  function createSiteCard(site) {
+  function createSiteCard(site, loadDelay = 0) {
     const card = document.createElement("article");
     card.className = "iframe-card";
     card.dataset.siteId = site.id;
@@ -454,7 +548,7 @@
     };
 
     state.cardRefs.set(site.id, ref);
-    createIframeBody(ref);
+    createIframeBody(ref, loadDelay);
 
     card.appendChild(title);
     card.appendChild(body);
@@ -463,30 +557,33 @@
   }
 
   function refreshSiteCard(ref) {
-    if (ref.iframeEl && ref.bodyEl.contains(ref.iframeEl)) {
-      const src = ref.iframeEl.src;
-      ref.loaded = false;
-      ref.iframeEl.src = src;
-      setSiteStatus(ref.site.id, "正在重新加载…");
-      return;
-    }
+    ref.loaded = false;
+    ref.pendingQuery = "";
+    ref.pendingQueryResolver = null;
+    ref.iframeEl = null;
     createIframeBody(ref);
     setSiteStatus(ref.site.id, "正在重新加载…");
   }
 
-  function createIframeBody(ref) {
+  function createIframeBody(ref, loadDelay = 0) {
     const iframe = document.createElement("iframe");
     iframe.className = "ai-iframe";
     iframe.dataset.siteId = ref.site.id;
-    iframe.src = buildSiteUrl(ref.site, "");
     iframe.loading = "eager";
     iframe.allow = "clipboard-read; clipboard-write; microphone; camera; geolocation; autoplay; fullscreen; picture-in-picture; storage-access; web-share";
 
     let resolved = false;
+    const targetSrc = buildSiteUrl(ref.site, "");
+
     iframe.addEventListener("load", () => {
+      // 过滤掉 about:blank 的初始加载（iframe 无 src 插入 DOM 时浏览器会立即触发一次 load）
+      const currentSrc = iframe.src || "";
+      if (!currentSrc || currentSrc === "about:blank") {
+        return;
+      }
       resolved = true;
       ref.loaded = true;
-      ref.currentUrl = iframe.src || ref.site.url;
+      ref.currentUrl = currentSrc;
       setSiteStatus(ref.site.id, "iframe 已加载，可直接在卡片内操作。");
 
       if (ref.pendingQuery) {
@@ -494,7 +591,7 @@
         const queuedResolver = ref.pendingQueryResolver;
         ref.pendingQuery = "";
         ref.pendingQueryResolver = null;
-        dispatchSearchWithRetries(ref, queuedQuery, BASE_CONFIG.postLoadSendDelayMs || 250)
+        dispatchSearchWithRetries(ref, queuedQuery, 0)
           .then((result) => {
             if (typeof queuedResolver === "function") {
               queuedResolver(result);
@@ -503,15 +600,38 @@
       }
     });
 
-    ref.bodyEl.innerHTML = "";
-    ref.bodyEl.appendChild(iframe);
-    ref.iframeEl = iframe;
+    iframe.addEventListener("error", () => {
+      if (!resolved) {
+        resolved = true;
+        renderFallback(ref, "加载失败，目标站点未响应或拒绝了连接。");
+      }
+    });
 
+    if (loadDelay > 0) {
+      // 有延迟：先插入 DOM（不设 src），延迟后再赋 src
+      ref.bodyEl.innerHTML = "";
+      ref.bodyEl.appendChild(iframe);
+      ref.iframeEl = iframe;
+      setSiteStatus(ref.site.id, "等待加载中…");
+      setTimeout(() => {
+        if (ref.iframeEl === iframe) {
+          iframe.src = targetSrc;
+        }
+      }, loadDelay);
+    } else {
+      // 无延迟：先设 src 再插入 DOM，避免触发 about:blank 的 load 事件
+      iframe.src = targetSrc;
+      ref.bodyEl.innerHTML = "";
+      ref.bodyEl.appendChild(iframe);
+      ref.iframeEl = iframe;
+    }
+
+    const timeoutMs = (BASE_CONFIG.embedTimeoutMs || 18000) + loadDelay;
     setTimeout(() => {
       if (!resolved) {
         renderFallback(ref, "站点未能在限定时间内完成 iframe 加载。可能仍被目标站点限制嵌入。");
       }
-    }, BASE_CONFIG.embedTimeoutMs || 8000);
+    }, timeoutMs);
   }
 
   function renderFallback(ref, message) {
@@ -549,8 +669,13 @@
   }
 
   async function handleSendSelected(options = {}) {
+    if (state.isSending) {
+      return;
+    }
+
     const { clearInputAfterSend = true } = options;
     const query = getQuery();
+
     if (!query) {
       setGlobalStatus("请输入问题后再发送。", true);
       return;
@@ -562,29 +687,51 @@
       return;
     }
 
-    lockContainerScroll();
-    toggleGlobalButtons(true);
-    setGlobalStatus(`正在向 ${selectedSites.length} 个站点分发问题...`);
+    state.isSending = true;
 
-    state.scrollGuardActive = true;
-    state.scrollGuardLeft = elements.iframesContainer.scrollLeft;
+    try {
+      lockContainerScroll();
+      toggleGlobalButtons(true);
+      setGlobalStatus(`正在向 ${selectedSites.length} 个站点分发问题...`);
 
-    if (clearInputAfterSend) {
-      elements.queryInput.value = "";
+      if (state.lastSearchQuery) {
+        try {
+          const prevResponses = await quickCaptureAllResponses();
+          state.sessionSnapshots.push({
+            query: state.lastSearchQuery,
+            time: state.lastSearchTime,
+            responses: prevResponses
+          });
+        } catch (_snapErr) {
+          // 快照失败不阻断发送流程
+        }
+      }
+
+      state.lastSearchQuery = query;
+      state.lastSearchTime = new Date().toLocaleString();
+
+      activateScrollGuard(
+        elements.iframesContainer.scrollLeft,
+        elements.iframesContainer.scrollTop,
+        getScrollGuardDurationMs(selectedSites.length)
+      );
+
+      if (clearInputAfterSend) {
+        elements.queryInput.value = "";
+        updateSendBtnState();
+      }
+
+      const results = await Promise.all(selectedSites.map((site) => sendSmartToSite(site, query)));
+      const successCount = results.filter((item) => item && item.ok).length;
+      const failedCount = results.length - successCount;
+
+      await saveSearchHistory(query, selectedSites);
+      setGlobalStatus(`发送完成：成功 ${successCount} 个，失败 ${failedCount} 个。`, failedCount > 0);
+      scheduleScrollUnlock();
+    } finally {
+      state.isSending = false;
+      toggleGlobalButtons(false);
     }
-
-    const results = await Promise.all(selectedSites.map((site) => sendSmartToSite(site, query)));
-    const successCount = results.filter((item) => item && item.ok).length;
-    const failedCount = results.length - successCount;
-
-    await saveSearchHistory(query, selectedSites);
-    setGlobalStatus(`发送完成：成功 ${successCount} 个，失败 ${failedCount} 个。`, failedCount > 0);
-    toggleGlobalButtons(false);
-    scheduleScrollUnlock();
-
-    setTimeout(() => {
-      state.scrollGuardActive = false;
-    }, 3000);
   }
 
   async function maybeAutoSendFromUrl() {
@@ -613,6 +760,10 @@
       };
     }
 
+    if (site.supportUrlQuery && String(site.url || "").includes("{query}")) {
+      return navigateByUrlTemplate(ref, query);
+    }
+
     if (!ref.loaded) {
       return new Promise((resolve) => {
         ref.pendingQuery = query;
@@ -623,7 +774,79 @@
 
     ref.pendingQuery = "";
     ref.pendingQueryResolver = null;
-    return dispatchSearchWithRetries(ref, query, 120);
+    return dispatchSearchWithRetries(ref, query, 0);
+  }
+
+  function navigateByUrlTemplate(ref, query) {
+    const targetUrl = buildSiteUrl(ref.site, query);
+    if (!targetUrl) {
+      return Promise.resolve({
+        ok: false,
+        siteId: ref.site.id,
+        error: "站点 URL 配置无效"
+      });
+    }
+
+    const iframe = ref.iframeEl;
+    if (!iframe) {
+      return Promise.resolve({
+        ok: false,
+        siteId: ref.site.id,
+        error: "卡片 iframe 不可用"
+      });
+    }
+
+    setSiteStatus(ref.site.id, "正在通过 URL 直达搜索结果页...");
+
+    return new Promise((resolve) => {
+      const timeoutMs = 12000;
+      let done = false;
+
+      const cleanup = () => {
+        iframe.removeEventListener("load", handleLoad, true);
+        iframe.removeEventListener("error", handleError, true);
+      };
+
+      const finish = (result) => {
+        if (done) {
+          return;
+        }
+        done = true;
+        cleanup();
+        resolve(result);
+      };
+
+      const handleLoad = () => {
+        ref.loaded = true;
+        ref.currentUrl = iframe.src || targetUrl;
+        finish({
+          ok: true,
+          siteId: ref.site.id,
+          message: "已通过 URL 跳转到搜索结果页"
+        });
+      };
+
+      const handleError = () => {
+        finish({
+          ok: false,
+          siteId: ref.site.id,
+          error: "URL 跳转失败，页面未响应"
+        });
+      };
+
+      iframe.addEventListener("load", handleLoad, true);
+      iframe.addEventListener("error", handleError, true);
+
+      window.setTimeout(() => {
+        finish({
+          ok: false,
+          siteId: ref.site.id,
+          error: "URL 跳转超时，未进入目标结果页"
+        });
+      }, timeoutMs);
+
+      iframe.src = targetUrl;
+    });
   }
 
   function handleFrameMessage(event) {
@@ -634,9 +857,12 @@
 
     if (payload.type === "AI_COMPARE_URL_UPDATE") {
       const ref = state.cardRefs.get(payload.siteId);
-      if (ref && payload.currentUrl) {
-        ref.currentUrl = payload.currentUrl;
-        updateLatestHistoryUrl(payload.siteId, payload.currentUrl);
+      if (ref) {
+        ref.injectedPinged = true;
+        if (payload.currentUrl) {
+          ref.currentUrl = payload.currentUrl;
+          updateLatestHistoryUrl(payload.siteId, payload.currentUrl);
+        }
       }
       return;
     }
@@ -756,12 +982,16 @@
       elements.sidebarLayoutBtn?.classList.add("is-active");
       elements.layoutRowsButtons.forEach((btn) => btn.classList.remove("is-active"));
       elements.cardSizeButtons.forEach((btn) => btn.classList.remove("is-active"));
+      updateScrollEdgeBtns();
       return;
     }
 
     appShell?.classList.remove("is-sidebar-mode");
     if (elements.siteNavPanel) elements.siteNavPanel.hidden = true;
     elements.sidebarLayoutBtn?.classList.remove("is-active");
+    state.cardRefs.forEach((ref) => {
+      if (ref.cardEl) ref.cardEl.hidden = false;
+    });
 
     const singleRowWidthMap = {
       small: 480,
@@ -800,6 +1030,7 @@
     if (elements.cardSizeGroup) {
       elements.cardSizeGroup.hidden = state.layoutRows !== 1;
     }
+    updateScrollEdgeBtns();
   }
 
   function renderSiteNav() {
@@ -878,7 +1109,168 @@
     }
 
     state.isPromptPickerOpen = false;
+    hidePromptPreviewPopup();
     renderPromptPicker();
+  }
+
+  // ── 全局预览浮层（position:fixed，悬浮在 picker 左侧）──
+  let _previewPopupEl = null;
+  let _previewHideTimer = null;
+
+  function getOrCreatePreviewPopup() {
+    if (!_previewPopupEl) {
+      _previewPopupEl = document.createElement("div");
+      _previewPopupEl.className = "popup-prompt-preview-popup";
+      _previewPopupEl.addEventListener("mouseenter", () => {
+        if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
+      });
+      _previewPopupEl.addEventListener("mouseleave", () => {
+        _previewHideTimer = setTimeout(() => hidePromptPreviewPopup(), 320);
+      });
+      document.body.appendChild(_previewPopupEl);
+    }
+    return _previewPopupEl;
+  }
+
+  function showPromptPreviewPopup(anchorBtn, prompt) {
+    const popup = getOrCreatePreviewPopup();
+    popup.innerHTML = `<div class="popup-prompt-preview-title">${escapeHtml(prompt.title || "未命名提示词")}</div><div class="popup-prompt-preview-body">${escapeHtml(prompt.content || "（暂无内容）")}</div>`;
+    popup.style.display = "block";
+    popup.classList.add("is-visible");
+
+    // 定位：优先显示在 picker 右侧，不够则显示在左侧
+    requestAnimationFrame(() => {
+      const btnRect = anchorBtn.getBoundingClientRect();
+      const popupW = popup.offsetWidth || 300;
+      const popupH = popup.offsetHeight || 180;
+      const picker = elements.promptPicker;
+      const pickerRect = picker ? picker.getBoundingClientRect() : btnRect;
+
+      // 水平：优先 picker 右侧
+      let left = pickerRect.right + 8;
+      if (left + popupW > window.innerWidth - 8) {
+        left = pickerRect.left - popupW - 8; // 右侧放不下则改左侧
+      }
+      if (left < 8) left = 8;
+
+      // 垂直：以按钮为基准，垂直居中
+      let top = btnRect.top + btnRect.height / 2 - popupH / 2;
+      if (top < 8) top = 8;
+      if (top + popupH > window.innerHeight - 8) top = window.innerHeight - popupH - 8;
+
+      popup.style.left = `${left}px`;
+      popup.style.top = `${top}px`;
+    });
+  }
+
+  function hidePromptPreviewPopup() {
+    if (_previewPopupEl) {
+      _previewPopupEl.style.display = "none";
+      _previewPopupEl.classList.remove("is-visible");
+    }
+    if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
+  }
+
+  // ── 编辑弹窗 ──
+  function openPromptEditModal(prompt, groupId) {
+    closePromptPicker();
+
+    // 找当前的 prompt 对象（引用）
+    let targetGroup = state.promptGroups.find((g) => g.id === groupId) || state.promptGroups[0];
+    let targetPrompt = targetGroup?.prompts.find((p) => p.id === prompt.id);
+    if (!targetPrompt) return;
+
+    const overlay = document.createElement("div");
+    overlay.className = "prompt-edit-modal-overlay";
+
+    const modal = document.createElement("div");
+    modal.className = "prompt-edit-modal";
+    modal.innerHTML = `
+      <div class="prompt-edit-modal-title">编辑提示词</div>
+      <div>
+        <label class="prompt-edit-field-label">名称</label>
+        <input class="prompt-edit-input" type="text" value="${escapeHtml(targetPrompt.title || "")}" />
+      </div>
+      <div>
+        <label class="prompt-edit-field-label">分类</label>
+        <select class="prompt-edit-select">
+          ${state.promptGroups.map((g) => `<option value="${escapeHtml(g.id)}"${g.id === groupId ? " selected" : ""}>${escapeHtml(g.name || "未命名分组")}</option>`).join("")}
+          <option value="__new__">＋ 新建分组…</option>
+        </select>
+        <input class="prompt-edit-input prompt-edit-new-group-input" type="text" placeholder="输入新分组名称" style="display:none;margin-top:8px;" />
+      </div>
+      <div>
+        <label class="prompt-edit-field-label">提示词内容</label>
+        <textarea class="prompt-edit-textarea">${escapeHtml(targetPrompt.content || "")}</textarea>
+      </div>
+      <div class="prompt-edit-actions">
+        <button class="prompt-edit-delete-btn" type="button">删除</button>
+        <div class="prompt-edit-main-btns">
+          <button class="prompt-edit-cancel-btn" type="button">取消</button>
+          <button class="prompt-edit-save-btn" type="button">保存</button>
+        </div>
+      </div>
+    `;
+
+    const titleInput = modal.querySelector(".prompt-edit-input");
+    const groupSelect = modal.querySelector(".prompt-edit-select");
+    const newGroupInput = modal.querySelector(".prompt-edit-new-group-input");
+    const contentInput = modal.querySelector(".prompt-edit-textarea");
+    const cancelBtn = modal.querySelector(".prompt-edit-cancel-btn");
+    const saveBtn = modal.querySelector(".prompt-edit-save-btn");
+    const deleteBtn = modal.querySelector(".prompt-edit-delete-btn");
+
+    // 选择「新建分组」时显示输入框
+    groupSelect?.addEventListener("change", () => {
+      const isNew = groupSelect instanceof HTMLSelectElement && groupSelect.value === "__new__";
+      if (newGroupInput instanceof HTMLInputElement) {
+        newGroupInput.style.display = isNew ? "block" : "none";
+        if (isNew) requestAnimationFrame(() => newGroupInput.focus());
+      }
+    });
+
+    cancelBtn.addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    saveBtn.addEventListener("click", async () => {
+      const newTitle = (titleInput instanceof HTMLInputElement ? titleInput.value : "").trim() || "未命名提示词";
+      const newContent = contentInput instanceof HTMLTextAreaElement ? contentInput.value : "";
+      let newGroupId = groupSelect instanceof HTMLSelectElement ? groupSelect.value : groupId;
+
+      // 处理新建分组
+      if (newGroupId === "__new__") {
+        const newName = (newGroupInput instanceof HTMLInputElement ? newGroupInput.value : "").trim() || "新建分组";
+        const newGroup = { id: `prompt-group-${Date.now()}`, name: newName, prompts: [] };
+        state.promptGroups.push(newGroup);
+        newGroupId = newGroup.id;
+      }
+
+      // 从原分组删除
+      state.promptGroups.forEach((g) => {
+        g.prompts = g.prompts.filter((p) => p.id !== targetPrompt.id);
+      });
+      // 放入目标分组
+      const destGroup = state.promptGroups.find((g) => g.id === newGroupId) || targetGroup;
+      destGroup.prompts.push({ id: targetPrompt.id, title: newTitle, content: newContent });
+
+      await chrome.storage.local.set({ [STORAGE_KEYS.promptGroups]: state.promptGroups });
+      overlay.remove();
+    });
+
+    deleteBtn.addEventListener("click", async () => {
+      if (!window.confirm("确定要删除这条提示词吗？")) return;
+      state.promptGroups.forEach((g) => {
+        g.prompts = g.prompts.filter((p) => p.id !== targetPrompt.id);
+      });
+      await chrome.storage.local.set({ [STORAGE_KEYS.promptGroups]: state.promptGroups });
+      overlay.remove();
+    });
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    if (titleInput instanceof HTMLInputElement) {
+      requestAnimationFrame(() => titleInput.focus());
+    }
   }
 
   function renderPromptPicker() {
@@ -943,16 +1335,58 @@
       promptsColumn.appendChild(empty);
     } else {
       activeGroup.prompts.forEach((prompt) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "popup-prompt-item";
-        button.textContent = prompt.title || "未命名提示词";
-        button.addEventListener("click", () => {
+        const item = document.createElement("div");
+        item.className = "popup-prompt-item";
+
+        // 左侧：标题（点击填入）
+        const label = document.createElement("span");
+        label.className = "popup-prompt-item-label";
+        label.textContent = prompt.title || "未命名提示词";
+        label.addEventListener("click", () => {
           elements.queryInput.value = prompt.content || "";
           closePromptPicker();
           elements.queryInput.focus();
         });
-        promptsColumn.appendChild(button);
+
+        // 右侧：铅笔 + 眼睛
+        const rightIcons = document.createElement("div");
+        rightIcons.className = "popup-prompt-edit-wrap";
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "popup-prompt-icon-btn";
+        editBtn.setAttribute("aria-label", "编辑此提示词");
+        editBtn.title = "编辑";
+        editBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M4 22h16" opacity=".5"/><path d="m14.63 2.921l-.742.742l-6.817 6.817c-.462.462-.693.692-.891.947a5.2 5.2 0 0 0-.599.969c-.139.291-.242.601-.449 1.22l-.875 2.626l-.213.641a.848.848 0 0 0 1.073 1.073l.641-.213l2.625-.875c.62-.207.93-.31 1.221-.45q.518-.246.969-.598c.255-.199.485-.43.947-.891l6.817-6.817l.742-.742a3.146 3.146 0 0 0-4.45-4.449Z"/><path d="M13.888 3.664S13.98 5.24 15.37 6.63s2.966 1.483 2.966 1.483m-12.579 9.63l-1.5-1.5" opacity=".5"/></svg>`;
+        editBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openPromptEditModal(prompt, activeGroup.id);
+        });
+
+        const previewWrap = document.createElement("div");
+        previewWrap.className = "popup-prompt-preview-wrap";
+        const previewBtn = document.createElement("button");
+        previewBtn.type = "button";
+        previewBtn.className = "popup-prompt-icon-btn";
+        previewBtn.setAttribute("aria-label", "预览内容");
+        previewBtn.title = "预览";
+        previewBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+        previewBtn.addEventListener("mouseenter", () => {
+          if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
+          showPromptPreviewPopup(previewBtn, prompt);
+        });
+        previewBtn.addEventListener("mouseleave", () => {
+          _previewHideTimer = setTimeout(() => hidePromptPreviewPopup(), 320);
+        });
+        previewWrap.appendChild(previewBtn);
+
+        rightIcons.appendChild(editBtn);
+        rightIcons.appendChild(previewWrap);
+
+        item.appendChild(label);
+        item.appendChild(rightIcons);
+        promptsColumn.appendChild(item);
       });
     }
 
@@ -1068,6 +1502,7 @@
       deleteBtn.className = "history-item-delete-btn";
       deleteBtn.textContent = "×";
       deleteBtn.setAttribute("aria-label", "删除记录");
+      deleteBtn.setAttribute("data-tooltip", "删除该记录");
       deleteBtn.addEventListener("click", async (event) => {
         event.stopPropagation();
         await deleteHistoryEntry(entry.id);
@@ -1161,26 +1596,21 @@
     modal.innerHTML = `
       <div class="export-modal-content">
         <div class="export-modal-header">
-          <h3 class="export-modal-title">导出 AI 对比结果</h3>
-          <button class="export-close-btn" type="button" aria-label="关闭">×</button>
+          <h3 class="export-modal-title">导出对话结果</h3>
+          <button class="export-close-btn" type="button" aria-label="关闭"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
-        <div class="export-notice">将读取各卡片当前已加载的 AI 回答内容，结果取决于页面加载状态。</div>
+        <div class="export-notice">将读取各卡片当前已加载的 AI 回答内容，结果取决于页面加载状态。<br>此功能还处于测试阶段，可能存在内容提取不完整或格式异常等问题。</div>
         <div class="export-modal-body">
           <div class="export-section">
             <div class="export-section-title">导出格式</div>
             <div class="export-option-row">
               <button class="export-option-btn is-active" data-export-format="markdown">Markdown</button>
-              <button class="export-option-btn" data-export-format="txt">纯文本</button>
-              <button class="export-option-btn" data-export-format="html">HTML</button>
+              <button class="export-option-btn" data-export-format="txt">TXT</button>
             </div>
           </div>
           <div class="export-section">
-            <div class="export-section-title">选择站点</div>
+            <div class="export-section-title">选择导出</div>
             <div class="export-site-list"></div>
-          </div>
-          <div class="export-section export-section--preview">
-            <div class="export-section-title">预览</div>
-            <pre class="export-preview">正在读取内容...</pre>
           </div>
         </div>
         <div class="export-actions">
@@ -1193,7 +1623,6 @@
     document.body.appendChild(modal);
 
     const siteList = modal.querySelector(".export-site-list");
-    const preview = modal.querySelector(".export-preview");
 
     Array.from(state.cardRefs.values()).forEach((ref) => {
       const row = document.createElement("label");
@@ -1204,25 +1633,23 @@
       `;
 
       const checkbox = row.querySelector("input");
-      checkbox.addEventListener("change", async () => {
+      checkbox.addEventListener("change", () => {
         if (checkbox.checked) {
           selectedSiteIds.add(ref.site.id);
         } else {
           selectedSiteIds.delete(ref.site.id);
         }
-        await updateExportPreview(preview, selectedFormat, selectedSiteIds);
       });
 
       siteList.appendChild(row);
     });
 
     modal.querySelectorAll("[data-export-format]").forEach((button) => {
-      button.addEventListener("click", async () => {
+      button.addEventListener("click", () => {
         selectedFormat = button.dataset.exportFormat;
         modal.querySelectorAll("[data-export-format]").forEach((item) => {
           item.classList.toggle("is-active", item === button);
         });
-        await updateExportPreview(preview, selectedFormat, selectedSiteIds);
       });
     });
 
@@ -1240,20 +1667,37 @@
 
     modal.querySelector(".export-confirm-btn").addEventListener("click", async () => {
       const responses = await collectVisibleResponses(selectedSiteIds);
-      const content = generateExportContent(responses, selectedFormat);
+      const content = generateExportContent(responses, selectedFormat, selectedSiteIds);
       const extension = selectedFormat === "markdown" ? "md" : selectedFormat;
       const mimeType = selectedFormat === "html" ? "text/html" : "text/plain";
-      downloadFile(content, `ai-compare-export.${extension}`, mimeType);
+      downloadFile(content, buildExportFilename(extension), mimeType);
       closeModal();
     });
 
-    updateExportPreview(preview, selectedFormat, selectedSiteIds);
   }
 
-  async function updateExportPreview(previewElement, format, selectedSiteIds) {
-    previewElement.textContent = "正在生成预览...";
-    const responses = await collectVisibleResponses(selectedSiteIds);
-    previewElement.textContent = generateExportPreview(responses, format);
+  async function quickCaptureAllResponses() {
+    const CAPTURE_TIMEOUT = 3000;
+    const promises = [];
+    for (const [, ref] of state.cardRefs.entries()) {
+      const p = Promise.race([
+        collectResponseForSite(ref),
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                siteName: ref.site.name,
+                content: "暂未提取到内容",
+                turns: null,
+                url: ref.currentUrl || ref.site.url
+              }),
+            CAPTURE_TIMEOUT
+          )
+        )
+      ]);
+      promises.push(p);
+    }
+    return Promise.all(promises);
   }
 
   async function collectVisibleResponses(selectedSiteIds = null) {
@@ -1274,6 +1718,7 @@
       return {
         siteName: ref.site.name,
         content: "暂未提取到内容",
+        turns: null,
         url: ref.currentUrl || ref.site.url
       };
     }
@@ -1315,6 +1760,7 @@
         resolve({
           siteName: site.name,
           content: cleanExtractedContent(event.data.content || ""),
+          turns: Array.isArray(event.data.turns) ? event.data.turns : null,
           url: event.data.url || site.url
         });
       };
@@ -1332,6 +1778,7 @@
         resolve({
           siteName: site.name,
           content: "暂未提取到内容",
+          turns: null,
           url: site.url
         });
         return;
@@ -1342,6 +1789,7 @@
         resolve({
           siteName: site.name,
           content: "暂未提取到内容",
+          turns: null,
           url: site.url
         });
       }, 5000);
@@ -1366,24 +1814,204 @@
     return result || text.slice(0, 6000) || "暂未提取到内容";
   }
 
-  function generateExportContent(responses, format) {
-    const query = getQuery() || "未填写问题";
-    const time = new Date().toLocaleString();
+  /**
+   * 导出用：去掉正文里的 #～###### 标题语法，改为加粗行，避免与外层「问题 / 模型」标题层级冲突；
+   * 保留列表、加粗等；合并过多空行为「段落之间空一行」。
+   */
+  function flattenExportBodyMarkdown(raw) {
+    const text = String(raw || "").trim();
+    if (!text || text === "暂未提取到内容") {
+      return text || "暂未提取到内容";
+    }
+
+    const lines = text.split(/\r?\n/);
+    const out = [];
+    let inCodeFence = false;
+    for (const line of lines) {
+      const trimmedEnd = line.trimEnd();
+      const trimmed = trimmedEnd.trim();
+      if (trimmed.startsWith("```")) {
+        inCodeFence = !inCodeFence;
+        out.push(trimmedEnd);
+        continue;
+      }
+      if (inCodeFence) {
+        out.push(trimmedEnd);
+        continue;
+      }
+      const headingMatch = trimmedEnd.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const title = headingMatch[2].trim();
+        out.push(`**${title}**`);
+        out.push("");
+      } else {
+        out.push(trimmedEnd);
+      }
+    }
+
+    let result = out.join("\n");
+    result = result.replace(/\n{3,}/g, "\n\n").trim();
+    return result || "暂未提取到内容";
+  }
+
+  function normalizeQueryForMatch(text) {
+    return String(text || "").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 300);
+  }
+
+  function buildExportSectionsFromConversations(cardData) {
+    const cardsWithTurns = cardData.filter((c) => Array.isArray(c.turns) && c.turns.length > 0);
+    if (cardsWithTurns.length === 0) return null;
+
+    const cardPairs = cardsWithTurns.map((card) => {
+      const pairs = [];
+      const turns = card.turns;
+      for (let i = 0; i < turns.length; i++) {
+        if (turns[i].role === "user") {
+          let j = i + 1;
+          while (j < turns.length && turns[j].role !== "assistant") j++;
+          const answer = j < turns.length ? turns[j].text : "";
+          if (answer) {
+            pairs.push({ question: turns[i].text, answer });
+          }
+        }
+      }
+      return { siteName: card.siteName, url: card.url, pairs };
+    });
+
+    const seenQ = new Map();
+    for (const card of cardPairs) {
+      for (const pair of card.pairs) {
+        const norm = normalizeQueryForMatch(pair.question);
+        if (!seenQ.has(norm)) {
+          seenQ.set(norm, pair.question);
+        }
+      }
+    }
+
+    if (seenQ.size === 0) return null;
+
+    const sections = [];
+    for (const [normQ, question] of seenQ.entries()) {
+      const models = [];
+      for (const card of cardPairs) {
+        const pair = card.pairs.find((p) => normalizeQueryForMatch(p.question) === normQ);
+        if (pair) {
+          models.push({ siteName: card.siteName, url: card.url, content: pair.answer });
+        }
+      }
+      if (models.length > 0) {
+        sections.push({ query: question, models });
+      }
+    }
+
+    return sections.length > 0 ? sections : null;
+  }
+
+  function buildSiteNameFilter(selectedSiteIds) {
+    if (!selectedSiteIds) {
+      return null;
+    }
+    const names = new Set();
+    for (const [id, ref] of state.cardRefs.entries()) {
+      if (selectedSiteIds.has(id)) {
+        names.add(ref.site.name);
+      }
+    }
+    return names;
+  }
+
+  function renderSectionsToFormat(sections, format) {
+    const valid = sections.filter((s) => (s.items || []).length > 0);
+    if (valid.length === 0) return "";
 
     if (format === "markdown") {
-      return `# AI 对比结果\n\n> 问题：${query}\n> 导出时间：${time}\n\n${responses.map((item) => `## ${item.siteName}\n\n**URL:** ${item.url}\n\n${item.content || "暂未提取到内容"}`).join("\n\n---\n\n")}`;
+      return valid
+        .map((section) => {
+          const queryLine = String(section.query || "").replace(/\r?\n/g, " ").trim();
+          const timeLine = section.time ? `导出时间：${section.time}` : "";
+          const modelBlocks = section.items
+            .map((item) => {
+              const body = flattenExportBodyMarkdown(item.content || "暂未提取到内容");
+              return `## ${item.siteName}\n\n**URL：**${item.url}\n\n${body}`;
+            })
+            .join("\n\n");
+          return [`# ${queryLine}`, timeLine, modelBlocks].filter(Boolean).join("\n\n");
+        })
+        .join("\n\n---\n\n");
     }
 
     if (format === "html") {
-      return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>AI 对比结果</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.7}section{margin-bottom:28px}pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:16px;border-radius:12px}</style></head><body><h1>AI 对比结果</h1><p><strong>问题：</strong>${escapeHtml(query)}</p><p><strong>导出时间：</strong>${escapeHtml(time)}</p>${responses.map((item) => `<section><h2>${escapeHtml(item.siteName)}</h2><p><strong>URL:</strong> ${escapeHtml(item.url)}</p><pre>${escapeHtml(item.content || "暂未提取到内容")}</pre></section>`).join("")}</body></html>`;
+      const querySections = valid
+        .map((section) => {
+          const modelBlocks = section.items
+            .map(
+              (item) =>
+                `<section class="model-section"><h2>${escapeHtml(item.siteName)}</h2><p><strong>URL：</strong> <a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml(item.url)}</a></p><pre>${escapeHtml(flattenExportBodyMarkdown(item.content || "暂未提取到内容"))}</pre></section>`
+            )
+            .join("");
+          const timeHtml = section.time ? `<p class="export-time">${escapeHtml(`导出时间：${section.time}`)}</p>` : "";
+          return `<section class="query-section"><h1>${escapeHtml(section.query)}</h1>${timeHtml}${modelBlocks}</section>`;
+        })
+        .join("<hr>");
+      return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>AI 对比结果</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.7}.query-section{margin-bottom:40px}.model-section{margin-bottom:28px}pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:16px;border-radius:12px}a{color:#2563eb}</style></head><body>${querySections}</body></html>`;
     }
 
-    return `AI 对比结果\n\n问题：${query}\n导出时间：${time}\n\n${responses.map((item) => `${item.siteName}\nURL: ${item.url}\n\n${item.content || "暂未提取到内容"}`).join("\n\n====================\n\n")}`;
+    return valid
+      .map((section) => {
+        const timeStr = section.time ? `导出时间：${section.time}` : "";
+        const modelBlocks = section.items
+          .map((item) => {
+            const body = flattenExportBodyMarkdown(item.content || "暂未提取到内容");
+            return `${item.siteName}\nURL: ${item.url}\n\n${body}`;
+          })
+          .join("\n\n" + "-".repeat(32) + "\n\n");
+        return [section.query, timeStr, modelBlocks].filter(Boolean).join("\n\n");
+      })
+      .join("\n\n" + "=".repeat(40) + "\n\n");
   }
 
-  function generateExportPreview(responses, format) {
-    const full = generateExportContent(responses, format);
+  function generateExportContent(responses, format, selectedSiteIds = null) {
+    const currentQuery = state.lastSearchQuery || state.searchHistory[0]?.query || "未填写问题";
+    const currentTime = state.lastSearchTime || new Date().toLocaleString();
+
+    const allowedNames = buildSiteNameFilter(selectedSiteIds);
+    const filterItems = (items) =>
+      allowedNames ? items.filter((r) => allowedNames.has(r.siteName)) : items;
+
+    const allSections = [
+      ...state.sessionSnapshots.map((s) => ({
+        query: s.query,
+        time: s.time,
+        items: filterItems(s.responses)
+      })),
+      { query: currentQuery, time: currentTime, items: filterItems(responses) }
+    ];
+    return renderSectionsToFormat(allSections, format);
+  }
+
+  function generateExportPreview(responses, format, selectedSiteIds = null) {
+    const full = generateExportContent(responses, format, selectedSiteIds);
     return full.length > 1600 ? `${full.slice(0, 1600)}\n\n...` : full;
+  }
+
+  function buildExportFilename(extension) {
+    const query = state.lastSearchQuery || state.searchHistory[0]?.query || "";
+    const now = new Date();
+    const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+
+    if (!query) {
+      return `AI导出_${date}.${extension}`;
+    }
+
+    const keyword = query
+      .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, " ")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 16)
+      .trim()
+      .replace(/\s/g, "-");
+
+    return `${keyword}_${date}.${extension}`;
   }
 
   function downloadFile(content, filename, mimeType) {
@@ -1417,11 +2045,18 @@
   }
 
   function buildSiteUrl(site, query) {
-    if (query && site.supportUrlQuery && site.url.includes("{query}")) {
-      return site.url.replace("{query}", encodeURIComponent(query));
+    const url = site.url || "";
+    if (!url.includes("{query}")) {
+      return url;
     }
-
-    return site.url;
+    if (query && site.supportUrlQuery) {
+      return url.replace("{query}", encodeURIComponent(query));
+    }
+    // 空 query 或站点不支持 URL 直达：剥离含 {query} 的参数段，回落到基础 URL
+    let next = url.replace(/([?&])[^=&]+=\{query\}/g, (_, sep) => (sep === "?" ? "?" : ""));
+    next = next.replace(/[?&]$/, "");
+    // 兜底：万一还残留 {query}，粗暴清掉
+    return next.replace(/\{query\}/g, "");
   }
 
   function dispatchSearchWithRetries(ref, query, initialDelayMs) {
@@ -1455,16 +2090,20 @@
 
       pendingDispatch.attempts += 1;
 
-      try {
-        if (!pendingDispatch.ref.iframeEl?.contentWindow) {
+      if (!pendingDispatch.ref.iframeEl?.contentWindow) {
+        if (pendingDispatch.attempts < pendingDispatch.maxAttempts) {
+          scheduleDispatchAttempt(pendingDispatch, pendingDispatch.retryDelayMs);
+        } else {
           finalizePendingDispatch(pendingDispatch.requestId, {
             ok: false,
             siteId: pendingDispatch.ref.site.id,
             error: "卡片 iframe 不可用"
           });
-          return;
         }
+        return;
+      }
 
+      try {
         pendingDispatch.ref.iframeEl.contentWindow.postMessage(
           {
             type: "AI_COMPARE_SEARCH",
@@ -1477,19 +2116,19 @@
         setSiteStatus(pendingDispatch.ref.site.id, "查询已发送到卡片 iframe，等待页面响应...");
         restoreLockedScrollPosition();
       } catch (error) {
-        finalizePendingDispatch(pendingDispatch.requestId, {
-          ok: false,
-          siteId: pendingDispatch.ref.site.id,
-          error: error.message
-        });
+        if (pendingDispatch.attempts < pendingDispatch.maxAttempts) {
+          scheduleDispatchAttempt(pendingDispatch, pendingDispatch.retryDelayMs);
+        } else {
+          finalizePendingDispatch(pendingDispatch.requestId, {
+            ok: false,
+            siteId: pendingDispatch.ref.site.id,
+            error: error.message
+          });
+        }
         return;
       }
 
-      if (pendingDispatch.attempts >= pendingDispatch.maxAttempts) {
-        scheduleDispatchAttemptFailure(pendingDispatch);
-      } else {
-        scheduleDispatchAttempt(pendingDispatch, pendingDispatch.retryDelayMs);
-      }
+      scheduleDispatchAttemptFailure(pendingDispatch);
     }, delayMs);
   }
 

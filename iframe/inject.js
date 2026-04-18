@@ -27,10 +27,14 @@
   });
 
   window.addEventListener("message", (event) => {
-    if (!event.data || event.data.type !== "AI_COMPARE_SEARCH") {
-      if (event.data?.type === "AI_COMPARE_EXTRACT") {
-        handleExtractRequest(event.data);
-      }
+    if (!event.data) return;
+
+    if (event.data.type === "AI_COMPARE_EXTRACT") {
+      handleExtractRequest(event.data);
+      return;
+    }
+
+    if (event.data.type !== "AI_COMPARE_SEARCH") {
       return;
     }
 
@@ -199,7 +203,7 @@
 
   async function executeFocus(step) {
     const element = await findElement(step);
-    element.focus();
+    safeFocus(element);
     if (typeof element.click === "function") {
       element.click();
     }
@@ -207,7 +211,7 @@
 
   async function executeSetValue(step, query) {
     const element = await findElement(step);
-    element.focus();
+    safeFocus(element);
 
     const inputType = step.inputType === "auto"
       ? detectInputType(element)
@@ -263,7 +267,7 @@
       throw new Error("没有可用于提交的输入元素");
     }
 
-    anchor.focus();
+    safeFocus(anchor);
 
     const form = typeof anchor.closest === "function" ? anchor.closest("form") : null;
     if (form) {
@@ -318,7 +322,7 @@
         }
       }
 
-      await delay(200);
+      await delay(50);
     }
 
     throw new Error(`未找到元素: ${selectors.join(", ")}`);
@@ -420,7 +424,7 @@
   }
 
   function updateLexicalEditorContent(element, query) {
-    element.focus();
+    safeFocus(element);
 
     let updatedViaApi = false;
     try {
@@ -487,7 +491,7 @@
   }
 
   function updateGenericContenteditable(element, query) {
-    element.focus();
+    safeFocus(element);
 
     const paragraphs = element.querySelectorAll("p");
     if (paragraphs.length > 0) {
@@ -536,11 +540,24 @@
 
   function tryExecInsertText(element, query) {
     try {
-      element.focus();
+      safeFocus(element);
       document.execCommand("selectAll", false);
       document.execCommand("insertText", false, query);
     } catch (_error) {
       // Ignore browsers/editors that reject execCommand.
+    }
+  }
+
+  // 聚焦时禁用浏览器默认的「滚动聚焦元素到可视区」行为，
+  // 避免触发外层 .iframes-container 的 scrollLeft/scrollTop 抖动。
+  function safeFocus(element) {
+    if (!element || typeof element.focus !== "function") {
+      return;
+    }
+    try {
+      element.focus({ preventScroll: true });
+    } catch (_error) {
+      element.focus();
     }
   }
 
@@ -618,12 +635,14 @@
 
   function handleExtractRequest(message) {
     const content = extractReadablePageText();
+    const turns = extractConversationTurns();
     window.parent.postMessage(
       {
         type: "AI_COMPARE_EXTRACT_RESULT",
         requestId: message.requestId,
         siteId: message.site?.id,
         content,
+        turns,
         url: window.location.href
       },
       "*"
@@ -687,6 +706,149 @@
     return null;
   }
 
+  function domToMarkdown(element) {
+    function convertNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent || "";
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+      const tag = node.tagName.toLowerCase();
+      if (["script", "style", "noscript", "button", "svg", "aside"].includes(tag)) return "";
+
+      const children = () => Array.from(node.childNodes).map(convertNode).join("");
+
+      switch (tag) {
+        case "h1": return `\n\n# ${children().trim()}\n\n`;
+        case "h2": return `\n\n## ${children().trim()}\n\n`;
+        case "h3": return `\n\n### ${children().trim()}\n\n`;
+        case "h4": return `\n\n#### ${children().trim()}\n\n`;
+        case "h5": return `\n\n##### ${children().trim()}\n\n`;
+        case "h6": return `\n\n###### ${children().trim()}\n\n`;
+        case "p": {
+          const inner = children().trim();
+          return inner ? `\n\n${inner}\n\n` : "";
+        }
+        case "br": return "  \n";
+        case "hr": return "\n\n---\n\n";
+        case "strong":
+        case "b": {
+          const inner = children().trim();
+          return inner ? `**${inner}**` : "";
+        }
+        case "em":
+        case "i": {
+          const inner = children().trim();
+          return inner ? `*${inner}*` : "";
+        }
+        case "del":
+        case "s": {
+          const inner = children().trim();
+          return inner ? `~~${inner}~~` : "";
+        }
+        case "code": {
+          if (node.parentElement && node.parentElement.tagName.toLowerCase() === "pre") {
+            return node.textContent || "";
+          }
+          const inner = children().trim();
+          return inner ? `\`${inner}\`` : "";
+        }
+        case "pre": {
+          const codeEl = node.querySelector("code");
+          let lang = "";
+          if (codeEl) {
+            const classMatch = codeEl.className.match(/language-(\w+)/);
+            if (classMatch) lang = classMatch[1];
+          }
+          const content = (codeEl || node).textContent || "";
+          return `\n\n\`\`\`${lang}\n${content.trim()}\n\`\`\`\n\n`;
+        }
+        case "blockquote": {
+          const inner = children().trim().split("\n").map((line) => `> ${line}`).join("\n");
+          return `\n\n${inner}\n\n`;
+        }
+        case "ul": {
+          const liEls = Array.from(node.querySelectorAll("li")).filter(
+            (el) => el.closest("ul") === node || el.closest("ol") === node
+          );
+          const items = liEls
+            .map((li) => {
+              const text = convertNode(li).trim();
+              return `- ${text.replace(/\n/g, "\n  ")}`;
+            })
+            .join("\n");
+          return items ? `\n\n${items}\n\n` : "";
+        }
+        case "ol": {
+          const liEls = Array.from(node.querySelectorAll("li")).filter(
+            (el) => el.closest("ul") === node || el.closest("ol") === node
+          );
+          const items = liEls
+            .map((li, idx) => {
+              const text = convertNode(li).trim();
+              return `${idx + 1}. ${text.replace(/\n/g, "\n   ")}`;
+            })
+            .join("\n");
+          return items ? `\n\n${items}\n\n` : "";
+        }
+        case "li": {
+          const inner = children().trim();
+          return inner.replace(/\n{3,}/g, "\n\n");
+        }
+        case "div":
+        case "section":
+        case "article":
+        case "figure":
+        case "figcaption":
+        case "details":
+        case "summary": {
+          const inner = children().trim();
+          return inner ? `\n\n${inner}\n\n` : "";
+        }
+        case "a": {
+          const href = (node.getAttribute("href") || "").trim();
+          const text = children().trim();
+          if (!text) return "";
+          if (!href || href.startsWith("#") || href === text) return text;
+          return `[${text}](${href})`;
+        }
+        case "img": {
+          const alt = node.getAttribute("alt") || "";
+          return alt ? `[图片: ${alt}]` : "";
+        }
+        case "table": return convertTable(node);
+        default: return children();
+      }
+    }
+
+    function convertTable(tableEl) {
+      const allRows = Array.from(tableEl.querySelectorAll("tr"));
+      if (!allRows.length) return "";
+      const data = allRows
+        .map((row) =>
+          Array.from(row.querySelectorAll("th, td")).map((cell) =>
+            (cell.innerText || cell.textContent || "").trim().replace(/\|/g, "\\|").replace(/\n/g, " ")
+          )
+        )
+        .filter((row) => row.length > 0);
+      if (!data.length) return "";
+      const colCount = Math.max(...data.map((r) => r.length));
+      const normalized = data.map((row) => {
+        while (row.length < colCount) row.push("");
+        return row;
+      });
+      const sep = Array(colCount).fill("---");
+      const lines = [
+        `| ${normalized[0].join(" | ")} |`,
+        `| ${sep.join(" | ")} |`,
+        ...normalized.slice(1).map((row) => `| ${row.join(" | ")} |`)
+      ];
+      return `\n\n${lines.join("\n")}\n\n`;
+    }
+
+    return convertNode(element).replace(/\n{3,}/g, "\n\n").trim();
+  }
+
   function extractBySiteSelectors(host) {
     const config = getSiteContentConfig(host);
     if (!config) return "";
@@ -702,12 +864,12 @@
         for (const contentSel of (config.content || [])) {
           const el = container.querySelector(contentSel);
           if (el) {
-            text = (el.innerText || el.textContent || "").trim();
+            text = domToMarkdown(el);
             break;
           }
         }
         if (!text) {
-          text = (container.innerText || container.textContent || "").trim();
+          text = domToMarkdown(container);
         }
         if (text) parts.push(text);
       }
@@ -716,14 +878,14 @@
     }
 
     if (parts.length > 0) {
-      return parts.join("\n\n").slice(0, 10000);
+      return parts.join("\n\n---\n\n").slice(0, 10000);
     }
 
     for (const contentSel of (config.content || [])) {
       const nodes = Array.from(document.querySelectorAll(contentSel));
       if (nodes.length > 0) {
-        const texts = nodes.map((n) => (n.innerText || n.textContent || "").trim()).filter(Boolean);
-        if (texts.length > 0) return texts.join("\n\n").slice(0, 10000);
+        const texts = nodes.map((n) => domToMarkdown(n)).filter(Boolean);
+        if (texts.length > 0) return texts.join("\n\n---\n\n").slice(0, 10000);
       }
     }
 
@@ -745,14 +907,133 @@
 
     for (const selector of selectors) {
       const nodes = Array.from(document.querySelectorAll(selector))
-        .map((node) => (node.innerText || node.textContent || "").trim())
+        .map((node) => domToMarkdown(node))
         .filter(Boolean);
       if (nodes.length > 0) {
-        return nodes.join("\n\n").slice(0, 10000);
+        return nodes.join("\n\n---\n\n").slice(0, 10000);
       }
     }
 
     return (document.body?.innerText || "").trim().slice(0, 8000);
+  }
+
+  function getSiteConversationConfig(host) {
+    const makeAiExtractor = (selectors) => (el) => {
+      for (const sel of selectors) {
+        const found = el.querySelector(sel);
+        if (found) return domToMarkdown(found);
+      }
+      return domToMarkdown(el);
+    };
+
+    const configs = {
+      "chatgpt.com": {
+        allMessages: "[data-message-author-role='user'], [data-message-author-role='assistant']",
+        getRole: (el) => el.getAttribute("data-message-author-role"),
+        getUserText: (el) => {
+          const inner = el.querySelector(".whitespace-pre-wrap") || el.querySelector("p");
+          return ((inner || el).innerText || "").trim();
+        },
+        getAiText: makeAiExtractor([".markdown.prose", ".prose", "[class*='markdown']"])
+      },
+      "chat.openai.com": {
+        allMessages: "[data-message-author-role='user'], [data-message-author-role='assistant']",
+        getRole: (el) => el.getAttribute("data-message-author-role"),
+        getUserText: (el) => {
+          const inner = el.querySelector(".whitespace-pre-wrap") || el.querySelector("p");
+          return ((inner || el).innerText || "").trim();
+        },
+        getAiText: makeAiExtractor([".markdown.prose", ".prose"])
+      },
+      "doubao.com": {
+        allMessages: "[data-author-type='1'], [data-author-type='2']",
+        getRole: (el) => el.getAttribute("data-author-type") === "1" ? "user" : "assistant",
+        getUserText: (el) => (el.innerText || el.textContent || "").trim(),
+        getAiText: makeAiExtractor(["[class*='markdown']", "[class*='message-text']", "[class*='content']"])
+      },
+      "chat.deepseek.com": {
+        userSelector: ["[class*='human-message']", "[class*='ds-message-bubble--user']", "[class*='user-message']"],
+        assistantSelector: ["[class*='ds-message-bubble--assistant']", "[class*='ds-message-bubble'][class*='assistant']"],
+        getAiText: makeAiExtractor(["[class*='ds-markdown']", "[class*='markdown']"])
+      },
+      "kimi.moonshot.cn": {
+        userSelector: ["[class*='chat-message--user']", "[class*='segment'][class*='user']", "[class*='human']"],
+        assistantSelector: ["[class*='chat-message--ai']", "[class*='segment'][class*='ai']", "[class*='bubble'][class*='assistant']"],
+        getAiText: makeAiExtractor(["[class*='markdown-content']", "[class*='content']"])
+      },
+      "gemini.google.com": {
+        userSelector: ["user-query", ".user-query-bubble-with-background"],
+        assistantSelector: ["model-response", "message-content"],
+        getAiText: makeAiExtractor([".markdown", "[class*='response-content']", "[class*='model-response-text']"])
+      },
+      "tongyi.aliyun.com": {
+        userSelector: ["[class*='chat-bubble-user']", "[class*='question-container']", "[class*='user-message']"],
+        assistantSelector: ["[class*='answer-message']", "[class*='agent-chat__answer']"],
+        getAiText: makeAiExtractor(["[class*='markdown']", "[class*='answer-text']"])
+      },
+      "chatglm.cn": {
+        userSelector: ["[class*='chat-msg--human']"],
+        assistantSelector: ["[class*='chat-msg--ai']"],
+        getAiText: makeAiExtractor(["[class*='content']", "[class*='markdown']"])
+      },
+      "yuanbao.tencent.com": {
+        userSelector: ["[class*='agent-chat__message--human']", "[class*='question']"],
+        assistantSelector: ["[class*='agent-chat__message--ai']"],
+        getAiText: makeAiExtractor(["[class*='hyper-text']", "[class*='markdown']", "[class*='content']"])
+      }
+    };
+
+    for (const [domain, config] of Object.entries(configs)) {
+      if (host === domain || host.endsWith("." + domain)) {
+        return config;
+      }
+    }
+    return null;
+  }
+
+  function extractConversationTurns() {
+    const host = window.location.hostname.replace(/^www\./, "");
+    const config = getSiteConversationConfig(host);
+    if (!config) return null;
+
+    const turns = [];
+    try {
+      if (config.allMessages) {
+        const els = Array.from(document.querySelectorAll(config.allMessages));
+        for (const el of els) {
+          const role = config.getRole(el);
+          if (role !== "user" && role !== "assistant") continue;
+          const text = role === "user"
+            ? (config.getUserText ? config.getUserText(el) : (el.innerText || "").trim())
+            : (config.getAiText ? config.getAiText(el) : domToMarkdown(el));
+          if (text && text !== "暂未提取到内容") {
+            turns.push({ role, text });
+          }
+        }
+      } else {
+        const userSelStr = (config.userSelector || []).join(", ");
+        const aiSelStr = (config.assistantSelector || []).join(", ");
+        if (!userSelStr && !aiSelStr) return null;
+
+        const combined = [userSelStr, aiSelStr].filter(Boolean).join(", ");
+        const allEls = Array.from(document.querySelectorAll(combined));
+        const userEls = new Set(userSelStr ? Array.from(document.querySelectorAll(userSelStr)) : []);
+
+        for (const el of allEls) {
+          const role = userEls.has(el) ? "user" : "assistant";
+          const text = role === "user"
+            ? (el.innerText || el.textContent || "").trim()
+            : (config.getAiText ? config.getAiText(el) : domToMarkdown(el));
+          if (text && text !== "暂未提取到内容") {
+            turns.push({ role, text });
+          }
+        }
+      }
+    } catch (_err) {
+      return null;
+    }
+
+    return turns.length > 0 ? turns : null;
   }
 
   async function setupUrlReporting() {
@@ -805,7 +1086,7 @@
     });
   }
 
-  (async function initChatgptEmbedWiden() {
+  (async function initEmbedSidebarFix() {
     if (window.parent === window) {
       return;
     }
@@ -817,36 +1098,80 @@
       return;
     }
 
-    if (!site || site.id !== "chatgpt") {
+    if (!site) {
       return;
     }
 
-    const STYLE_ID = "ai-compare-chatgpt-embed-widen";
+    const STYLE_ID = "ai-compare-embed-sidebar-fix";
+
+    const SITE_STYLE_MAP = {
+      chatgpt: [
+        "/* AI批量搜索：隐藏 ChatGPT 侧边栏，消除左侧留白 */",
+        /* 隐藏 nav 本体 */
+        "nav { display: none !important; }",
+        /* 隐藏直接包含 nav 的 div（单层父级） */
+        "div:has(> nav) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
+        /* 隐藏所有包含 nav 但不包含 main 的祖先 div（捕获多层嵌套的侧边栏 wrapper） */
+        "div:has(nav):not(:has(main)):not(:has([role='main'])) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
+        /* 兼容旧版类名 */
+        "[class*='z-sidebar'] { display: none !important; width: 0 !important; min-width: 0 !important; }",
+        "[class*='sidebar-header'] { display: none !important; }",
+        "[data-testid*='sidebar'], [data-testid*='nav-'] { display: none !important; width: 0 !important; min-width: 0 !important; }",
+        /* main 区域撑满 */
+        "main { flex: 1 !important; width: 100% !important; padding-left: 0 !important; margin-left: 0 !important; min-width: 0 !important; }",
+        "main [class*='max-w']:not([class*='max-w-none']) { max-width: 100% !important; }"
+      ],
+      deepseek: [
+        "/* AI批量搜索：隐藏 DeepSeek 侧边栏，消除左侧留白 */",
+        "[class*='sidebar']:not([class*='sidebar-content']):not([class*='sidebar-body']) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; }",
+        "[class*='left-panel'], [class*='left_panel'], [class*='nav-panel'], [class*='chat-list'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; }",
+        "div:has(nav):not(:has(main)):not(:has([role='main'])) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; }",
+        "[class*='chat-main'], [class*='main-content'], [class*='conversation'] { flex: 1 !important; width: 100% !important; min-width: 0 !important; padding-left: 0 !important; margin-left: 0 !important; }"
+      ]
+    };
+
+    const cssLines = SITE_STYLE_MAP[site.id];
+    if (!cssLines) {
+      return;
+    }
 
     function injectStyle() {
-      if (document.getElementById(STYLE_ID)) {
-        return;
+      let el = document.getElementById(STYLE_ID);
+      if (!el) {
+        el = document.createElement("style");
+        el.id = STYLE_ID;
+        (document.head || document.documentElement).appendChild(el);
       }
-      const style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.textContent = [
-        "/* AI批量搜索：在嵌入 iframe 中放宽 ChatGPT 主列 max-width，减轻右侧留白 */",
-        "main [class*=\"max-w\"]:not([class*=\"max-w-none\"]) { max-width: 100% !important; }"
-      ].join("\n");
-      (document.head || document.documentElement).appendChild(style);
+      el.textContent = cssLines.join("\n");
     }
 
     function schedule() {
       injectStyle();
     }
 
+    let observer = null;
+
+    function startObserver() {
+      if (observer) return;
+      observer = new MutationObserver(() => {
+        if (!document.getElementById(STYLE_ID)) {
+          injectStyle();
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", schedule);
+      document.addEventListener("DOMContentLoaded", () => {
+        schedule();
+        startObserver();
+      });
     } else {
       schedule();
+      startObserver();
     }
-    setTimeout(schedule, 600);
-    setTimeout(schedule, 2200);
-    setTimeout(schedule, 5000);
+    setTimeout(schedule, 400);
+    setTimeout(schedule, 1500);
+    setTimeout(schedule, 4000);
   })();
 })();

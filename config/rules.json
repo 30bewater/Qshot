@@ -39,6 +39,39 @@
     },
     "condition": {
       "urlFilter": "*://*/*",
+      "excludedRequestDomains": [
+        "perplexity.ai"
+      ],
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame"
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        {
+          "header": "content-security-policy",
+          "operation": "remove"
+        },
+        {
+          "header": "x-frame-options",
+          "operation": "remove"
+        },
+        {
+          "header": "content-security-policy-report-only",
+          "operation": "remove"
+        }
+      ]
+    },
+    "condition": {
+      "requestDomains": [
+        "perplexity.ai"
+      ],
       "resourceTypes": [
         "main_frame",
         "sub_frame"

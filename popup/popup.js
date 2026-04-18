@@ -80,6 +80,19 @@
     bindComposerLayoutEvents();
     syncComposerLayout();
     queryInput.focus();
+    triggerPrewarm();
+  }
+
+  function triggerPrewarm() {
+    if (uiPrefs.prewarmEnabled === false) {
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: "WARMUP_AI_SITES" })
+        .catch(() => {});
+    } catch (_err) {
+      // popup 立即关闭等情况下忽略
+    }
   }
 
   openSettingsBtn.addEventListener("click", async () => {
@@ -173,10 +186,13 @@
   }
 
   function renderPromptPicker() {
+    updatePromptPickerLayoutState();
+
     if (!promptPicker || !promptEntryBtn || uiPrefs.showPromptButton === false) {
       if (promptPicker) {
         promptPicker.hidden = true;
       }
+      updatePromptPickerLayoutState();
       return;
     }
 
@@ -185,6 +201,7 @@
 
     if (!isPromptPickerOpen) {
       promptPicker.hidden = true;
+      updatePromptPickerLayoutState();
       return;
     }
 
@@ -195,11 +212,13 @@
       empty.className = "popup-prompt-picker-empty";
       empty.textContent = "还没有提示词分组，请先去设置里添加。";
       promptPicker.appendChild(empty);
+      updatePromptPickerLayoutState();
       return;
     }
 
     const activeGroup = promptGroups.find((group) => group.id === activePromptGroupId) || promptGroups[0];
     if (!activeGroup) {
+      updatePromptPickerLayoutState();
       return;
     }
 
@@ -235,21 +254,180 @@
       promptsColumn.appendChild(empty);
     } else {
       activeGroup.prompts.forEach((prompt) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "popup-prompt-item";
-        button.textContent = prompt.title || "未命名提示词";
-        button.addEventListener("click", () => {
+        const item = document.createElement("div");
+        item.className = "popup-prompt-item";
+
+        // 标题（点击填入）
+        const label = document.createElement("span");
+        label.className = "popup-prompt-item-label";
+        label.textContent = prompt.title || "未命名提示词";
+        label.addEventListener("click", () => {
           queryInput.value = prompt.content || "";
           closePromptPicker();
           queryInput.focus();
         });
-        promptsColumn.appendChild(button);
+
+        // 右侧：铅笔 + 眼睛
+        const rightIcons = document.createElement("div");
+        rightIcons.className = "popup-prompt-edit-wrap";
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "popup-prompt-icon-btn";
+        editBtn.setAttribute("aria-label", "编辑");
+        editBtn.title = "编辑";
+        editBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M4 22h16" opacity=".5"/><path d="m14.63 2.921l-.742.742l-6.817 6.817c-.462.462-.693.692-.891.947a5.2 5.2 0 0 0-.599.969c-.139.291-.242.601-.449 1.22l-.875 2.626l-.213.641a.848.848 0 0 0 1.073 1.073l.641-.213l2.625-.875c.62-.207.93-.31 1.221-.45q.518-.246.969-.598c.255-.199.485-.43.947-.891l6.817-6.817l.742-.742a3.146 3.146 0 0 0-4.45-4.449Z"/><path d="M13.888 3.664S13.98 5.24 15.37 6.63s2.966 1.483 2.966 1.483m-12.579 9.63l-1.5-1.5" opacity=".5"/></svg>`;
+        editBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openPopupPromptEditModal(prompt, activeGroup.id);
+        });
+
+        rightIcons.appendChild(editBtn);
+
+        item.appendChild(label);
+        item.appendChild(rightIcons);
+        promptsColumn.appendChild(item);
       });
     }
 
     promptPicker.appendChild(groupsColumn);
     promptPicker.appendChild(promptsColumn);
+    updatePromptPickerLayoutState();
+  }
+
+  // ── popup 预览浮层 ──
+  let _popupPreviewEl = null;
+  let _popupPreviewHideTimer = null;
+
+  function getOrCreatePopupPreviewEl() {
+    if (!_popupPreviewEl) {
+      _popupPreviewEl = document.createElement("div");
+      _popupPreviewEl.className = "popup-prompt-preview-popup";
+      _popupPreviewEl.addEventListener("mouseenter", () => {
+        if (_popupPreviewHideTimer) { clearTimeout(_popupPreviewHideTimer); _popupPreviewHideTimer = null; }
+      });
+      _popupPreviewEl.addEventListener("mouseleave", () => {
+        _popupPreviewHideTimer = setTimeout(() => hidePopupPromptPreview(), 320);
+      });
+      document.body.appendChild(_popupPreviewEl);
+    }
+    return _popupPreviewEl;
+  }
+
+  function showPopupPromptPreview(anchorBtn, prompt) {
+    const popup = getOrCreatePopupPreviewEl();
+    popup.innerHTML = `<div class="popup-prompt-preview-title">${escapeHtml(prompt.title || "未命名提示词")}</div><div class="popup-prompt-preview-body">${escapeHtml(prompt.content || "（暂无内容）")}</div>`;
+    popup.style.display = "block";
+    popup.classList.add("is-visible");
+    requestAnimationFrame(() => {
+      const btnRect = anchorBtn.getBoundingClientRect();
+      const pickerEl = document.getElementById("promptPicker");
+      const pickerRect = pickerEl ? pickerEl.getBoundingClientRect() : btnRect;
+      const popupW = popup.offsetWidth || 260;
+      const popupH = popup.offsetHeight || 160;
+      // 优先右侧，没空间则左侧
+      let left = pickerRect.right + 8;
+      if (left + popupW > window.innerWidth - 4) left = pickerRect.left - popupW - 8;
+      if (left < 4) left = 4;
+      let top = btnRect.top + btnRect.height / 2 - popupH / 2;
+      if (top < 4) top = 4;
+      if (top + popupH > window.innerHeight - 4) top = window.innerHeight - popupH - 4;
+      popup.style.left = `${left}px`;
+      popup.style.top = `${top}px`;
+    });
+  }
+
+  function hidePopupPromptPreview() {
+    if (_popupPreviewEl) {
+      _popupPreviewEl.style.display = "none";
+      _popupPreviewEl.classList.remove("is-visible");
+    }
+    if (_popupPreviewHideTimer) { clearTimeout(_popupPreviewHideTimer); _popupPreviewHideTimer = null; }
+  }
+
+  // ── popup 编辑弹窗 ──
+  function openPopupPromptEditModal(prompt, groupId) {
+    closePromptPicker();
+    const targetGroup = promptGroups.find((g) => g.id === groupId) || promptGroups[0];
+    const targetPrompt = targetGroup?.prompts.find((p) => p.id === prompt.id);
+    if (!targetPrompt) return;
+
+    const overlay = document.createElement("div");
+    overlay.className = "prompt-edit-modal-overlay";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10000;";
+
+    const modal = document.createElement("div");
+    modal.style.cssText = "width:100%;background:#fff;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 16px 40px rgba(0,0,0,.16);";
+    modal.innerHTML = `
+      <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:2px;">编辑提示词</div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">名称</label>
+        <input class="pep-title" type="text" value="${escapeHtml(targetPrompt.title || "")}" style="width:100%;height:34px;padding:0 10px;border:1px solid #ddd;border-radius:4px;font:inherit;font-size:13px;color:#111;outline:none;" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">分类</label>
+        <select class="pep-group" style="width:100%;height:34px;padding:0 8px;border:1px solid #ddd;border-radius:4px;font:inherit;font-size:13px;color:#111;outline:none;">
+          ${promptGroups.map((g) => `<option value="${escapeHtml(g.id)}"${g.id === groupId ? " selected" : ""}>${escapeHtml(g.name || "未命名分组")}</option>`).join("")}
+          <option value="__new__">＋ 新建分组…</option>
+        </select>
+        <input class="pep-newgroup" type="text" placeholder="输入新分组名称" style="display:none;width:100%;height:34px;padding:0 10px;border:1px solid #ddd;border-radius:4px;font:inherit;font-size:13px;color:#111;outline:none;margin-top:6px;" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">提示词内容</label>
+        <textarea class="pep-content" style="width:100%;min-height:120px;padding:8px 10px;border:1px solid #ddd;border-radius:4px;font:inherit;font-size:13px;color:#111;outline:none;resize:vertical;line-height:1.6;">${escapeHtml(targetPrompt.content || "")}</textarea>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px;">
+        <button class="pep-delete" style="height:32px;padding:0 12px;border:none;border-radius:4px;background:#fee2e2;color:#dc2626;font:inherit;font-size:13px;font-weight:500;cursor:pointer;">删除</button>
+        <div style="display:flex;gap:6px;">
+          <button class="pep-cancel" style="height:32px;padding:0 12px;border:1px solid #ddd;border-radius:4px;background:#fff;color:#444;font:inherit;font-size:13px;font-weight:500;cursor:pointer;">取消</button>
+          <button class="pep-save" style="height:32px;padding:0 14px;border:none;border-radius:4px;background:#111;color:#fff;font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
+        </div>
+      </div>
+    `;
+
+    const titleInput = modal.querySelector(".pep-title");
+    const groupSelect = modal.querySelector(".pep-group");
+    const newGroupInput = modal.querySelector(".pep-newgroup");
+    const contentInput = modal.querySelector(".pep-content");
+
+    groupSelect?.addEventListener("change", () => {
+      const isNew = groupSelect instanceof HTMLSelectElement && groupSelect.value === "__new__";
+      if (newGroupInput instanceof HTMLInputElement) {
+        newGroupInput.style.display = isNew ? "block" : "none";
+        if (isNew) requestAnimationFrame(() => newGroupInput.focus());
+      }
+    });
+
+    modal.querySelector(".pep-cancel").addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    modal.querySelector(".pep-save").addEventListener("click", async () => {
+      const newTitle = (titleInput instanceof HTMLInputElement ? titleInput.value : "").trim() || "未命名提示词";
+      const newContent = contentInput instanceof HTMLTextAreaElement ? contentInput.value : "";
+      let newGroupId = groupSelect instanceof HTMLSelectElement ? groupSelect.value : groupId;
+      if (newGroupId === "__new__") {
+        const newName = (newGroupInput instanceof HTMLInputElement ? newGroupInput.value : "").trim() || "新建分组";
+        const newGroup = { id: `prompt-group-${Date.now()}`, name: newName, prompts: [] };
+        promptGroups.push(newGroup);
+        newGroupId = newGroup.id;
+      }
+      promptGroups.forEach((g) => { g.prompts = g.prompts.filter((p) => p.id !== targetPrompt.id); });
+      const destGroup = promptGroups.find((g) => g.id === newGroupId) || targetGroup;
+      destGroup.prompts.push({ id: targetPrompt.id, title: newTitle, content: newContent });
+      await chrome.storage.local.set({ [PROMPT_GROUPS_STORAGE_KEY]: promptGroups });
+      overlay.remove();
+    });
+
+    modal.querySelector(".pep-delete").addEventListener("click", async () => {
+      if (!window.confirm("确定要删除这条提示词吗？")) return;
+      promptGroups.forEach((g) => { g.prompts = g.prompts.filter((p) => p.id !== targetPrompt.id); });
+      await chrome.storage.local.set({ [PROMPT_GROUPS_STORAGE_KEY]: promptGroups });
+      overlay.remove();
+    });
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    if (titleInput instanceof HTMLInputElement) requestAnimationFrame(() => titleInput.focus());
   }
 
   function bindPromptPickerEvents() {
@@ -325,6 +503,8 @@
       composerActionsRow.hidden = !hasVisibleActions;
       composerActionsRow.style.display = hasVisibleActions ? "flex" : "none";
     }
+
+    updatePromptPickerLayoutState();
   }
 
   function closePromptPicker() {
@@ -332,7 +512,18 @@
       return;
     }
     isPromptPickerOpen = false;
+    hidePopupPromptPreview();
     renderPromptPicker();
+    updatePromptPickerLayoutState();
+  }
+
+  function updatePromptPickerLayoutState() {
+    if (!composer) {
+      return;
+    }
+
+    const shouldExpandDownward = isPromptPickerOpen && uiPrefs.showHistory === false;
+    composer.classList.toggle("is-picker-inline-open", shouldExpandDownward);
   }
 
   function fillRandomQuestion() {
@@ -369,7 +560,16 @@
           <div class="popup-history-query">${escapeHtml(query)}</div>
           <div class="popup-history-meta">${escapeHtml(dateText)}</div>
         </div>
+        <button class="popup-history-delete-btn" type="button" aria-label="删除这条记录">×</button>
       `;
+      const deleteBtn = item.querySelector(".popup-history-delete-btn");
+      if (deleteBtn) {
+        deleteBtn.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await removeHistoryEntry(entry);
+        });
+      }
       item.addEventListener("click", () => {
         queryInput.value = entry.query || "";
         queryInput.focus();
@@ -422,6 +622,39 @@
     return Array.isArray(stored[SEARCH_HISTORY_STORAGE_KEY]) ? stored[SEARCH_HISTORY_STORAGE_KEY].slice(0, 4) : [];
   }
 
+  async function removeHistoryEntry(entry) {
+    const stored = await chrome.storage.local.get([SEARCH_HISTORY_STORAGE_KEY]);
+    const fullHistory = Array.isArray(stored[SEARCH_HISTORY_STORAGE_KEY]) ? stored[SEARCH_HISTORY_STORAGE_KEY] : [];
+    if (!fullHistory.length) {
+      return;
+    }
+
+    let removed = false;
+    const nextHistory = fullHistory.filter((item) => {
+      if (removed) {
+        return true;
+      }
+
+      if (entry?.id && item?.id === entry.id) {
+        removed = true;
+        return false;
+      }
+
+      if (!entry?.id && item?.query === entry?.query && item?.createdAt === entry?.createdAt) {
+        removed = true;
+        return false;
+      }
+
+      return true;
+    });
+
+    if (!removed) {
+      return;
+    }
+
+    await chrome.storage.local.set({ [SEARCH_HISTORY_STORAGE_KEY]: nextHistory });
+  }
+
   async function loadUiPrefs() {
     const stored = await chrome.storage.local.get([UI_PREFS_STORAGE_KEY]);
     return createNormalizedUiPrefs(stored[UI_PREFS_STORAGE_KEY]);
@@ -432,7 +665,8 @@
     return {
       showHistory: source.showHistory !== false,
       showRandomButton: source.showRandomButton !== false,
-      showPromptButton: source.showPromptButton !== false
+      showPromptButton: source.showPromptButton !== false,
+      prewarmEnabled: source.prewarmEnabled !== false
     };
   }
 
