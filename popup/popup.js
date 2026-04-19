@@ -3,6 +3,7 @@
   const SEARCH_HISTORY_STORAGE_KEY = "searchHistory";
   const PROMPT_GROUPS_STORAGE_KEY = "promptGroups";
   const UI_PREFS_STORAGE_KEY = "uiPrefs";
+  const CUSTOM_SITES_STORAGE_KEY = "customSites";
   const RANDOM_QUESTIONS = [
     "第一性原理是什么？给我举 3 个生活中的例子",
     "如何用 AI 快速学习一个陌生领域？",
@@ -66,6 +67,7 @@
 
   let groups = [];
   let promptGroups = [];
+  let allSites = [];
   let uiPrefs = createNormalizedUiPrefs();
   let activePromptGroupId = null;
   let isPromptPickerOpen = false;
@@ -75,6 +77,7 @@
   chrome.storage.onChanged.addListener(handleStorageChange);
 
   async function start() {
+    await refreshAllSites();
     await Promise.all([refreshGroups(), refreshPromptGroups(), refreshUiPrefs(), refreshHistory()]);
     bindPromptPickerEvents();
     bindComposerLayoutEvents();
@@ -110,10 +113,8 @@
     togglePromptPicker();
   });
 
-  queryInput.addEventListener("input", () => {
-    closePromptPicker();
-    syncComposerLayout();
-  });
+
+
 
   queryInput.addEventListener("keydown", async (event) => {
     if (event.key !== "Enter" || event.shiftKey) {
@@ -178,11 +179,81 @@
       button.className = "popup-group-btn";
       button.type = "button";
       button.innerHTML = `<span class="popup-group-name">${escapeHtml(group.name)}</span>`;
+
+      const siteNames = (group.siteIds || [])
+        .map((id) => allSites.find((s) => s.id === id)?.name)
+        .filter(Boolean)
+        .join("、");
+
+      if (siteNames) {
+        button.addEventListener("mouseenter", () => showGroupTooltip(button, siteNames));
+        button.addEventListener("mouseleave", () => hideGroupTooltip());
+      }
+
       button.addEventListener("click", async () => {
+        hideGroupTooltip();
         await runGroup(group);
       });
       groupsContainer.appendChild(button);
     });
+  }
+
+  // ── 搜索组 tooltip ──
+  let _groupTooltipEl = null;
+  let _groupTooltipTimer = null;
+
+  function getOrCreateGroupTooltip() {
+    if (!_groupTooltipEl) {
+      _groupTooltipEl = document.createElement("div");
+      _groupTooltipEl.className = "group-tooltip";
+      document.body.appendChild(_groupTooltipEl);
+    }
+    return _groupTooltipEl;
+  }
+
+  function showGroupTooltip(button, siteNames) {
+    if (_groupTooltipTimer) { clearTimeout(_groupTooltipTimer); _groupTooltipTimer = null; }
+    _groupTooltipTimer = setTimeout(() => {
+      const tooltip = getOrCreateGroupTooltip();
+      tooltip.textContent = siteNames;
+      tooltip.style.display = "block";
+      requestAnimationFrame(() => {
+        const btnRect = button.getBoundingClientRect();
+        const tooltipW = tooltip.offsetWidth;
+        const tooltipH = tooltip.offsetHeight;
+        let left = btnRect.left + btnRect.width / 2 - tooltipW / 2;
+        if (left < 4) left = 4;
+        if (left + tooltipW > window.innerWidth - 4) left = window.innerWidth - tooltipW - 4;
+        const top = btnRect.top - tooltipH - 6;
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      });
+    }, 1000);
+  }
+
+  function hideGroupTooltip() {
+    if (_groupTooltipTimer) { clearTimeout(_groupTooltipTimer); _groupTooltipTimer = null; }
+    if (_groupTooltipEl) {
+      _groupTooltipEl.style.display = "none";
+    }
+  }
+
+  async function refreshAllSites() {
+    try {
+      const [builtinResp, stored] = await Promise.all([
+        fetch(chrome.runtime.getURL("config/siteHandlers.json")),
+        chrome.storage.local.get([CUSTOM_SITES_STORAGE_KEY])
+      ]);
+      const payload = await builtinResp.json();
+      const builtin = (payload.sites || []).filter((s) => s.enabled !== false);
+      const custom = Array.isArray(stored[CUSTOM_SITES_STORAGE_KEY]) ? stored[CUSTOM_SITES_STORAGE_KEY] : [];
+      const knownIds = new Set(builtin.map((s) => s.id));
+      const merged = [...builtin];
+      custom.forEach((s) => { if (s && !knownIds.has(s.id)) { merged.push(s); knownIds.add(s.id); } });
+      allSites = merged;
+    } catch (_e) {
+      allSites = [];
+    }
   }
 
   function renderPromptPicker() {
@@ -282,6 +353,18 @@
           openPopupPromptEditModal(prompt, activeGroup.id);
         });
 
+        const previewBtn = document.createElement("button");
+        previewBtn.type = "button";
+        previewBtn.className = "popup-prompt-icon-btn";
+        previewBtn.setAttribute("aria-label", "预览");
+        previewBtn.title = "预览";
+        previewBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        previewBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openPopupPromptPreviewModal(prompt);
+        });
+
+        rightIcons.appendChild(previewBtn);
         rightIcons.appendChild(editBtn);
 
         item.appendChild(label);
@@ -292,6 +375,21 @@
 
     promptPicker.appendChild(groupsColumn);
     promptPicker.appendChild(promptsColumn);
+
+    const footer = document.createElement("div");
+    footer.className = "popup-prompt-picker-footer";
+    const settingsLink = document.createElement("button");
+    settingsLink.type = "button";
+    settingsLink.className = "popup-prompt-picker-settings-btn";
+    settingsLink.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>管理提示词`;
+    settingsLink.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await chrome.runtime.sendMessage({ type: "OPEN_SETTINGS_PAGE", section: "prompts" });
+      window.close();
+    });
+    footer.appendChild(settingsLink);
+    promptPicker.appendChild(footer);
+
     updatePromptPickerLayoutState();
   }
 
@@ -345,6 +443,54 @@
     if (_popupPreviewHideTimer) { clearTimeout(_popupPreviewHideTimer); _popupPreviewHideTimer = null; }
   }
 
+  // ── popup 预览弹窗 ──
+  function openPopupPromptPreviewModal(prompt) {
+
+    const overlay = document.createElement("div");
+    overlay.className = "prompt-edit-modal-overlay";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:flex-start;justify-content:center;padding:16px;z-index:10000;overflow-y:auto;";
+
+    const modal = document.createElement("div");
+    modal.style.cssText = "width:100%;margin:auto;background:#fff;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 16px 40px rgba(0,0,0,.16);position:relative;";
+    modal.innerHTML = `
+      <button class="ppv-close" style="position:absolute;top:12px;right:12px;width:24px;height:24px;padding:0;border:none;background:transparent;color:#999;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div style="font-size:15px;font-weight:600;color:#111;line-height:1.4;padding-right:28px;">${escapeHtml(prompt.title || "未命名提示词")}</div>
+      <div style="height:1px;background:rgba(0,0,0,.08);"></div>
+      <div style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;word-break:break-word;">${escapeHtml(prompt.content || "（暂无内容）")}</div>
+    `;
+
+    const prevBodyBg = document.body.style.background;
+    const popupShell = document.querySelector(".popup-shell");
+    const prevShellBg = popupShell ? popupShell.style.background : "";
+    const prevMinHeight = document.body.style.minHeight;
+    const popupActions = document.querySelector(".popup-actions");
+    const prevActionsDisplay = popupActions ? popupActions.style.display : "";
+
+    function closeModal() {
+      overlay.remove();
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.minHeight = prevMinHeight;
+      document.body.style.background = prevBodyBg;
+      if (popupShell) popupShell.style.background = prevShellBg;
+      if (popupActions) popupActions.style.display = prevActionsDisplay;
+    }
+
+    modal.querySelector(".ppv-close").addEventListener("click", (e) => { e.stopPropagation(); closeModal(); });
+    overlay.addEventListener("click", (e) => { e.stopPropagation(); if (e.target === overlay) closeModal(); });
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    document.documentElement.style.overflow = "visible";
+    document.body.style.overflow = "visible";
+    document.body.style.minHeight = "440px";
+    document.body.style.background = "#ffffff";
+    if (popupShell) popupShell.style.background = "#ffffff";
+    if (popupActions) popupActions.style.display = "none";
+  }
+
   // ── popup 编辑弹窗 ──
   function openPopupPromptEditModal(prompt, groupId) {
     closePromptPicker();
@@ -354,10 +500,10 @@
 
     const overlay = document.createElement("div");
     overlay.className = "prompt-edit-modal-overlay";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10000;";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:flex-start;justify-content:center;padding:16px;z-index:10000;overflow-y:auto;";
 
     const modal = document.createElement("div");
-    modal.style.cssText = "width:100%;background:#fff;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 16px 40px rgba(0,0,0,.16);";
+    modal.style.cssText = "width:100%;margin:auto;background:#fff;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 16px 40px rgba(0,0,0,.16);";
     modal.innerHTML = `
       <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:2px;">编辑提示词</div>
       <div>
@@ -398,8 +544,26 @@
       }
     });
 
-    modal.querySelector(".pep-cancel").addEventListener("click", () => overlay.remove());
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    const prevMinHeight = document.body.style.minHeight;
+
+    const prevBodyBg = document.body.style.background;
+    const popupShell = document.querySelector(".popup-shell");
+    const prevShellBg = popupShell ? popupShell.style.background : "";
+    const popupActions = document.querySelector(".popup-actions");
+    const prevActionsDisplay = popupActions ? popupActions.style.display : "";
+
+    function closeModal() {
+      overlay.remove();
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.minHeight = prevMinHeight;
+      document.body.style.background = prevBodyBg;
+      if (popupShell) popupShell.style.background = prevShellBg;
+      if (popupActions) popupActions.style.display = prevActionsDisplay;
+    }
+
+    modal.querySelector(".pep-cancel").addEventListener("click", closeModal);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
 
     modal.querySelector(".pep-save").addEventListener("click", async () => {
       const newTitle = (titleInput instanceof HTMLInputElement ? titleInput.value : "").trim() || "未命名提示词";
@@ -415,18 +579,24 @@
       const destGroup = promptGroups.find((g) => g.id === newGroupId) || targetGroup;
       destGroup.prompts.push({ id: targetPrompt.id, title: newTitle, content: newContent });
       await chrome.storage.local.set({ [PROMPT_GROUPS_STORAGE_KEY]: promptGroups });
-      overlay.remove();
+      closeModal();
     });
 
     modal.querySelector(".pep-delete").addEventListener("click", async () => {
       if (!window.confirm("确定要删除这条提示词吗？")) return;
       promptGroups.forEach((g) => { g.prompts = g.prompts.filter((p) => p.id !== targetPrompt.id); });
       await chrome.storage.local.set({ [PROMPT_GROUPS_STORAGE_KEY]: promptGroups });
-      overlay.remove();
+      closeModal();
     });
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+    document.documentElement.style.overflow = "visible";
+    document.body.style.overflow = "visible";
+    document.body.style.minHeight = "440px";
+    document.body.style.background = "#ffffff";
+    if (popupShell) popupShell.style.background = "#ffffff";
+    if (popupActions) popupActions.style.display = "none";
     if (titleInput instanceof HTMLInputElement) requestAnimationFrame(() => titleInput.focus());
   }
 
@@ -467,10 +637,18 @@
       return;
     }
 
+    // 先把 expanded 状态和内联高度清掉，让 scrollHeight 反映真实内容高度
+    composer.classList.remove("is-expanded");
+    queryInput.style.height = "0px";
+    queryInput.style.minHeight = "0px";
+
+    const scrollH = queryInput.scrollHeight;
     const lineHeight = parseFloat(window.getComputedStyle(queryInput).lineHeight || "21.75");
-    const hasValue = queryInput.value.trim().length > 0;
-    const shouldExpand = queryInput.scrollHeight > lineHeight * 1.7 || queryInput.clientHeight > 44 || hasValue;
-    composer.classList.toggle("is-expanded", shouldExpand);
+
+    // 还原内联样式，再按测量结果决定是否展开
+    queryInput.style.height = "";
+    queryInput.style.minHeight = "";
+    composer.classList.toggle("is-expanded", scrollH > lineHeight * 1.7);
   }
 
   function togglePromptPicker() {

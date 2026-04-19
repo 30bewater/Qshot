@@ -1,8 +1,10 @@
-(function initSettingsPage() {
+﻿(function initSettingsPage() {
   const GROUPS_STORAGE_KEY = "searchGroups";
   const PROMPTS_STORAGE_KEY = "promptGroups";
   const UI_PREFS_STORAGE_KEY = "uiPrefs";
+  const CUSTOM_SITES_STORAGE_KEY = "customSites";
   const PICKER_CLOSE_DELAY_MS = 320;
+  const COMMON_SEARCH_PARAM_KEYS = ["q", "query", "wd", "word", "kw", "keyword", "s", "search", "key", "k", "text", "term", "w"];
   const SITE_CATEGORIES = {
     ai: { label: "AI", siteIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "perplexity", "grok"] },
     other: { label: "社媒平台", siteIds: ["xiaohongshu", "bilibili", "zhihu", "douyin"] },
@@ -16,12 +18,17 @@
     groups: {
       eyebrow: "搜索组设置",
       title: "分组与调用内容",
-      subtitle: "管理搜索组名称、启用状态、打开方式，以及每个组内调用的网站或 AI 模型。"
+      subtitle: "管理搜索组名称、打开方式，以及每个组内调用的网站或 AI 模型。"
     },
     prompts: {
       eyebrow: "提示词设置",
       title: "提示词与分组",
       subtitle: "先做一个简洁版本：创建提示词分组，并在分组内维护标题与内容。"
+    },
+    custom: {
+      eyebrow: "自定义搜索",
+      title: "自定义搜索站点",
+      subtitle: "添加自己的搜索站点，保存后可在搜索组的“自定义”分类中直接勾选。"
     },
     other: {
       eyebrow: "其他设置",
@@ -32,6 +39,7 @@
 
   const groupsSection = document.getElementById("groupsSection");
   const promptsSection = document.getElementById("promptsSection");
+  const customSection = document.getElementById("customSection");
   const otherSection = document.getElementById("otherSection");
   const sectionEyebrow = document.getElementById("sectionEyebrow");
   const sectionTitle = document.getElementById("sectionTitle");
@@ -46,12 +54,12 @@
   let promptGroups = [];
   let uiPrefs = createNormalizedUiPrefs();
   let sites = [];
+  let customSites = [];
+  let customFormState = createBlankCustomFormState();
   let activeSection = "groups";
   let openPickerGroupId = null;
   let activePickerCategoryKey = null;
   let pickerCloseTimerId = null;
-  let draggingSiteId = null;
-  let draggingGroupId = null;
   let activePromptGroupId = null;
   let promptEditorState = null;
   let pendingPromptGroupFocusId = null;
@@ -59,8 +67,16 @@
   document.addEventListener("DOMContentLoaded", start);
 
   async function start() {
-    sites = await loadSites();
-    const stored = await chrome.storage.local.get([GROUPS_STORAGE_KEY, PROMPTS_STORAGE_KEY, UI_PREFS_STORAGE_KEY]);
+    const builtinSites = await loadBuiltinSites();
+    const stored = await chrome.storage.local.get([
+      GROUPS_STORAGE_KEY,
+      PROMPTS_STORAGE_KEY,
+      UI_PREFS_STORAGE_KEY,
+      CUSTOM_SITES_STORAGE_KEY
+    ]);
+    customSites = createNormalizedCustomSites(stored[CUSTOM_SITES_STORAGE_KEY]);
+    sites = mergeSites(builtinSites, customSites);
+    syncCustomCategoryIds();
     groups = createNormalizedGroups(stored[GROUPS_STORAGE_KEY]);
     promptGroups = createNormalizedPromptGroups(stored[PROMPTS_STORAGE_KEY]);
     uiPrefs = createNormalizedUiPrefs(stored[UI_PREFS_STORAGE_KEY]);
@@ -74,12 +90,21 @@
     if (!stored[UI_PREFS_STORAGE_KEY] || typeof stored[UI_PREFS_STORAGE_KEY] !== "object") {
       await chrome.storage.local.set({ [UI_PREFS_STORAGE_KEY]: uiPrefs });
     }
+    if (!Array.isArray(stored[CUSTOM_SITES_STORAGE_KEY])) {
+      await chrome.storage.local.set({ [CUSTOM_SITES_STORAGE_KEY]: customSites });
+    }
     bindEvents();
-    renderCurrentSection();
+    const hashSection = new URLSearchParams(location.search).get("section") || location.hash.replace("#", "");
+    if (hashSection && SECTION_META[hashSection]) {
+      setActiveSection(hashSection);
+    } else {
+      renderCurrentSection();
+    }
   }
 
   function bindEvents() {
     document.addEventListener("click", handleDocumentClick);
+    attachGroupDrag(groupsSection);
 
     navItems.forEach((item) => {
       item.addEventListener("click", () => {
@@ -130,6 +155,10 @@
       renderPromptsSection();
       return;
     }
+    if (activeSection === "custom") {
+      renderCustomSection();
+      return;
+    }
     if (activeSection === "other") {
       renderOtherSection();
       return;
@@ -140,12 +169,15 @@
   function updateSectionVisibility() {
     const showGroups = activeSection === "groups";
     const showPrompts = activeSection === "prompts";
+    const showCustom = activeSection === "custom";
     const showOther = activeSection === "other";
     groupsSection.hidden = !showGroups;
     promptsSection.hidden = !showPrompts;
+    customSection.hidden = !showCustom;
     otherSection.hidden = !showOther;
     groupsSection.style.display = showGroups ? "flex" : "none";
     promptsSection.style.display = showPrompts ? "flex" : "none";
+    customSection.style.display = showCustom ? "flex" : "none";
     otherSection.style.display = showOther ? "flex" : "none";
   }
 
@@ -223,13 +255,7 @@
 
     const addCard = document.createElement("section");
     addCard.className = "settings-add-card";
-    addCard.innerHTML = `
-      <div class="settings-add-copy">
-        <strong>新建搜索组</strong>
-        <span>创建一个新的搜索组，并继续在右侧添加站点。</span>
-      </div>
-      <button class="add-section-btn" type="button">新增搜索组</button>
-    `;
+    addCard.innerHTML = `<button class="add-section-btn" type="button">新增搜索组</button>`;
     addCard.querySelector("button").addEventListener("click", async () => {
       groups.push({
         id: `group_${Date.now()}`,
@@ -250,24 +276,6 @@
     const card = document.createElement("section");
     card.className = `settings-group-card${group.enabled ? "" : " is-disabled"}`;
     card.dataset.groupId = group.id;
-    card.addEventListener("dragover", (event) => {
-      if (!draggingGroupId || draggingGroupId === group.id) {
-        return;
-      }
-      event.preventDefault();
-      card.classList.add("is-group-drag-over");
-    });
-    card.addEventListener("dragleave", () => {
-      card.classList.remove("is-group-drag-over");
-    });
-    card.addEventListener("drop", async (event) => {
-      if (!draggingGroupId || draggingGroupId === group.id) {
-        return;
-      }
-      event.preventDefault();
-      card.classList.remove("is-group-drag-over");
-      await reorderGroups(draggingGroupId, group.id);
-    });
 
     if (!isLocked) {
       const deleteCornerBtn = document.createElement("button");
@@ -322,30 +330,12 @@
 
     const chipsWrap = document.createElement("div");
     chipsWrap.className = "site-chip-list";
-    chipsWrap.addEventListener("dragover", (event) => {
-      if (!draggingSiteId) return;
-      event.preventDefault();
-      chipsWrap.classList.add("is-drag-over");
-    });
-    chipsWrap.addEventListener("dragleave", () => chipsWrap.classList.remove("is-drag-over"));
-    chipsWrap.addEventListener("drop", async (event) => {
-      event.preventDefault();
-      chipsWrap.classList.remove("is-drag-over");
-      const targetSiteId = event.target.closest("[data-site-id]")?.dataset.siteId || null;
-      await reorderGroupSites(group, draggingSiteId, targetSiteId);
-    });
 
     const selectedSites = group.siteIds.map((siteId) => sites.find((site) => site.id === siteId)).filter(Boolean);
-    if (!selectedSites.length) {
-      const empty = document.createElement("div");
-      empty.className = "site-selection-empty";
-      empty.textContent = "当前还没有添加任何内容，可直接点后面的新增。";
-      chipsWrap.appendChild(empty);
-    } else {
-      selectedSites.forEach((site) => chipsWrap.appendChild(createSelectedChip(group, site)));
-    }
+    selectedSites.forEach((site) => chipsWrap.appendChild(createSelectedChip(group, site)));
 
     chipsWrap.appendChild(createInlineAdd(group));
+    attachChipDrag(chipsWrap, group);
     rightPanel.appendChild(chipsWrap);
     card.appendChild(leftPanel);
     card.appendChild(rightPanel);
@@ -354,22 +344,8 @@
       const dragHandle = document.createElement("button");
       dragHandle.type = "button";
       dragHandle.className = "group-drag-handle";
-      dragHandle.draggable = true;
       dragHandle.setAttribute("aria-label", "拖动调整搜索组顺序");
       dragHandle.innerHTML = `<svg viewBox="0 0 1024 1024" aria-hidden="true" class="group-drag-handle-svg"><path d="M716.8 212.48c-10.24 0-17.92 2.56-25.6 5.12v-5.12c0-43.52-33.28-76.8-76.8-76.8-10.24 0-17.92 2.56-28.16 5.12C581.12 104.96 550.4 76.8 512 76.8c-43.52 0-76.8 33.28-76.8 76.8v5.12c-7.68-2.56-15.36-5.12-25.6-5.12-43.52 0-76.8 33.28-76.8 76.8v104.96c-7.68-2.56-15.36-5.12-25.6-5.12-43.52 0-76.8 33.28-76.8 76.8v256c0 156.16 125.44 281.6 281.6 281.6s281.6-125.44 281.6-281.6V289.28c0-43.52-33.28-76.8-76.8-76.8zM742.4 665.6c0 128-102.4 230.4-230.4 230.4s-230.4-102.4-230.4-230.4V409.6c0-15.36 10.24-25.6 25.6-25.6s25.6 10.24 25.6 25.6v209.92h43.52c56.32 5.12 110.08 33.28 143.36 79.36l40.96-30.72c-40.96-56.32-107.52-94.72-176.64-99.84V230.4c0-15.36 10.24-25.6 25.6-25.6s25.6 10.24 25.6 25.6v256h51.2V153.6c0-15.36 10.24-25.6 25.6-25.6s25.6 10.24 25.6 25.6v335.36h51.2V212.48c0-15.36 10.24-25.6 25.6-25.6s25.6 10.24 25.6 25.6v276.48h51.2v-199.68c0-15.36 10.24-25.6 25.6-25.6s25.6 10.24 25.6 25.6V665.6z" fill="#525C6A"></path></svg>`;
-      dragHandle.addEventListener("dragstart", (event) => {
-        draggingGroupId = group.id;
-        card.classList.add("is-group-dragging");
-        if (event.dataTransfer) {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", group.id);
-        }
-      });
-      dragHandle.addEventListener("dragend", () => {
-        draggingGroupId = null;
-        card.classList.remove("is-group-dragging");
-        document.querySelectorAll(".settings-group-card").forEach((element) => element.classList.remove("is-group-drag-over"));
-      });
       card.appendChild(dragHandle);
     }
 
@@ -432,24 +408,8 @@
   function createSelectedChip(group, site) {
     const chip = document.createElement("div");
     chip.className = "site-chip selected-chip";
-    chip.draggable = true;
     chip.dataset.siteId = site.id;
     chip.innerHTML = `<span class="site-chip-label">${escapeHtml(site.name)}</span><button class="chip-remove-btn" type="button" aria-label="删除 ${escapeHtml(site.name)}">×</button>`;
-
-    chip.addEventListener("dragstart", (event) => {
-      draggingSiteId = site.id;
-      chip.classList.add("is-dragging");
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", site.id);
-      }
-    });
-
-    chip.addEventListener("dragend", () => {
-      draggingSiteId = null;
-      chip.classList.remove("is-dragging");
-      document.querySelectorAll(".site-chip-list").forEach((element) => element.classList.remove("is-drag-over"));
-    });
 
     chip.querySelector(".chip-remove-btn").addEventListener("click", async (event) => {
       event.stopPropagation();
@@ -532,32 +492,95 @@
       const categorySites = getCategorySites(key);
 
       if (key === "custom") {
-        const empty = document.createElement("div");
-        empty.className = "hover-picker-empty";
-        empty.textContent = "自定义暂未开放";
-        submenu.appendChild(empty);
+        if (!categorySites.length) {
+          const empty = document.createElement("div");
+          empty.className = "hover-picker-empty";
+          empty.innerHTML = `还没有自定义站点<br/><span class="hover-picker-empty-hint">前往左侧「自定义搜索」添加</span>`;
+          submenu.appendChild(empty);
+        } else {
+          categorySites.forEach((site) => {
+            submenu.appendChild(createPickerSiteOption(group, site, key));
+          });
+        }
       } else if (key === "ai") {
+        submenu.classList.add("hover-picker-submenu--ai");
+
+        const columnsWrap = document.createElement("div");
+        columnsWrap.className = "hover-picker-ai-columns";
+
         AI_SITE_GROUPS.forEach((marketGroup) => {
           const groupSites = marketGroup.siteIds
             .map((siteId) => categorySites.find((site) => site.id === siteId))
             .filter(Boolean);
-          if (!groupSites.length) {
-            return;
-          }
+          if (!groupSites.length) return;
 
-          const section = document.createElement("div");
-          section.className = "hover-picker-site-group";
+          const col = document.createElement("div");
+          col.className = "hover-picker-ai-col";
 
-          const sectionTitle = document.createElement("div");
-          sectionTitle.className = "hover-picker-site-group-title";
-          sectionTitle.textContent = marketGroup.label;
-          section.appendChild(sectionTitle);
+          const colTitle = document.createElement("div");
+          colTitle.className = "hover-picker-site-group-title";
+          colTitle.textContent = marketGroup.label;
+          col.appendChild(colTitle);
 
           groupSites.forEach((site) => {
-            section.appendChild(createPickerSiteOption(group, site, key));
+            col.appendChild(createPickerSiteOption(group, site, key));
           });
-          submenu.appendChild(section);
+          columnsWrap.appendChild(col);
         });
+        submenu.appendChild(columnsWrap);
+
+        const presetDivider = document.createElement("div");
+        presetDivider.className = "hover-picker-preset-divider";
+        submenu.appendChild(presetDivider);
+
+        const presetHeader = document.createElement("div");
+        presetHeader.className = "hover-picker-site-group-title";
+        presetHeader.textContent = "推荐组合";
+        submenu.appendChild(presetHeader);
+
+        const AI_PRESETS = [
+          { label: "混合使用", siteIds: ["chatgpt", "gemini", "deepseek", "doubao", "kimi"] },
+          { label: "国内精选", siteIds: ["deepseek", "doubao", "kimi", "metaso"] },
+          { label: "海外组", siteIds: ["gemini", "chatgpt"] }
+        ];
+
+        const presetsWrap = document.createElement("div");
+        presetsWrap.className = "hover-picker-presets";
+
+        AI_PRESETS.forEach((preset) => {
+          const siteNames = preset.siteIds
+            .map((id) => sites.find((s) => s.id === id)?.name)
+            .filter(Boolean)
+            .join(" · ");
+
+          const item = document.createElement("div");
+          item.className = "hover-picker-preset-item";
+
+          const info = document.createElement("div");
+          info.className = "hover-picker-preset-info";
+          info.innerHTML = `<span class="hover-picker-preset-label">${escapeHtml(preset.label)}</span><span class="hover-picker-preset-sites">${escapeHtml(siteNames)}</span>`;
+
+          const applyBtn = document.createElement("button");
+          applyBtn.type = "button";
+          applyBtn.className = "hover-picker-preset-apply";
+          applyBtn.textContent = "使用该组合";
+          applyBtn.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            const currentGroup = getGroupById(group.id);
+            if (!currentGroup) return;
+            currentGroup.siteIds = preset.siteIds.filter((id) => sites.find((s) => s.id === id));
+            await persistAll();
+            openPickerGroupId = currentGroup.id;
+            activePickerCategoryKey = key;
+            clearPickerCloseTimer();
+            renderGroupsSection();
+          });
+
+          item.appendChild(info);
+          item.appendChild(applyBtn);
+          presetsWrap.appendChild(item);
+        });
+        submenu.appendChild(presetsWrap);
       } else if (key === "other") {
         const tip = document.createElement("div");
         tip.className = "hover-picker-tip";
@@ -616,6 +639,408 @@
     }
   }
 
+  function createBlankCustomFormState() {
+    return {
+      mode: "create",
+      editingId: null,
+      name: "",
+      url: "",
+      converterInput: "",
+      converterError: "",
+      formError: ""
+    };
+  }
+
+  function createNormalizedCustomSites(input) {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+    const seenIds = new Set();
+    return input
+      .map((raw) => {
+        if (!raw || typeof raw !== "object") return null;
+        const name = String(raw.name || "").trim();
+        const url = String(raw.url || "").trim();
+        if (!name || !url) return null;
+        let id = String(raw.id || "").trim();
+        if (!id || seenIds.has(id)) {
+          id = createCustomSiteId();
+        }
+        seenIds.add(id);
+        return {
+          id,
+          name,
+          url,
+          enabled: raw.enabled !== false,
+          supportIframe: raw.supportIframe !== false,
+          supportUrlQuery: raw.supportUrlQuery !== false && url.includes("{query}"),
+          matchPatterns: Array.isArray(raw.matchPatterns) && raw.matchPatterns.length > 0
+            ? raw.matchPatterns.map((pattern) => String(pattern))
+            : deriveMatchPatterns(url),
+          isCustom: true
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function createCustomSiteId() {
+    return `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  function deriveMatchPatterns(url) {
+    try {
+      const normalized = normalizeUrlForParse(url);
+      const host = new URL(normalized).hostname.replace(/^www\./, "");
+      return host ? [host] : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function normalizeUrlForParse(url) {
+    const trimmed = String(url || "").trim();
+    if (!trimmed) return "";
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    return `https://${trimmed}`;
+  }
+
+  function mergeSites(builtin, custom) {
+    const result = Array.isArray(builtin) ? [...builtin] : [];
+    const knownIds = new Set(result.map((site) => site.id));
+    (custom || []).forEach((site) => {
+      if (!site || knownIds.has(site.id)) return;
+      result.push(site);
+      knownIds.add(site.id);
+    });
+    return result;
+  }
+
+  function syncCustomCategoryIds() {
+    SITE_CATEGORIES.custom.siteIds = customSites.map((site) => site.id);
+  }
+
+  function convertUrlToTemplate(rawUrl) {
+    const trimmed = String(rawUrl || "").trim();
+    if (!trimmed) {
+      return { ok: false, error: "请先粘贴一个 URL 再转换。" };
+    }
+    if (trimmed.includes("{query}")) {
+      return { ok: true, url: trimmed, name: guessSiteNameFromUrl(trimmed) };
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(normalizeUrlForParse(trimmed));
+    } catch (_error) {
+      return { ok: false, error: "URL 格式不正确，请检查后重试。" };
+    }
+
+    const params = parsed.searchParams;
+    const paramKeys = Array.from(params.keys());
+    if (paramKeys.length > 0) {
+      const priorityKey = COMMON_SEARCH_PARAM_KEYS.find((key) =>
+        paramKeys.some((item) => item.toLowerCase() === key)
+      );
+      let targetKey = null;
+      if (priorityKey) {
+        targetKey = paramKeys.find((item) => item.toLowerCase() === priorityKey) || null;
+      } else {
+        targetKey = paramKeys.find((key) => String(params.get(key) || "").trim().length > 0) || paramKeys[0];
+      }
+      if (targetKey) {
+        params.set(targetKey, "__AI_CUSTOM_QUERY_PLACEHOLDER__");
+        const rebuilt = parsed.toString().replace("__AI_CUSTOM_QUERY_PLACEHOLDER__", "{query}");
+        return { ok: true, url: rebuilt, name: guessSiteNameFromUrl(rebuilt) };
+      }
+    }
+
+    return {
+      ok: false,
+      error: "未能自动识别搜索参数，请手动在 URL 中把搜索词替换成 {query}。"
+    };
+  }
+
+  function guessSiteNameFromUrl(url) {
+    try {
+      const parsed = new URL(normalizeUrlForParse(url));
+      const host = parsed.hostname.replace(/^www\./, "");
+      if (!host) return "";
+      const first = host.split(".")[0] || host;
+      return first.charAt(0).toUpperCase() + first.slice(1);
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function renderCustomSection() {
+    customSection.innerHTML = "";
+
+    const converter = document.createElement("section");
+    converter.className = "custom-search-card";
+    converter.innerHTML = `
+      <div class="custom-search-card-head">
+        <strong>URL 规则转换</strong>
+        <span>粘贴一条带搜索词的 URL，我们尝试自动识别搜索参数并替换为 <code>{query}</code>。</span>
+      </div>
+      <div class="custom-converter-row">
+        <input class="custom-converter-input" type="text" placeholder="例如：https://www.30aitool.com/?s=test&type=post" />
+        <button class="custom-converter-btn" type="button">转换</button>
+      </div>
+      <div class="custom-converter-msg" data-field="converter-msg"></div>
+    `;
+
+    const converterInput = converter.querySelector(".custom-converter-input");
+    const converterBtn = converter.querySelector(".custom-converter-btn");
+    const converterMsg = converter.querySelector("[data-field='converter-msg']");
+
+    if (converterInput instanceof HTMLInputElement) {
+      converterInput.value = customFormState.converterInput || "";
+      converterInput.addEventListener("input", (event) => {
+        customFormState.converterInput = event.target.value;
+        customFormState.converterError = "";
+        if (converterMsg) {
+          converterMsg.textContent = "";
+          converterMsg.classList.remove("is-error");
+          converterMsg.classList.remove("is-success");
+        }
+      });
+      converterInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          handleConvertClick();
+        }
+      });
+    }
+
+    if (converterBtn) {
+      converterBtn.addEventListener("click", handleConvertClick);
+    }
+
+    if (customFormState.converterError && converterMsg) {
+      converterMsg.textContent = customFormState.converterError;
+      converterMsg.classList.add("is-error");
+    }
+
+    function handleConvertClick() {
+      const result = convertUrlToTemplate(customFormState.converterInput);
+      if (!result.ok) {
+        customFormState.converterError = result.error;
+        if (converterMsg) {
+          converterMsg.textContent = result.error;
+          converterMsg.classList.add("is-error");
+          converterMsg.classList.remove("is-success");
+        }
+        return;
+      }
+      customFormState.url = result.url;
+      if (!customFormState.name && result.name) {
+        customFormState.name = result.name;
+      }
+      customFormState.formError = "";
+      customFormState.converterError = "";
+      renderCustomSection();
+    }
+
+    customSection.appendChild(converter);
+
+    const form = document.createElement("section");
+    form.className = "custom-search-card";
+    const isEditing = customFormState.mode === "edit";
+    form.innerHTML = `
+      <div class="custom-search-card-head">
+        <strong>${isEditing ? "编辑自定义站点" : "手动添加"}</strong>
+        <span>填写站点名称与 URL，<code>{query}</code> 会在搜索时自动替换为你的关键词。</span>
+      </div>
+      <label class="custom-field">
+        <span class="field-label inline-field-label">名称</span>
+        <input class="custom-form-input" type="text" data-field="name" placeholder="例如：30AI 工具导航" />
+      </label>
+      <label class="custom-field">
+        <span class="field-label inline-field-label">URL 链接</span>
+        <input class="custom-form-input" type="text" data-field="url" placeholder="例如：https://www.example.com/?s={query}" />
+      </label>
+      <div class="custom-form-msg" data-field="form-msg"></div>
+      <div class="custom-form-actions">
+        ${isEditing ? '<button class="custom-form-cancel-btn" type="button">取消编辑</button>' : ""}
+        <button class="custom-form-submit-btn" type="button">${isEditing ? "保存修改" : "确定添加"}</button>
+      </div>
+    `;
+
+    const nameInput = form.querySelector("[data-field='name']");
+    const urlInput = form.querySelector("[data-field='url']");
+    const formMsg = form.querySelector("[data-field='form-msg']");
+    const submitBtn = form.querySelector(".custom-form-submit-btn");
+    const cancelBtn = form.querySelector(".custom-form-cancel-btn");
+
+    if (nameInput instanceof HTMLInputElement) {
+      nameInput.value = customFormState.name || "";
+      nameInput.addEventListener("input", (event) => {
+        customFormState.name = event.target.value;
+      });
+    }
+    if (urlInput instanceof HTMLInputElement) {
+      urlInput.value = customFormState.url || "";
+      urlInput.addEventListener("input", (event) => {
+        customFormState.url = event.target.value;
+      });
+    }
+    if (customFormState.formError && formMsg) {
+      formMsg.textContent = customFormState.formError;
+      formMsg.classList.add("is-error");
+    }
+    if (submitBtn) {
+      submitBtn.addEventListener("click", handleCustomFormSubmit);
+    }
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", () => {
+        customFormState = createBlankCustomFormState();
+        renderCustomSection();
+      });
+    }
+
+    customSection.appendChild(form);
+
+    const listCard = document.createElement("section");
+    listCard.className = "custom-search-card custom-sites-list-card";
+    const header = document.createElement("div");
+    header.className = "custom-search-card-head";
+    header.innerHTML = `
+      <strong>已添加的自定义站点</strong>
+      <span>当前共 ${customSites.length} 个自定义站点。</span>
+    `;
+    listCard.appendChild(header);
+
+    if (!customSites.length) {
+      const empty = document.createElement("div");
+      empty.className = "site-selection-empty";
+      empty.textContent = "还没有自定义站点，上方添加后会在这里显示。";
+      listCard.appendChild(empty);
+    } else {
+      const list = document.createElement("div");
+      list.className = "custom-sites-list";
+      customSites.forEach((site) => {
+        list.appendChild(createCustomSiteRow(site));
+      });
+      listCard.appendChild(list);
+    }
+
+    customSection.appendChild(listCard);
+  }
+
+  function createCustomSiteRow(site) {
+    const row = document.createElement("article");
+    row.className = "custom-site-row";
+    row.innerHTML = `
+      <div class="custom-site-info">
+        <div class="custom-site-name">${escapeHtml(site.name)}</div>
+        <div class="custom-site-url">${escapeHtml(site.url)}</div>
+      </div>
+      <div class="custom-site-actions">
+        <button class="custom-site-edit-btn" type="button">编辑</button>
+        <button class="custom-site-delete-btn" type="button" aria-label="删除">×</button>
+      </div>
+    `;
+
+    const editBtn = row.querySelector(".custom-site-edit-btn");
+    const deleteBtn = row.querySelector(".custom-site-delete-btn");
+
+    editBtn?.addEventListener("click", () => {
+      customFormState = {
+        mode: "edit",
+        editingId: site.id,
+        name: site.name,
+        url: site.url,
+        converterInput: "",
+        converterError: "",
+        formError: ""
+      };
+      renderCustomSection();
+      customSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    deleteBtn?.addEventListener("click", async () => {
+      const confirmed = window.confirm(`是否要删除自定义站点「${site.name}」？\n删除后，所有搜索组中引用该站点的记录也会同步移除。`);
+      if (!confirmed) return;
+      customSites = customSites.filter((item) => item.id !== site.id);
+      groups = groups.map((group) => ({
+        ...group,
+        siteIds: (group.siteIds || []).filter((id) => id !== site.id)
+      }));
+      if (customFormState.mode === "edit" && customFormState.editingId === site.id) {
+        customFormState = createBlankCustomFormState();
+      }
+      await persistAll();
+      renderCustomSection();
+    });
+
+    return row;
+  }
+
+  async function handleCustomFormSubmit() {
+    const name = String(customFormState.name || "").trim();
+    const url = String(customFormState.url || "").trim();
+
+    if (!name) {
+      customFormState.formError = "请输入站点名称。";
+      renderCustomSection();
+      return;
+    }
+    if (!url) {
+      customFormState.formError = "请输入 URL 链接。";
+      renderCustomSection();
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      customFormState.formError = "URL 必须以 http:// 或 https:// 开头。";
+      renderCustomSection();
+      return;
+    }
+    if (!url.includes("{query}")) {
+      customFormState.formError = "URL 中必须包含 {query} 作为搜索词占位符。";
+      renderCustomSection();
+      return;
+    }
+    try {
+      new URL(url.replace("{query}", "ai"));
+    } catch (_error) {
+      customFormState.formError = "URL 格式不合法，请检查后重试。";
+      renderCustomSection();
+      return;
+    }
+
+    if (customFormState.mode === "edit" && customFormState.editingId) {
+      customSites = customSites.map((site) =>
+        site.id === customFormState.editingId
+          ? {
+              ...site,
+              name,
+              url,
+              supportUrlQuery: true,
+              matchPatterns: deriveMatchPatterns(url)
+            }
+          : site
+      );
+    } else {
+      const newSite = {
+        id: createCustomSiteId(),
+        name,
+        url,
+        enabled: true,
+        supportIframe: true,
+        supportUrlQuery: true,
+        matchPatterns: deriveMatchPatterns(url),
+        isCustom: true
+      };
+      customSites = [...customSites, newSite];
+    }
+
+    customFormState = createBlankCustomFormState();
+    await persistAll();
+    renderCustomSection();
+  }
+
   function renderOtherSection() {
     otherSection.innerHTML = "";
 
@@ -646,11 +1071,6 @@
         title: "显示提示词按钮",
         desc: "关闭后，输入框下方的提示词入口将隐藏。"
       },
-      {
-        key: "prewarmEnabled",
-        title: "打开扩展时预热 AI 站点",
-        desc: "开启后，每次点开扩展会悄悄在后台预拉取 AI 站点首页，让随后搜索更快。会消耗少量流量，同一会话内 5 分钟只触发一次。"
-      }
     ].forEach((item) => {
       list?.appendChild(createOtherSettingToggle(item.key, item.title, item.desc));
     });
@@ -1049,6 +1469,248 @@
     return overlay;
   }
 
+  function attachGroupDrag(container) {
+    container.addEventListener("pointerdown", onGroupPointerDown);
+
+    function onGroupPointerDown(e) {
+      const handle = e.target.closest(".group-drag-handle");
+      if (!handle) return;
+      const card = handle.closest(".settings-group-card");
+      if (!card) return;
+
+      e.preventDefault();
+
+      const rect = card.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+      const cardBorderRadius = window.getComputedStyle(card).borderRadius || "18px";
+
+      const clone = card.cloneNode(true);
+      clone.style.cssText = [
+        "position:fixed",
+        `left:${rect.left}px`,
+        `top:${rect.top}px`,
+        `width:${rect.width}px`,
+        "pointer-events:none",
+        "z-index:9999",
+        "box-shadow:0 12px 40px rgba(0,0,0,0.16)",
+        "opacity:0.96",
+        "transition:none",
+        `border-radius:${cardBorderRadius}`
+      ].join(";");
+      document.body.appendChild(clone);
+
+      card.style.opacity = "0";
+      card.style.pointerEvents = "none";
+
+      const lockedGroupId = groups[0]?.id;
+      let lastInsertBefore = null;
+
+      function onMove(ev) {
+        clone.style.top = `${ev.clientY - offsetY}px`;
+
+        const cloneCenterY = ev.clientY - offsetY + rect.height / 2;
+        const otherCards = Array.from(container.querySelectorAll(".settings-group-card")).filter((c) => c !== card);
+        const addCard = container.querySelector(".settings-add-card");
+        let newInsertBefore = addCard;
+
+        for (const other of otherCards) {
+          const r = other.getBoundingClientRect();
+          if (cloneCenterY < r.top + r.height / 2) {
+            newInsertBefore = other;
+            break;
+          }
+        }
+
+        if (newInsertBefore && newInsertBefore.dataset && newInsertBefore.dataset.groupId === lockedGroupId) {
+          newInsertBefore = newInsertBefore.nextElementSibling || addCard;
+        }
+
+        if (newInsertBefore !== lastInsertBefore) {
+          const allCards = Array.from(container.querySelectorAll(".settings-group-card"));
+          const firstPositions = new Map();
+          allCards.forEach((el) => firstPositions.set(el, el.getBoundingClientRect()));
+
+          container.insertBefore(card, newInsertBefore);
+          lastInsertBefore = newInsertBefore;
+
+          allCards
+            .filter((el) => el !== card)
+            .forEach((el) => {
+              const first = firstPositions.get(el);
+              if (!first) return;
+              const last = el.getBoundingClientRect();
+              const dy = first.top - last.top;
+              if (Math.abs(dy) < 1) return;
+              el.style.transition = "none";
+              el.style.transform = `translateY(${dy}px)`;
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  el.style.transition = "transform 200ms cubic-bezier(0.2,0,0,1)";
+                  el.style.transform = "";
+                });
+              });
+            });
+        }
+      }
+
+      function onUp() {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+
+        const finalRect = card.getBoundingClientRect();
+        clone.style.transition = "top 160ms ease, box-shadow 160ms ease, opacity 160ms ease";
+        clone.style.top = `${finalRect.top}px`;
+        clone.style.boxShadow = "none";
+        clone.style.opacity = "0";
+
+        setTimeout(() => {
+          clone.remove();
+          card.style.opacity = "";
+          card.style.pointerEvents = "";
+
+          Array.from(container.querySelectorAll(".settings-group-card")).forEach((el) => {
+            el.style.transition = "";
+            el.style.transform = "";
+          });
+
+          const newGroupIds = Array.from(container.querySelectorAll(".settings-group-card")).map((c) => c.dataset.groupId);
+          const reordered = newGroupIds.map((id) => groups.find((g) => g.id === id)).filter(Boolean);
+          if (reordered.length === groups.length) {
+            groups = reordered;
+            persistAll();
+          }
+        }, 160);
+      }
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    }
+  }
+
+  function attachChipDrag(chipsWrap, group) {
+    chipsWrap.addEventListener("pointerdown", onPointerDown);
+
+    function onPointerDown(e) {
+      const chip = e.target.closest(".selected-chip");
+      if (!chip || e.target.closest(".chip-remove-btn")) return;
+
+      e.preventDefault();
+
+      const rect = chip.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+
+      const clone = chip.cloneNode(true);
+      clone.style.cssText = [
+        `position:fixed`,
+        `left:${rect.left}px`,
+        `top:${rect.top}px`,
+        `width:${rect.width}px`,
+        `height:${rect.height}px`,
+        `margin:0`,
+        `pointer-events:none`,
+        `z-index:9999`,
+        `box-shadow:0 6px 20px rgba(0,0,0,0.18)`,
+        `opacity:1`,
+        `cursor:grabbing`,
+        `transition:none`
+      ].join(";");
+      document.body.appendChild(clone);
+
+      chip.classList.add("is-chip-placeholder");
+      chipsWrap.classList.add("is-chip-dragging-active");
+
+      let lastInsertBefore = null;
+
+      function onMove(ev) {
+        clone.style.left = `${ev.clientX - offsetX}px`;
+        clone.style.top = `${ev.clientY - offsetY}px`;
+
+        const cloneCenterX = ev.clientX - offsetX + rect.width / 2;
+        const cloneCenterY = ev.clientY - offsetY + rect.height / 2;
+
+        const otherChips = Array.from(chipsWrap.querySelectorAll(".selected-chip")).filter((c) => c !== chip);
+        const addWrap = chipsWrap.querySelector(".inline-add-wrap");
+        let newInsertBefore = addWrap;
+
+        for (const other of otherChips) {
+          const r = other.getBoundingClientRect();
+          const midX = r.left + r.width / 2;
+          const midY = r.top + r.height / 2;
+          if (
+            cloneCenterY < midY - r.height * 0.4 ||
+            (Math.abs(cloneCenterY - midY) <= r.height * 0.6 && cloneCenterX < midX)
+          ) {
+            newInsertBefore = other;
+            break;
+          }
+        }
+
+        if (newInsertBefore !== lastInsertBefore) {
+          const allChips = Array.from(chipsWrap.querySelectorAll(".selected-chip"));
+          const firstPositions = new Map();
+          allChips.forEach((el) => firstPositions.set(el, el.getBoundingClientRect()));
+
+          chipsWrap.insertBefore(chip, newInsertBefore);
+          lastInsertBefore = newInsertBefore;
+
+          allChips
+            .filter((el) => el !== chip)
+            .forEach((el) => {
+              const first = firstPositions.get(el);
+              if (!first) return;
+              const last = el.getBoundingClientRect();
+              const dx = first.left - last.left;
+              const dy = first.top - last.top;
+              if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+              el.style.transition = "none";
+              el.style.transform = `translate(${dx}px,${dy}px)`;
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  el.style.transition = "transform 180ms cubic-bezier(0.2,0,0,1)";
+                  el.style.transform = "";
+                });
+              });
+            });
+        }
+      }
+
+      function onUp() {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+
+        const finalRect = chip.getBoundingClientRect();
+        clone.style.transition = "left 150ms ease, top 150ms ease, box-shadow 150ms ease, opacity 150ms ease";
+        clone.style.left = `${finalRect.left}px`;
+        clone.style.top = `${finalRect.top}px`;
+        clone.style.boxShadow = "none";
+        clone.style.opacity = "0";
+
+        setTimeout(() => {
+          clone.remove();
+          chip.classList.remove("is-chip-placeholder");
+          chipsWrap.classList.remove("is-chip-dragging-active");
+
+          Array.from(chipsWrap.querySelectorAll(".selected-chip")).forEach((el) => {
+            el.style.transition = "";
+            el.style.transform = "";
+          });
+
+          const newSiteIds = Array.from(chipsWrap.querySelectorAll(".selected-chip")).map((c) => c.dataset.siteId);
+          const currentGroup = getGroupById(group.id);
+          if (currentGroup) {
+            currentGroup.siteIds = newSiteIds;
+            persistAll();
+          }
+        }, 150);
+      }
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    }
+  }
+
+
   function setActivePickerCategory(categoryKey) {
     if (activePickerCategoryKey === categoryKey) {
       return;
@@ -1076,47 +1738,6 @@
     clearPickerCloseTimer();
     openPickerGroupId = null;
     activePickerCategoryKey = null;
-  }
-
-  function reorderGroupSites(group, sourceSiteId, targetSiteId) {
-    if (!sourceSiteId) return Promise.resolve();
-    const currentGroup = getGroupById(group.id);
-    if (!currentGroup) return Promise.resolve();
-    const nextSiteIds = [...currentGroup.siteIds];
-    const sourceIndex = nextSiteIds.indexOf(sourceSiteId);
-    if (sourceIndex === -1) return Promise.resolve();
-    nextSiteIds.splice(sourceIndex, 1);
-    if (!targetSiteId || !nextSiteIds.includes(targetSiteId)) {
-      nextSiteIds.push(sourceSiteId);
-    } else {
-      nextSiteIds.splice(nextSiteIds.indexOf(targetSiteId), 0, sourceSiteId);
-    }
-    currentGroup.siteIds = nextSiteIds;
-    markDirty();
-    return persistAll().then(() => {
-      renderGroupsSection();
-    });
-  }
-
-  function reorderGroups(sourceGroupId, targetGroupId) {
-    if (!sourceGroupId || !targetGroupId || sourceGroupId === targetGroupId) {
-      return Promise.resolve();
-    }
-
-    const nextGroups = [...groups];
-    const sourceIndex = nextGroups.findIndex((group) => group.id === sourceGroupId);
-    const targetIndex = nextGroups.findIndex((group) => group.id === targetGroupId);
-    if (sourceIndex === -1 || targetIndex === -1) {
-      return Promise.resolve();
-    }
-
-    const [movedGroup] = nextGroups.splice(sourceIndex, 1);
-    nextGroups.splice(targetIndex, 0, movedGroup);
-    groups = nextGroups;
-    markDirty();
-    return persistAll().then(() => {
-      renderGroupsSection();
-    });
   }
 
   function getCategorySites(categoryKey) {
@@ -1157,17 +1778,22 @@
   }
 
   async function persistAll() {
+    customSites = createNormalizedCustomSites(customSites);
+    const builtinSites = sites.filter((site) => !site.isCustom);
+    sites = mergeSites(builtinSites, customSites);
+    syncCustomCategoryIds();
     groups = createNormalizedGroups(groups);
     promptGroups = createNormalizedPromptGroups(promptGroups);
     uiPrefs = createNormalizedUiPrefs(uiPrefs);
     await chrome.storage.local.set({
       [GROUPS_STORAGE_KEY]: groups,
       [PROMPTS_STORAGE_KEY]: promptGroups,
-      [UI_PREFS_STORAGE_KEY]: uiPrefs
+      [UI_PREFS_STORAGE_KEY]: uiPrefs,
+      [CUSTOM_SITES_STORAGE_KEY]: customSites
     });
   }
 
-  async function loadSites() {
+  async function loadBuiltinSites() {
     const response = await fetch(chrome.runtime.getURL("config/siteHandlers.json"));
     const payload = await response.json();
     return (payload.sites || []).filter((site) => site.enabled !== false);

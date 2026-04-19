@@ -42,12 +42,10 @@ svg {
   margin-bottom: 2px;
 }
 
-.popup-title {
-  margin: 0;
-  font-size: 23px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  text-align: center;
+.popup-title-logo {
+  height: 36px;
+  width: auto;
+  display: block;
 }
 
 .search-composer {
@@ -57,7 +55,7 @@ svg {
   min-height: 56px;
   padding: 10px 14px;
   border: 1px solid rgba(0, 0, 0, 0.22);
-  border-radius: 28px;
+  border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 5px 12px rgba(0, 0, 0, 0.07);
   overflow: visible;
@@ -70,7 +68,7 @@ svg {
 .search-composer.is-expanded {
   min-height: 118px;
   padding: 12px 14px 12px 14px;
-  border-radius: 15px;
+  border-radius: 18px;
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
@@ -89,7 +87,7 @@ svg {
   outline: none;
   background: transparent;
   padding: 0 6px 0 0;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.4;
   color: #111111;
   text-align: left;
@@ -167,8 +165,8 @@ svg {
 }
 
 .dice-icon {
-  width: 20px;
-  height: 20px;
+  width: 25px;
+  height: 25px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -194,6 +192,41 @@ svg {
   fill: currentColor;
 }
 
+.send-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.composer-send-btn {
+  color: #c0c0c0;
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.composer-send-btn.is-active {
+  color: #111111;
+}
+
+.composer-send-btn.is-active:hover {
+  transform: translateY(-1px) scale(1.08);
+  color: #333333;
+}
+
+.composer-send-btn:not(.is-active) {
+  cursor: default;
+}
+
+.composer-send-btn:not(.is-active):hover {
+  transform: none;
+}
+
 .popup-prompt-picker {
   position: absolute;
   top: calc(100% + 8px);
@@ -202,6 +235,7 @@ svg {
   min-height: 228px;
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 6px;
   background: #ffffff;
@@ -300,6 +334,35 @@ svg {
   color: #888888;
 }
 
+.popup-prompt-picker-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  background: #fbfbfb;
+}
+
+.popup-prompt-picker-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #aaaaaa;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.popup-prompt-picker-settings-btn:hover {
+  color: #555555;
+  transform: none;
+}
+
 .popup-groups {
   display: flex;
   justify-content: center;
@@ -329,10 +392,17 @@ svg {
   justify-content: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.popup-group-btn:hover {
+  background: #111111;
+  color: #ffffff;
+  border-color: #111111;
 }
 
 .popup-group-name {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.2;
   text-align: center;
 }
@@ -460,20 +530,37 @@ svg {
   padding: 0 14px;
   border: none;
   border-radius: 0;
-  background: #6b6b6b;
+  background: #111111;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.02em;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   box-shadow: none;
 }
 
 .settings-entry-label {
   line-height: 1;
+}
+
+/* ── 搜索组悬停 tooltip ── */
+.group-tooltip {
+  position: fixed;
+  z-index: 99999;
+  display: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 /* ── popup 提示词新 UI ── */
@@ -554,4 +641,11 @@ svg {
   max-height: 200px;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+/* 预览/编辑弹窗关闭按钮 hover */
+.ppv-close:hover,
+button.ppv-close:hover {
+  color: #333 !important;
+  background: #f0f0f0 !important;
 }

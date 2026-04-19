@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "AI批量搜索 MVP",
+  "name": "Qshot",
   "version": "0.1.0",
   "description": "在一个扩展页面中以多卡片 iframe 形式并排展示多个 AI 站点。",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "activeTab",
     "storage",
@@ -19,7 +25,13 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "打开 AI 批量搜索",
+    "default_title": "Qshot",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
     "default_popup": "popup/popup.html"
   },
   "content_scripts": [
