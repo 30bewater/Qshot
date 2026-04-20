@@ -9,6 +9,45 @@ let lastWarmupAt = 0;
 chrome.runtime.onInstalled.addListener(async () => {
   console.log("AI 批量搜索 MVP 已安装");
   await ensureDefaultSearchGroups();
+  await syncCommandShortcut();
+});
+
+// 当用户在设置里修改快捷键时，同步更新 manifest command 的绑定，
+// 这样内置页面的自动弹窗也会跟着用户的设置走。
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[UI_PREFS_STORAGE_KEY]) return;
+  const newPrefs = changes[UI_PREFS_STORAGE_KEY].newValue;
+  if (!newPrefs) return;
+  syncCommandShortcut(newPrefs).catch(() => {});
+});
+
+// 当用户在任意页面触发 manifest command 时：
+// - 普通网页 → 向内容脚本发消息切换浮层
+// - 浏览器内置页面（chrome://、edge:// 等）→ 打开扩展弹窗
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "toggle-overlay") return;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+  if (!tab) return;
+
+  const url = tab.url || "";
+  const isRestricted =
+    !url ||
+    url.startsWith("chrome://") ||
+    url.startsWith("edge://") ||
+    url.startsWith("about:") ||
+    url.startsWith("chrome-extension://") ||
+    /^https?:\/\/(chrome\.google\.com\/webstore|microsoftedge\.microsoft\.com\/addons)/.test(url);
+
+  if (isRestricted) {
+    try {
+      await chrome.action.openPopup();
+    } catch (_e) {
+      /* 部分情况下无法打开弹窗，忽略 */
+    }
+  } else {
+    chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SEARCH_OVERLAY" }).catch(() => {});
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -132,16 +171,30 @@ async function openSitesInTabs(siteIds, query) {
     return { tabIds: [] };
   }
 
-  // 并发创建所有 tab：浏览器一次性把所有站点 tab 全部打开
-  const createdTabs = await Promise.all(
-    targetSites.map((site) =>
+  const tabSitePairs = [];
+
+  // 第一个站点：在当前激活的标签页中直接导航（而非新开标签）
+  const firstSite = targetSites[0];
+  const firstUrl = buildSiteUrl(firstSite, query);
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+  if (activeTab) {
+    await chrome.tabs.update(activeTab.id, { url: firstUrl }).catch(() => null);
+    tabSitePairs.push({ tab: activeTab, site: firstSite });
+  } else {
+    const tab = await chrome.tabs.create({ url: firstUrl, active: true }).catch(() => null);
+    if (tab) tabSitePairs.push({ tab, site: firstSite });
+  }
+
+  // 其余站点：在后台新标签页中并发打开
+  const remainingSites = targetSites.slice(1);
+  const newTabs = await Promise.all(
+    remainingSites.map((site) =>
       chrome.tabs.create({ url: buildSiteUrl(site, query), active: false }).catch(() => null)
     )
   );
-
-  const tabSitePairs = createdTabs
-    .map((tab, idx) => (tab ? { tab, site: targetSites[idx] } : null))
-    .filter(Boolean);
+  newTabs.forEach((tab, idx) => {
+    if (tab) tabSitePairs.push({ tab, site: remainingSites[idx] });
+  });
 
   // 并发等待每个 tab 完成加载并独立发送查询，互不阻塞
   if (query) {
@@ -158,14 +211,6 @@ async function openSitesInTabs(siteIds, query) {
   }
 
   const openedTabIds = tabSitePairs.map(({ tab }) => tab.id);
-  if (openedTabIds.length > 0) {
-    try {
-      await chrome.tabs.update(openedTabIds[0], { active: true });
-    } catch (_err) {
-      // 某些情况下首个 tab 可能已被关闭，忽略
-    }
-  }
-
   return { tabIds: openedTabIds };
 }
 
@@ -303,4 +348,36 @@ function delay(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+// 将 {ctrlKey, altKey, shiftKey, metaKey, key} 对象转成 "Ctrl+Alt+Q" 格式的字符串，
+// 用于 chrome.commands.update()。
+function formatShortcutForCommand(sc) {
+  if (!sc || !sc.key) return "";
+  const parts = [];
+  if (sc.ctrlKey) parts.push("Ctrl");
+  if (sc.altKey) parts.push("Alt");
+  if (sc.shiftKey) parts.push("Shift");
+  if (sc.metaKey) parts.push("MacCtrl");
+  if (parts.length === 0) return "";
+  const key = sc.key.length === 1 ? sc.key.toUpperCase() : sc.key;
+  parts.push(key);
+  return parts.join("+");
+}
+
+// 从 storage 读取用户设置的快捷键，更新 manifest command 绑定。
+async function syncCommandShortcut(prefs) {
+  try {
+    let sc = prefs?.overlayShortcut;
+    if (!sc) {
+      const stored = await chrome.storage.local.get([UI_PREFS_STORAGE_KEY]);
+      sc = stored[UI_PREFS_STORAGE_KEY]?.overlayShortcut;
+    }
+    if (!sc) return;
+    const shortcutStr = formatShortcutForCommand(sc);
+    if (!shortcutStr) return;
+    await chrome.commands.update({ name: "toggle-overlay", shortcut: shortcutStr });
+  } catch (_e) {
+    /* 快捷键组合不合法或不被支持时忽略，保持 manifest 默认值 */
+  }
 }

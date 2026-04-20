@@ -85,6 +85,9 @@
     elements.sidebarLayoutBtn = document.querySelector("[data-layout-mode='sidebar']");
     elements.scrollToStartBtn = document.getElementById("scrollToStartBtn");
     elements.scrollToEndBtn = document.getElementById("scrollToEndBtn");
+    elements.scrollToTopBtn = document.getElementById("scrollToTopBtn");
+    elements.scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
+    elements.scrollVertGroup = document.getElementById("scrollVertGroup");
     elements.newChatBtn = document.getElementById("newChatBtn");
   }
 
@@ -250,6 +253,14 @@
       elements.iframesContainer.scrollTo({ left: elements.iframesContainer.scrollWidth, behavior: "smooth" });
     });
 
+    elements.scrollToTopBtn?.addEventListener("click", () => {
+      elements.iframesContainer.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    elements.scrollToBottomBtn?.addEventListener("click", () => {
+      elements.iframesContainer.scrollTo({ top: elements.iframesContainer.scrollHeight, behavior: "smooth" });
+    });
+
     elements.iframesContainer.addEventListener("scroll", updateScrollEdgeBtns, { passive: true });
 
     window.addEventListener("resize", () => {
@@ -299,9 +310,13 @@
   function updateScrollEdgeBtns() {
     const show = state.layoutRows === 1 && state.layoutMode !== "sidebar";
     const c = elements.iframesContainer;
-    const canScroll = c.scrollWidth > c.clientWidth + 2;
-    if (elements.scrollToStartBtn) elements.scrollToStartBtn.hidden = !(show && canScroll);
-    if (elements.scrollToEndBtn) elements.scrollToEndBtn.hidden = !(show && canScroll);
+    const canScrollH = c.scrollWidth > c.clientWidth + 2;
+    if (elements.scrollToStartBtn) elements.scrollToStartBtn.hidden = !(show && canScrollH);
+    if (elements.scrollToEndBtn) elements.scrollToEndBtn.hidden = !(show && canScrollH);
+
+    const showVert = state.layoutRows > 1 && state.layoutMode !== "sidebar";
+    const canScrollV = c.scrollHeight > c.clientHeight + 2;
+    if (elements.scrollVertGroup) elements.scrollVertGroup.hidden = !(showVert && canScrollV);
   }
 
   function updateSendBtnState() {
@@ -1144,72 +1159,16 @@
     renderPromptPicker();
   }
 
+  // 预览卡片管理器（由 shared/prompt-item.js 提供）
+  let _iframePreviewMgr = null;
+
   function closePromptPicker() {
     if (!state.isPromptPickerOpen) {
       return;
     }
-
     state.isPromptPickerOpen = false;
-    hidePromptPreviewPopup();
+    if (_iframePreviewMgr) _iframePreviewMgr.hide();
     renderPromptPicker();
-  }
-
-  // ── 全局预览浮层（position:fixed，悬浮在 picker 左侧）──
-  let _previewPopupEl = null;
-  let _previewHideTimer = null;
-
-  function getOrCreatePreviewPopup() {
-    if (!_previewPopupEl) {
-      _previewPopupEl = document.createElement("div");
-      _previewPopupEl.className = "popup-prompt-preview-popup";
-      _previewPopupEl.addEventListener("mouseenter", () => {
-        if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
-      });
-      _previewPopupEl.addEventListener("mouseleave", () => {
-        _previewHideTimer = setTimeout(() => hidePromptPreviewPopup(), 320);
-      });
-      document.body.appendChild(_previewPopupEl);
-    }
-    return _previewPopupEl;
-  }
-
-  function showPromptPreviewPopup(anchorBtn, prompt) {
-    const popup = getOrCreatePreviewPopup();
-    popup.innerHTML = `<div class="popup-prompt-preview-title">${escapeHtml(prompt.title || "未命名提示词")}</div><div class="popup-prompt-preview-body">${escapeHtml(prompt.content || "（暂无内容）")}</div>`;
-    popup.style.display = "block";
-    popup.classList.add("is-visible");
-
-    // 定位：优先显示在 picker 右侧，不够则显示在左侧
-    requestAnimationFrame(() => {
-      const btnRect = anchorBtn.getBoundingClientRect();
-      const popupW = popup.offsetWidth || 300;
-      const popupH = popup.offsetHeight || 180;
-      const picker = elements.promptPicker;
-      const pickerRect = picker ? picker.getBoundingClientRect() : btnRect;
-
-      // 水平：优先 picker 右侧
-      let left = pickerRect.right + 8;
-      if (left + popupW > window.innerWidth - 8) {
-        left = pickerRect.left - popupW - 8; // 右侧放不下则改左侧
-      }
-      if (left < 8) left = 8;
-
-      // 垂直：以按钮为基准，垂直居中
-      let top = btnRect.top + btnRect.height / 2 - popupH / 2;
-      if (top < 8) top = 8;
-      if (top + popupH > window.innerHeight - 8) top = window.innerHeight - popupH - 8;
-
-      popup.style.left = `${left}px`;
-      popup.style.top = `${top}px`;
-    });
-  }
-
-  function hidePromptPreviewPopup() {
-    if (_previewPopupEl) {
-      _previewPopupEl.style.display = "none";
-      _previewPopupEl.classList.remove("is-visible");
-    }
-    if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
   }
 
   // ── 编辑弹窗 ──
@@ -1375,58 +1334,13 @@
       empty.textContent = "这个分组里还没有提示词。";
       promptsColumn.appendChild(empty);
     } else {
+      _iframePreviewMgr = _iframePreviewMgr || window.PromptItemUI.createPreviewManager(null);
       activeGroup.prompts.forEach((prompt) => {
-        const item = document.createElement("div");
-        item.className = "popup-prompt-item";
-
-        // 左侧：标题（点击填入）
-        const label = document.createElement("span");
-        label.className = "popup-prompt-item-label";
-        label.textContent = prompt.title || "未命名提示词";
-        label.addEventListener("click", () => {
-          elements.queryInput.value = prompt.content || "";
-          closePromptPicker();
-          elements.queryInput.focus();
+        const item = window.PromptItemUI.createItem(prompt, {
+          onFill: (p) => { elements.queryInput.value = p.content || ""; closePromptPicker(); elements.queryInput.focus(); },
+          onEdit: (p) => openPromptEditModal(p, activeGroup.id),
+          previewManager: _iframePreviewMgr,
         });
-
-        // 右侧：铅笔 + 眼睛
-        const rightIcons = document.createElement("div");
-        rightIcons.className = "popup-prompt-edit-wrap";
-
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "popup-prompt-icon-btn";
-        editBtn.setAttribute("aria-label", "编辑此提示词");
-        editBtn.title = "编辑";
-        editBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M4 22h16" opacity=".5"/><path d="m14.63 2.921l-.742.742l-6.817 6.817c-.462.462-.693.692-.891.947a5.2 5.2 0 0 0-.599.969c-.139.291-.242.601-.449 1.22l-.875 2.626l-.213.641a.848.848 0 0 0 1.073 1.073l.641-.213l2.625-.875c.62-.207.93-.31 1.221-.45q.518-.246.969-.598c.255-.199.485-.43.947-.891l6.817-6.817l.742-.742a3.146 3.146 0 0 0-4.45-4.449Z"/><path d="M13.888 3.664S13.98 5.24 15.37 6.63s2.966 1.483 2.966 1.483m-12.579 9.63l-1.5-1.5" opacity=".5"/></svg>`;
-        editBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          openPromptEditModal(prompt, activeGroup.id);
-        });
-
-        const previewWrap = document.createElement("div");
-        previewWrap.className = "popup-prompt-preview-wrap";
-        const previewBtn = document.createElement("button");
-        previewBtn.type = "button";
-        previewBtn.className = "popup-prompt-icon-btn";
-        previewBtn.setAttribute("aria-label", "预览内容");
-        previewBtn.title = "预览";
-        previewBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-
-        previewBtn.addEventListener("mouseenter", () => {
-          if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
-          showPromptPreviewPopup(previewBtn, prompt);
-        });
-        previewBtn.addEventListener("mouseleave", () => {
-          _previewHideTimer = setTimeout(() => hidePromptPreviewPopup(), 320);
-        });
-        previewWrap.appendChild(previewBtn);
-
-        rightIcons.appendChild(editBtn);
-        rightIcons.appendChild(previewWrap);
-
-        item.appendChild(label);
-        item.appendChild(rightIcons);
         promptsColumn.appendChild(item);
       });
     }

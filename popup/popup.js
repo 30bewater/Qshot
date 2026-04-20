@@ -1,57 +1,59 @@
-(function initPopup() {
+﻿(function initPopup() {
   const SEARCH_GROUPS_STORAGE_KEY = "searchGroups";
   const SEARCH_HISTORY_STORAGE_KEY = "searchHistory";
   const PROMPT_GROUPS_STORAGE_KEY = "promptGroups";
   const UI_PREFS_STORAGE_KEY = "uiPrefs";
   const CUSTOM_SITES_STORAGE_KEY = "customSites";
   const RANDOM_QUESTIONS = [
-    "第一性原理是什么？给我举 3 个生活中的例子",
-    "如何用 AI 快速学习一个陌生领域？",
-    "什么样的问题 AI 回答得最好？什么最差？",
-    "为什么痛苦比快乐更容易被记住？",
-    "用一个比喻解释“复利思维”",
-    "推荐 3 个科学验证过的提升注意力的方法",
-    "解释一下“奥卡姆剃刀原则”，并告诉我什么时候不适用",
-    "为什么有些道理听懂了，却做不到？",
-    "把“内耗”拆成情绪、认知、行为三个层面来讲",
-    "如果我要在 30 天内入门一个陌生领域，你会怎么帮我设计学习路径？",
-    "如果我总是学了就忘，AI 可以怎么帮我建立复习系统？",
-    "现代人最常见的 3 种“伪成长”是什么",
-    "什么样的问题最能激发 AI 给出高质量回答？",
-    "怎么让 AI 在学习、写作、思考中扮演不同角色？",
-    "一个好 prompt 的核心结构通常是什么？",
-    "如果让苏格拉底来分析“刷短视频停不下来”，他会怎么提问？",
-    "告诉我：关于这件事，未来我最可能后悔没早点知道什么？",
-    "给我 10 个稀奇但有用的问题，专门用来打破思维惯性。",
-    "帮我挖掘出我的优点和缺点",
-    "你觉得我现在最该认真解决的一个问题，可能是什么？",
-    "给我一个今天值得想一想的问题。",
-    "帮我找出我现在最可能忽略的一件事。",
-    "如果你只能提醒我一件会影响未来半年的事，你会提醒什么？",
-    "我现在最值得做的那个 80/20 动作是什么？",
-    "站在一年后的我看，现在最不该拖延的是什么？",
-    "给我一个能快速提升生活质量的小改变。",
-    "把我最近可能很混乱的事情，整理成 3 种可能方向。",
-    "告诉我一个我以为很重要、其实没那么重要的东西。",
-    "给我一个反直觉但值得试试的建议。",
-    "用最直白的话告诉我：我现在最需要看清什么？",
-    "这件事背后真正的问题通常是什么？先给我 3 种常见答案。",
-    "我该停止什么，才能让自己轻松一点？",
-    "现在最值得我补上的一个能力是什么？为什么？",
-    "当时时代互联网常见的情绪煽动点有哪些",
-    "教我怎样向 AI 提问，才能把这个主题学得更快更扎实。",
-    "如何把新时代的 AI 知识点和我已经会的东西建立连接，让我更容易记住。",
-    "告诉我这个主题最常见的 3 个混淆点，并教我怎么区分。",
-    "什么问题其实不应该直接问 AI，而应该先自己想一遍？",
-    "如何把 AI 用成一个真正会启发思考的学习伙伴？",
-    "让 AI 帮我学习时，怎样提要求才能避免它讲得空泛？",
-    "请用二八定律帮我分析：在工作、学习和副业这三个方面，最值得优先投入的 20% 动作，可能分别是什么？",
-    "请用投射效应分析：为什么人会把自己的情绪和想法，不自觉地套到别人身上？",
-    "请用边界感这个概念解释：为什么有些人总活得很累，是因为太容易被别人影响？",
-    "请用峰终定律分析：为什么一段经历最后给人的印象，常常不是平均感受，而是高峰和结尾？",
-    "请用稀缺心态解释：为什么当人觉得时间不够、钱不够、机会不够时，反而更容易做错决定？",
-    "请用比较心理分析：为什么人一旦总盯着别人看，幸福感会明显下降？",
-    "请用社会认同解释：为什么很多人明明没有那么喜欢一个东西，却还是会跟着大家一起追？"
+    "今天最值得关注的 AI 变化是什么？不要泛泛而谈，只说一个最具体的。",
+    "普通人现在最该先学会哪 3 个 AI 用法？请按\"上手难度从低到高\"排列，并说明每个的实际应用场景。",
+    "大多数人用 AI 最容易犯的低级错误是什么？请列出 3 个典型误区，并给出正确姿势。",
+    "如果只保留 3 个 AI 使用习惯，最值得保留哪些？请说明理由。",
+    "怎么判断自己是在\"用 AI\"，还是\"被 AI 带着跑\"？给出 3 个自检信号。",
+    "AI 能帮我节省时间，但哪些\"自己思考\"的部分绝对不能外包？请从决策、创造力、价值判断三个维度分析。",
+    "想快速提升 AI 提问能力，最有效的练习方法是什么？请给出一个可以立刻开始的 7 天训练计划。",
+    "有哪些小众但实用的 AI 工具？请推荐 5 个，说明适用场景和同类工具的差异。",
+    "用 AI 学习一个全新技能，最高效的路径是什么？请用一个具体例子演示完整流程。",
+    "目前硅谷和开发者圈子里，讨论热度最高的 AI 开源项目是哪些？请列出 Top 5，附项目地址和一句话说明。",
+    "写一段严谨但通俗的话，说明\"AI 幻觉\"产生的核心原因、典型表现，以及普通用户如何识别。",
+    "今天如果我想立刻用 AI 提高效率，最近出现或变成熟的 3 个用法是什么？请只讲能马上上手的。",
+    "OpenAI 最新发布的模型是什么？具体发布时间、核心能力升级，以及和上一代模型的关键区别。",
+    "2024 年至今，AI 领域有哪些里程碑事件？请按时间线列出，标注具体日期、事件内容和行业影响。",
+    "目前国内主流 AI 视频生成工具，在画质、生成速度和可控性上各有什么优劣？帮我做个精简对比表。",
+    "过去 7 天最值得普通人关注的 3 条 AI 动态是什么？按\"发生了什么 / 为什么重要 / 对普通人有什么影响\"回答。控制在 200 字内。",
+    "最近 30 天里，主流 AI 工具里有哪些更新是真正能提升工作效率的？请选 3 个，说明适合谁用、解决什么问题。控制在 300 字内。",
+    "最近大家都在讨论的 AI 话题里，哪些是真的有长期价值，哪些更像短期炒作？请各举 2 个例子。",
+    "针对\"AI 时代如何保持核心竞争力\"这个话题，写一篇 300 字的短评，观点要一针见血。",
+    "请用 400 字以内分析：为什么现代人在线连接更多了，主观孤独感却没有明显下降？",
+    "随机选一个观点，请分别写成：理性版、犀利版、温和版，各 80 字。",
+    "给我一个反直觉的观点，然后用 300 字把它写成一篇让人看完第一句就想继续读的短文。",
+    "为什么有些事明知道没必要，还是会在意？请从进化心理学和认知偏差两个角度解释。",
+    "现代社会哪些看似正常的习惯，其实一直在偷走你的能量？请列出 5 个，并说明替代方案。",
+    "为什么现代人的孤独感在持续增加？请从社会结构、工作方式、社交媒体、心理习惯四个层面分析，并引用近年的研究或数据。",
+    "为什么很多人看起来越来越自由，内心却越来越空？请从选择过载、比较心理、意义感缺失、关系稀薄四个角度拆解。",
+    "为什么很多人懂很多道理，却很难真正改变自己？请结合行为心理学中的\"意图-行为鸿沟\"研究解释。",
+    "什么样的\"努力\"其实只是自我感动？请列出 5 种常见表现，并说明为什么它们看起来努力、实际上低效。",
+    "把\"焦虑感\"比作一个正在运行的操作系统——请列出 5 个可能存在的底层 Bug，并提供一套心理学上的调试协议。",
+    "为什么有些关系让人上头，但不让人安心？请分析\"强刺激型依恋\"和\"稳定连接型依恋\"的本质区别，以及各自的长期代价。",
+    "为什么我们总是对\"最亲近的人\"最容易发火？请从情绪调节资源、安全感依赖、投射机制三个角度解释，并给出一个可操作的应对策略。",
+    "互联网上最常见的情绪操控套路有哪些？请列出 5 种典型手法，附真实案例，并给出识别和防御方法。",
+    "有哪些被大众广泛认可的\"励志语录\"，其实逻辑上经不起推敲？请挑 5 句，逐一拆解其逻辑漏洞。",
+    "社交媒体算法是如何精准制造\"焦虑感\"和\"信息茧房\"的？请从推荐机制、用户行为数据、内容分发策略三个层面说明。",
+    "怎么快速判断一条内容是在提供信息，还是在煽动立场？请给出一个 30 秒内可用的判断框架。",
+    "有哪些常见但极其低效的办公习惯，可以用 AI 或自动化工具彻底替代？请列出 5 个，附具体工具推荐。",
+    "\"低质量忙碌\"最常见的几种形式是什么？高效的人不是做得更多，而是更少做错事——请从任务选择、时间分配、注意力管理三个角度分析。",
+    "\"复盘\"和\"总结\"的关键区别是什么？一个真正有效的个人复盘流程应该包含哪些步骤？请给出可直接套用的模板。",
+    "一个人同时推进多个项目时，最容易在哪个环节崩掉？请从认知负荷、优先级混乱、情绪消耗三个角度分析，并给出一套\"多线程工作\"的管理框架。",
+    "如何将一个复杂的大项目拆解成容易执行的小步骤？请用一个实际案例演示拆解过程。",
+    "有哪些经过科学验证的提升注意力的方法？请推荐 3 个，附研究来源和具体操作步骤。",
+    "信息量很大的时候，怎么快速抓住重点？请给出一个可复用的信息筛选框架。",
+    "怎么用 AI 把一个模糊的想法变成可执行的步骤？请用一个具体例子，演示从\"我想做 XX\"到\"第一步打开什么\"的完整过程。",
+    "想提高产出质量，最该先优化输入、流程还是表达？请按优先级排序并说明理由。",
+    "连续抛硬币 10 次都是正面，第 11 次出现反面的概率是多少？请解释大多数人的直觉为什么是错的。",
+    "把\"孤独\"翻译成 5 种不同的生活场景，全程不许出现\"孤独\"二字。",
+    "如果\"工作\"不再是生存的必需品，人类社会最可能爆发的五种精神危机是什么？请从马斯洛需求层次的高层进行反向推论。",
+    "帮我起草一份\"年轻人极简主义背后的经济动因\"研究大纲，要求对比近两年的消费信心指数变化，并预测未来三年的消费趋势。",
+    "如果让 AI 扮演苏格拉底，它会对一个处于职业转型焦虑中的年轻人提出哪些直击本质的问题？"
   ];
 
   const queryInput = document.getElementById("popupQueryInput");
@@ -324,51 +326,13 @@
       empty.textContent = "这个分组里还没有提示词。";
       promptsColumn.appendChild(empty);
     } else {
+      _popupPreviewMgr = _popupPreviewMgr || window.PromptItemUI.createPreviewManager(null);
       activeGroup.prompts.forEach((prompt) => {
-        const item = document.createElement("div");
-        item.className = "popup-prompt-item";
-
-        // 标题（点击填入）
-        const label = document.createElement("span");
-        label.className = "popup-prompt-item-label";
-        label.textContent = prompt.title || "未命名提示词";
-        label.addEventListener("click", () => {
-          queryInput.value = prompt.content || "";
-          closePromptPicker();
-          queryInput.focus();
+        const item = window.PromptItemUI.createItem(prompt, {
+          onFill: (p) => { queryInput.value = p.content || ""; closePromptPicker(); queryInput.focus(); },
+          onEdit: (p) => openPopupPromptEditModal(p, activeGroup.id),
+          previewManager: _popupPreviewMgr,
         });
-
-        // 右侧：铅笔 + 眼睛
-        const rightIcons = document.createElement("div");
-        rightIcons.className = "popup-prompt-edit-wrap";
-
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "popup-prompt-icon-btn";
-        editBtn.setAttribute("aria-label", "编辑");
-        editBtn.title = "编辑";
-        editBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M4 22h16" opacity=".5"/><path d="m14.63 2.921l-.742.742l-6.817 6.817c-.462.462-.693.692-.891.947a5.2 5.2 0 0 0-.599.969c-.139.291-.242.601-.449 1.22l-.875 2.626l-.213.641a.848.848 0 0 0 1.073 1.073l.641-.213l2.625-.875c.62-.207.93-.31 1.221-.45q.518-.246.969-.598c.255-.199.485-.43.947-.891l6.817-6.817l.742-.742a3.146 3.146 0 0 0-4.45-4.449Z"/><path d="M13.888 3.664S13.98 5.24 15.37 6.63s2.966 1.483 2.966 1.483m-12.579 9.63l-1.5-1.5" opacity=".5"/></svg>`;
-        editBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          openPopupPromptEditModal(prompt, activeGroup.id);
-        });
-
-        const previewBtn = document.createElement("button");
-        previewBtn.type = "button";
-        previewBtn.className = "popup-prompt-icon-btn";
-        previewBtn.setAttribute("aria-label", "预览");
-        previewBtn.title = "预览";
-        previewBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
-        previewBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          openPopupPromptPreviewModal(prompt);
-        });
-
-        rightIcons.appendChild(previewBtn);
-        rightIcons.appendChild(editBtn);
-
-        item.appendChild(label);
-        item.appendChild(rightIcons);
         promptsColumn.appendChild(item);
       });
     }
@@ -393,103 +357,9 @@
     updatePromptPickerLayoutState();
   }
 
-  // ── popup 预览浮层 ──
-  let _popupPreviewEl = null;
-  let _popupPreviewHideTimer = null;
+  // 预览卡片管理器（由 shared/prompt-item.js 提供）
+  let _popupPreviewMgr = null;
 
-  function getOrCreatePopupPreviewEl() {
-    if (!_popupPreviewEl) {
-      _popupPreviewEl = document.createElement("div");
-      _popupPreviewEl.className = "popup-prompt-preview-popup";
-      _popupPreviewEl.addEventListener("mouseenter", () => {
-        if (_popupPreviewHideTimer) { clearTimeout(_popupPreviewHideTimer); _popupPreviewHideTimer = null; }
-      });
-      _popupPreviewEl.addEventListener("mouseleave", () => {
-        _popupPreviewHideTimer = setTimeout(() => hidePopupPromptPreview(), 320);
-      });
-      document.body.appendChild(_popupPreviewEl);
-    }
-    return _popupPreviewEl;
-  }
-
-  function showPopupPromptPreview(anchorBtn, prompt) {
-    const popup = getOrCreatePopupPreviewEl();
-    popup.innerHTML = `<div class="popup-prompt-preview-title">${escapeHtml(prompt.title || "未命名提示词")}</div><div class="popup-prompt-preview-body">${escapeHtml(prompt.content || "（暂无内容）")}</div>`;
-    popup.style.display = "block";
-    popup.classList.add("is-visible");
-    requestAnimationFrame(() => {
-      const btnRect = anchorBtn.getBoundingClientRect();
-      const pickerEl = document.getElementById("promptPicker");
-      const pickerRect = pickerEl ? pickerEl.getBoundingClientRect() : btnRect;
-      const popupW = popup.offsetWidth || 260;
-      const popupH = popup.offsetHeight || 160;
-      // 优先右侧，没空间则左侧
-      let left = pickerRect.right + 8;
-      if (left + popupW > window.innerWidth - 4) left = pickerRect.left - popupW - 8;
-      if (left < 4) left = 4;
-      let top = btnRect.top + btnRect.height / 2 - popupH / 2;
-      if (top < 4) top = 4;
-      if (top + popupH > window.innerHeight - 4) top = window.innerHeight - popupH - 4;
-      popup.style.left = `${left}px`;
-      popup.style.top = `${top}px`;
-    });
-  }
-
-  function hidePopupPromptPreview() {
-    if (_popupPreviewEl) {
-      _popupPreviewEl.style.display = "none";
-      _popupPreviewEl.classList.remove("is-visible");
-    }
-    if (_popupPreviewHideTimer) { clearTimeout(_popupPreviewHideTimer); _popupPreviewHideTimer = null; }
-  }
-
-  // ── popup 预览弹窗 ──
-  function openPopupPromptPreviewModal(prompt) {
-
-    const overlay = document.createElement("div");
-    overlay.className = "prompt-edit-modal-overlay";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:flex-start;justify-content:center;padding:16px;z-index:10000;overflow-y:auto;";
-
-    const modal = document.createElement("div");
-    modal.style.cssText = "width:100%;margin:auto;background:#fff;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 16px 40px rgba(0,0,0,.16);position:relative;";
-    modal.innerHTML = `
-      <button class="ppv-close" style="position:absolute;top:12px;right:12px;width:24px;height:24px;padding:0;border:none;background:transparent;color:#999;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;" aria-label="关闭">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-      <div style="font-size:15px;font-weight:600;color:#111;line-height:1.4;padding-right:28px;">${escapeHtml(prompt.title || "未命名提示词")}</div>
-      <div style="height:1px;background:rgba(0,0,0,.08);"></div>
-      <div style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;word-break:break-word;">${escapeHtml(prompt.content || "（暂无内容）")}</div>
-    `;
-
-    const prevBodyBg = document.body.style.background;
-    const popupShell = document.querySelector(".popup-shell");
-    const prevShellBg = popupShell ? popupShell.style.background : "";
-    const prevMinHeight = document.body.style.minHeight;
-    const popupActions = document.querySelector(".popup-actions");
-    const prevActionsDisplay = popupActions ? popupActions.style.display : "";
-
-    function closeModal() {
-      overlay.remove();
-      document.documentElement.style.overflow = "";
-      document.body.style.overflow = "";
-      document.body.style.minHeight = prevMinHeight;
-      document.body.style.background = prevBodyBg;
-      if (popupShell) popupShell.style.background = prevShellBg;
-      if (popupActions) popupActions.style.display = prevActionsDisplay;
-    }
-
-    modal.querySelector(".ppv-close").addEventListener("click", (e) => { e.stopPropagation(); closeModal(); });
-    overlay.addEventListener("click", (e) => { e.stopPropagation(); if (e.target === overlay) closeModal(); });
-
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-    document.documentElement.style.overflow = "visible";
-    document.body.style.overflow = "visible";
-    document.body.style.minHeight = "440px";
-    document.body.style.background = "#ffffff";
-    if (popupShell) popupShell.style.background = "#ffffff";
-    if (popupActions) popupActions.style.display = "none";
-  }
 
   // ── popup 编辑弹窗 ──
   function openPopupPromptEditModal(prompt, groupId) {
@@ -690,7 +560,7 @@
       return;
     }
     isPromptPickerOpen = false;
-    hidePopupPromptPreview();
+    if (_popupPreviewMgr) _popupPreviewMgr.hide();
     renderPromptPicker();
     updatePromptPickerLayoutState();
   }
@@ -764,13 +634,13 @@
     await runGroup(groups[0]);
   }
 
-  async function runGroup(group) {
+  function runGroup(group) {
     const query = queryInput.value.trim();
-    await chrome.runtime.sendMessage({
+    chrome.runtime.sendMessage({
       type: "RUN_SEARCH_GROUP",
       group,
       query
-    });
+    }).catch(() => {});
     window.close();
   }
 

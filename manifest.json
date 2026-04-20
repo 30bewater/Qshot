@@ -34,6 +34,14 @@
     },
     "default_popup": "popup/popup.html"
   },
+  "commands": {
+    "toggle-overlay": {
+      "suggested_key": {
+        "default": "Ctrl+Q"
+      },
+      "description": "唤起全局搜索浮层（内置页面自动改为打开弹窗）"
+    }
+  },
   "content_scripts": [
     {
       "matches": [
@@ -45,6 +53,28 @@
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "iframe/overlay_main.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "shared/prompt-item.js",
+        "iframe/overlay.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [
@@ -52,7 +82,8 @@
       "resources": [
         "iframe/*",
         "config/*",
-        "popup/*"
+        "popup/*",
+        "shared/*"
       ],
       "matches": [
         "<all_urls>",

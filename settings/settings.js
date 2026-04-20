@@ -22,8 +22,8 @@
     },
     prompts: {
       eyebrow: "提示词设置",
-      title: "提示词与分组",
-      subtitle: "先做一个简洁版本：创建提示词分组，并在分组内维护标题与内容。"
+      title: "提示词管理",
+      subtitle: "自由添加和管理您的常用提示词，让每次输入更高效。"
     },
     custom: {
       eyebrow: "自定义搜索",
@@ -31,9 +31,14 @@
       subtitle: "添加自己的搜索站点，保存后可在搜索组的“自定义”分类中直接勾选。"
     },
     other: {
-      eyebrow: "其他设置",
+      eyebrow: "其他的设置",
       title: "首页显示控制",
       subtitle: "控制首页中历史记录、随机骰子和提示词入口是否显示。"
+    },
+    about: {
+      eyebrow: "关于本插件",
+      title: "隐私与数据说明",
+      subtitle: "本插件在本地运行，不收集您的搜索与对话内容；与 AI 网站的交互由您与对方站点直接完成。"
     }
   };
 
@@ -41,9 +46,12 @@
   const promptsSection = document.getElementById("promptsSection");
   const customSection = document.getElementById("customSection");
   const otherSection = document.getElementById("otherSection");
+  const aboutSection = document.getElementById("aboutSection");
   const sectionEyebrow = document.getElementById("sectionEyebrow");
   const sectionTitle = document.getElementById("sectionTitle");
   const sectionSubtitle = document.getElementById("sectionSubtitle");
+  const promptsHeaderActions = document.getElementById("promptsHeaderActions");
+  const promptLearnLink = document.getElementById("promptLearnLink");
   const navItems = Array.from(document.querySelectorAll(".settings-nav-item"));
   const GROUP_MODE_OPTIONS = [
     { value: "compare", label: "卡片呈现" },
@@ -63,6 +71,9 @@
   let activePromptGroupId = null;
   let promptEditorState = null;
   let pendingPromptGroupFocusId = null;
+  let renamingPromptGroupId = null;
+  let importModalState = null;
+  let _promptHoverTimer = null;
 
   document.addEventListener("DOMContentLoaded", start);
 
@@ -110,6 +121,15 @@
       item.addEventListener("click", () => {
         setActiveSection(item.dataset.section || "groups");
       });
+    });
+
+    document.getElementById("promptExportBtn").addEventListener("click", handleExport);
+    document.getElementById("promptImportBtn").addEventListener("click", () => {
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.accept = ".md,.json";
+      fileInput.addEventListener("change", handleImportFileChange);
+      fileInput.click();
     });
   }
 
@@ -163,6 +183,10 @@
       renderOtherSection();
       return;
     }
+    if (activeSection === "about") {
+      renderAboutSection();
+      return;
+    }
     renderGroupsSection();
   }
 
@@ -171,14 +195,22 @@
     const showPrompts = activeSection === "prompts";
     const showCustom = activeSection === "custom";
     const showOther = activeSection === "other";
+    const showAbout = activeSection === "about";
     groupsSection.hidden = !showGroups;
     promptsSection.hidden = !showPrompts;
     customSection.hidden = !showCustom;
     otherSection.hidden = !showOther;
+    aboutSection.hidden = !showAbout;
     groupsSection.style.display = showGroups ? "flex" : "none";
     promptsSection.style.display = showPrompts ? "flex" : "none";
     customSection.style.display = showCustom ? "flex" : "none";
     otherSection.style.display = showOther ? "flex" : "none";
+    aboutSection.style.display = showAbout ? "flex" : "none";
+    promptsHeaderActions.hidden = !showPrompts;
+    promptsHeaderActions.style.display = showPrompts ? "flex" : "none";
+    if (promptLearnLink) {
+      promptLearnLink.hidden = !showPrompts;
+    }
   }
 
   function createNormalizedGroups(input) {
@@ -186,8 +218,10 @@
     const source = Array.isArray(input) && input.length > 0
       ? input
       : [
-          { id: "default-compare", name: "AI搜索", enabled: true, mode: "compare", siteIds: ["deepseek", "doubao", "kimi", "chatgpt", "qwen"] },
-          { id: "default-tabs", name: "未命名搜索组", enabled: true, mode: "compare", siteIds: ["xiaohongshu", "bilibili"] }
+          { id: "default-hunza", name: "混搭搜索", enabled: true, mode: "compare", siteIds: ["gemini", "chatgpt", "deepseek", "doubao", "kimi", "metaso"] },
+          { id: "default-overseas", name: "海外模型", enabled: true, mode: "compare", siteIds: ["gemini", "chatgpt", "claude", "grok"] },
+          { id: "default-domestic", name: "国内模型", enabled: true, mode: "compare", siteIds: ["deepseek", "doubao", "kimi", "metaso"] },
+          { id: "default-single", name: "单个模型", enabled: true, mode: "tabs", siteIds: ["gemini"] }
         ];
 
     return source.map((group) => ({
@@ -233,8 +267,41 @@
       showHistory: source.showHistory !== false,
       showRandomButton: source.showRandomButton !== false,
       showPromptButton: source.showPromptButton !== false,
-      prewarmEnabled: source.prewarmEnabled !== false
+      prewarmEnabled: source.prewarmEnabled !== false,
+      overlayShortcutEnabled: source.overlayShortcutEnabled !== false,
+      overlayShortcut: normalizeShortcut(source.overlayShortcut)
     };
+  }
+
+  function normalizeShortcut(input) {
+    const fallback = { ctrlKey: true, shiftKey: false, altKey: false, metaKey: false, key: "Q" };
+    if (!input || typeof input !== "object") return fallback;
+    const key = typeof input.key === "string" && input.key.length > 0 ? input.key : fallback.key;
+    return {
+      ctrlKey: !!input.ctrlKey,
+      shiftKey: !!input.shiftKey,
+      altKey: !!input.altKey,
+      metaKey: !!input.metaKey,
+      key: key.length === 1 ? key.toUpperCase() : key
+    };
+  }
+
+  function formatShortcut(sc) {
+    if (!sc || !sc.key) return "未设置";
+    const parts = [];
+    if (sc.ctrlKey) parts.push("Ctrl");
+    if (sc.altKey) parts.push("Alt");
+    if (sc.shiftKey) parts.push("Shift");
+    if (sc.metaKey) parts.push(/Mac/i.test(navigator.platform) ? "Cmd" : "Win");
+    parts.push(sc.key.length === 1 ? sc.key.toUpperCase() : sc.key);
+    return parts.join(" + ");
+  }
+
+  function isShortcutValid(sc) {
+    if (!sc || !sc.key) return false;
+    if (sc.key === "Control" || sc.key === "Shift" || sc.key === "Alt" || sc.key === "Meta") return false;
+    // 必须至少包含一个修饰键，避免和正常打字冲突
+    return sc.ctrlKey || sc.altKey || sc.metaKey || (sc.shiftKey && sc.key.length > 1);
   }
 
   function getGroupById(groupId) {
@@ -262,7 +329,7 @@
         name: "新搜索组",
         enabled: true,
         mode: "compare",
-        siteIds: sites.slice(0, 2).map((site) => site.id)
+        siteIds: []
       });
       markDirty();
       await persistAll();
@@ -529,58 +596,6 @@
         });
         submenu.appendChild(columnsWrap);
 
-        const presetDivider = document.createElement("div");
-        presetDivider.className = "hover-picker-preset-divider";
-        submenu.appendChild(presetDivider);
-
-        const presetHeader = document.createElement("div");
-        presetHeader.className = "hover-picker-site-group-title";
-        presetHeader.textContent = "推荐组合";
-        submenu.appendChild(presetHeader);
-
-        const AI_PRESETS = [
-          { label: "混合使用", siteIds: ["chatgpt", "gemini", "deepseek", "doubao", "kimi"] },
-          { label: "国内精选", siteIds: ["deepseek", "doubao", "kimi", "metaso"] },
-          { label: "海外组", siteIds: ["gemini", "chatgpt"] }
-        ];
-
-        const presetsWrap = document.createElement("div");
-        presetsWrap.className = "hover-picker-presets";
-
-        AI_PRESETS.forEach((preset) => {
-          const siteNames = preset.siteIds
-            .map((id) => sites.find((s) => s.id === id)?.name)
-            .filter(Boolean)
-            .join(" · ");
-
-          const item = document.createElement("div");
-          item.className = "hover-picker-preset-item";
-
-          const info = document.createElement("div");
-          info.className = "hover-picker-preset-info";
-          info.innerHTML = `<span class="hover-picker-preset-label">${escapeHtml(preset.label)}</span><span class="hover-picker-preset-sites">${escapeHtml(siteNames)}</span>`;
-
-          const applyBtn = document.createElement("button");
-          applyBtn.type = "button";
-          applyBtn.className = "hover-picker-preset-apply";
-          applyBtn.textContent = "使用该组合";
-          applyBtn.addEventListener("click", async (event) => {
-            event.stopPropagation();
-            const currentGroup = getGroupById(group.id);
-            if (!currentGroup) return;
-            currentGroup.siteIds = preset.siteIds.filter((id) => sites.find((s) => s.id === id));
-            await persistAll();
-            openPickerGroupId = currentGroup.id;
-            activePickerCategoryKey = key;
-            clearPickerCloseTimer();
-            renderGroupsSection();
-          });
-
-          item.appendChild(info);
-          item.appendChild(applyBtn);
-          presetsWrap.appendChild(item);
-        });
-        submenu.appendChild(presetsWrap);
       } else if (key === "other") {
         const tip = document.createElement("div");
         tip.className = "hover-picker-tip";
@@ -622,17 +637,6 @@
     shell.appendChild(createPromptGroupSidebar(activeGroup));
     shell.appendChild(createPromptContentPanel(activeGroup));
     promptsSection.appendChild(shell);
-
-    if (pendingPromptGroupFocusId && pendingPromptGroupFocusId === activeGroup.id) {
-      const renameInput = promptsSection.querySelector(".prompt-group-rename-input");
-      if (renameInput instanceof HTMLInputElement) {
-        requestAnimationFrame(() => {
-          renameInput.focus();
-          renameInput.select();
-        });
-      }
-      pendingPromptGroupFocusId = null;
-    }
 
     if (promptEditorState) {
       promptsSection.appendChild(createPromptEditorModal());
@@ -1076,21 +1080,174 @@
     });
 
     otherSection.appendChild(card);
+    otherSection.appendChild(createShortcutCard());
   }
 
-  function createOtherSettingToggle(key, title, desc) {
+  function createShortcutCard() {
+    const card = document.createElement("section");
+    card.className = "other-settings-card";
+    card.innerHTML = `
+      <div class="other-settings-intro">
+        <strong>全局搜索快捷键</strong>
+        <span>在任意网页上用快捷键在屏幕中间快速弹出搜索浮层。</span>
+      </div>
+      <div class="other-settings-list"></div>
+    `;
+
+    const list = card.querySelector(".other-settings-list");
+    if (list) {
+      list.appendChild(
+        createOtherSettingToggle(
+          "overlayShortcutEnabled",
+          "启用全局搜索快捷键",
+          "开启后，按下下方自定义的快捷键即可在当前网页弹出搜索浮层；关闭后快捷键将失效。",
+          "在浏览器内页、扩展商店或部分特殊网页中，可能无法通过快捷键唤起。"
+        )
+      );
+      list.appendChild(createShortcutRecorderRow());
+      list.appendChild(createShortcutsPageHint());
+    }
+
+    return card;
+  }
+
+  function createShortcutsPageHint() {
+    const row = document.createElement("div");
+    row.className = "shortcut-page-hint";
+    row.innerHTML = `也可前往浏览器的<button type="button" class="shortcut-page-link">扩展键盘快捷方式</button>，将「激活扩展」改为快捷激活顶部弹窗（任意页面均可唤起）。`;
+
+    const btn = row.querySelector(".shortcut-page-link");
+    btn?.addEventListener("click", () => {
+      const isEdge = /Edg\//.test(navigator.userAgent);
+      const url = isEdge ? "edge://extensions/shortcuts" : "chrome://extensions/shortcuts";
+      chrome.tabs.create({ url }).catch(() => {});
+    });
+
+    return row;
+  }
+
+  function createShortcutRecorderRow() {
     const row = document.createElement("article");
-    row.className = "other-setting-row";
+    row.className = "other-setting-row other-setting-row--with-tip shortcut-row";
+    row.innerHTML = `
+      <div class="other-setting-row-main">
+        <div class="other-setting-copy">
+          <div class="other-setting-title">自定义快捷键</div>
+          <div class="other-setting-desc">点击右侧按钮后按下组合键即可录制。必须至少包含一个修饰键（Ctrl / Alt / Shift / Win）。</div>
+        </div>
+        <div class="shortcut-recorder">
+          <button type="button" class="shortcut-display" aria-label="录制快捷键"></button>
+          <button type="button" class="shortcut-reset" title="恢复默认 Alt + Q">恢复默认</button>
+        </div>
+      </div>
+      <div class="other-setting-desc shortcut-tip">提示：修改快捷键后，需要刷新当前网页才会生效。</div>
+    `;
+
+    const display = row.querySelector(".shortcut-display");
+    const resetBtn = row.querySelector(".shortcut-reset");
+    let isRecording = false;
+
+    function renderDisplay() {
+      if (!(display instanceof HTMLButtonElement)) return;
+      if (isRecording) {
+        display.textContent = "按下组合键…";
+        display.classList.add("is-recording");
+      } else {
+        display.textContent = formatShortcut(uiPrefs.overlayShortcut);
+        display.classList.remove("is-recording");
+      }
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      document.removeEventListener("keydown", onKeyDown, true);
+      renderDisplay();
+    }
+
+    async function onKeyDown(event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.key === "Escape") {
+        stopRecording();
+        return;
+      }
+
+      const rawKey = event.key;
+      if (rawKey === "Control" || rawKey === "Shift" || rawKey === "Alt" || rawKey === "Meta") {
+        return;
+      }
+
+      const candidate = {
+        ctrlKey: !!event.ctrlKey,
+        shiftKey: !!event.shiftKey,
+        altKey: !!event.altKey,
+        metaKey: !!event.metaKey,
+        key: rawKey.length === 1 ? rawKey.toUpperCase() : rawKey
+      };
+
+      if (!isShortcutValid(candidate)) {
+        display.textContent = "必须包含修饰键，请重试";
+        return;
+      }
+
+      uiPrefs.overlayShortcut = candidate;
+      await persistAll();
+      stopRecording();
+    }
+
+    display?.addEventListener("click", () => {
+      if (isRecording) {
+        stopRecording();
+        return;
+      }
+      isRecording = true;
+      renderDisplay();
+      document.addEventListener("keydown", onKeyDown, true);
+    });
+
+    resetBtn?.addEventListener("click", async () => {
+      uiPrefs.overlayShortcut = normalizeShortcut(null);
+      await persistAll();
+      renderDisplay();
+    });
+
+    renderDisplay();
+    return row;
+  }
+
+  function renderAboutSection() {
+    aboutSection.innerHTML = "";
+
+    const card = document.createElement("section");
+    card.className = "other-settings-card about-plugin-card";
+    card.innerHTML = `
+      <div class="about-plugin-privacy" role="note">
+        <p><strong>本地运行：</strong>是一个纯客户端工具，所有搜索逻辑均在您的浏览器本地执行。我们不运行任何后端服务器。</p>
+        <p><strong>零数据收集：</strong>我们不会收集、上传或存储您的搜索关键词、历史记录或任何个人身份信息。</p>
+        <p><strong>交互透明性：</strong>插件通过 <code>iframe</code> 技术加载 AI 官方网页，您与 AI 的所有交互、登录状态均直接发生在您与原网站之间。本插件无法且不会拦截您的登录凭据或对话内容。</p>
+      </div>
+    `;
+    aboutSection.appendChild(card);
+  }
+
+  function createOtherSettingToggle(key, title, desc, tip) {
+    const row = document.createElement("article");
+    row.className = "other-setting-row" + (tip ? " other-setting-row--with-tip" : "");
 
     const isOn = uiPrefs[key] !== false;
     row.innerHTML = `
-      <div class="other-setting-copy">
-        <div class="other-setting-title">${escapeHtml(title)}</div>
-        <div class="other-setting-desc">${escapeHtml(desc)}</div>
+      <div class="other-setting-row-main">
+        <div class="other-setting-copy">
+          <div class="other-setting-title">${escapeHtml(title)}</div>
+          <div class="other-setting-desc">${escapeHtml(desc)}</div>
+        </div>
+        <button class="other-setting-switch ${isOn ? "is-on" : "is-off"}" type="button" aria-pressed="${isOn ? "true" : "false"}">
+          <span class="other-setting-switch-thumb"></span>
+        </button>
       </div>
-      <button class="other-setting-switch ${isOn ? "is-on" : "is-off"}" type="button" aria-pressed="${isOn ? "true" : "false"}">
-        <span class="other-setting-switch-thumb"></span>
-      </button>
+      ${tip ? `<div class="other-setting-desc shortcut-tip">${escapeHtml(tip)}</div>` : ""}
     `;
 
     const toggle = row.querySelector(".other-setting-switch");
@@ -1110,15 +1267,7 @@
     const list = document.createElement("div");
     list.className = "prompt-groups-list";
     promptGroups.forEach((group) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `prompt-group-nav-item${group.id === activeGroup.id ? " is-active" : ""}${!group.name.trim() ? " is-empty" : ""}`;
-      button.innerHTML = `<span class="prompt-group-nav-name">${escapeHtml(group.name || "")}</span>`;
-      button.addEventListener("click", () => {
-        activePromptGroupId = group.id;
-        renderPromptsSection();
-      });
-      list.appendChild(button);
+      list.appendChild(createPromptGroupItem(group, activeGroup));
     });
 
     const addBtn = document.createElement("button");
@@ -1133,13 +1282,258 @@
       };
       promptGroups.push(newGroup);
       activePromptGroupId = newGroup.id;
+      renamingPromptGroupId = newGroup.id;
       pendingPromptGroupFocusId = newGroup.id;
       renderPromptsSection();
     });
 
+    const addBtnWrap = document.createElement("div");
+    addBtnWrap.className = "prompt-sidebar-add-wrap";
+    addBtnWrap.appendChild(addBtn);
+
     aside.appendChild(list);
-    aside.appendChild(addBtn);
+    aside.appendChild(addBtnWrap);
+
+    attachPromptGroupDrag(list);
     return aside;
+  }
+
+  function createPromptGroupItem(group, activeGroup) {
+    const isActive = group.id === activeGroup.id;
+    const isRenaming = renamingPromptGroupId === group.id;
+    const isLocked = promptGroups.findIndex((g) => g.id === group.id) === 0;
+
+    const row = document.createElement("div");
+    row.className = `prompt-group-nav-item${isActive ? " is-active" : ""}${!group.name.trim() && !isRenaming ? " is-empty" : ""}${isRenaming ? " is-renaming" : ""}`;
+    row.dataset.groupId = group.id;
+
+    if (isRenaming) {
+      const input = document.createElement("input");
+      input.className = "prompt-group-nav-input";
+      input.type = "text";
+      input.value = group.name;
+      input.placeholder = "请输入分组名称";
+
+      let committed = false;
+      const commit = async () => {
+        if (committed) return;
+        committed = true;
+        const nextName = input.value.trim();
+        group.name = nextName || "新建分组";
+        if (renamingPromptGroupId === group.id) {
+          renamingPromptGroupId = null;
+        }
+        await persistAll();
+        renderPromptsSection();
+      };
+
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          input.blur();
+        } else if (ev.key === "Escape") {
+          ev.preventDefault();
+          committed = true;
+          if (renamingPromptGroupId === group.id) {
+            renamingPromptGroupId = null;
+          }
+          renderPromptsSection();
+        }
+      });
+      input.addEventListener("blur", commit);
+
+      row.appendChild(input);
+
+      requestAnimationFrame(() => {
+        input.focus();
+        input.select();
+      });
+      if (pendingPromptGroupFocusId === group.id) {
+        pendingPromptGroupFocusId = null;
+      }
+      return row;
+    }
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "prompt-group-nav-name";
+    nameEl.textContent = group.name || "未命名分组";
+    row.appendChild(nameEl);
+
+    row.addEventListener("click", (ev) => {
+      if (ev.target.closest(".prompt-group-nav-action")) return;
+      activePromptGroupId = group.id;
+      renderPromptsSection();
+    });
+
+    if (isActive) {
+      const actions = document.createElement("div");
+      actions.className = "prompt-group-nav-actions";
+
+      const renameBtn = document.createElement("button");
+      renameBtn.type = "button";
+      renameBtn.className = "prompt-group-nav-action prompt-group-nav-rename";
+      renameBtn.setAttribute("aria-label", "重命名分组");
+      renameBtn.title = "重命名";
+      renameBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+      renameBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        renamingPromptGroupId = group.id;
+        renderPromptsSection();
+      });
+      actions.appendChild(renameBtn);
+
+      if (!isLocked) {
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "prompt-group-nav-action prompt-group-nav-delete";
+        deleteBtn.setAttribute("aria-label", "删除分组");
+        deleteBtn.title = "删除分组";
+        deleteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
+        deleteBtn.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          const shouldDelete = window.confirm("是否要删除该提示词分组？");
+          if (!shouldDelete) return;
+          promptGroups = promptGroups.filter((g) => g.id !== group.id);
+          if (!promptGroups.length) {
+            promptGroups = createNormalizedPromptGroups([]);
+          }
+          activePromptGroupId = promptGroups[0]?.id || null;
+          await persistAll();
+          renderPromptsSection();
+        });
+        actions.appendChild(deleteBtn);
+      }
+
+      const dragHandle = document.createElement("button");
+      dragHandle.type = "button";
+      dragHandle.className = "prompt-group-nav-action prompt-group-nav-drag";
+      dragHandle.setAttribute("aria-label", "拖动排序");
+      dragHandle.title = "拖动排序";
+      dragHandle.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>`;
+      actions.appendChild(dragHandle);
+
+      row.appendChild(actions);
+    }
+
+    return row;
+  }
+
+  function attachPromptGroupDrag(container) {
+    container.addEventListener("pointerdown", onPointerDown);
+
+    function onPointerDown(e) {
+      const handle = e.target.closest(".prompt-group-nav-drag");
+      if (!handle) return;
+      const item = handle.closest(".prompt-group-nav-item");
+      if (!item) return;
+
+      e.preventDefault();
+
+      const rect = item.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+      const cardBorderRadius = window.getComputedStyle(item).borderRadius || "12px";
+
+      const clone = item.cloneNode(true);
+      clone.style.cssText = [
+        "position:fixed",
+        `left:${rect.left}px`,
+        `top:${rect.top}px`,
+        `width:${rect.width}px`,
+        "pointer-events:none",
+        "z-index:9999",
+        "box-shadow:0 12px 32px rgba(0,0,0,0.18)",
+        "opacity:0.96",
+        "transition:none",
+        `border-radius:${cardBorderRadius}`,
+        "background:#ffffff"
+      ].join(";");
+      document.body.appendChild(clone);
+
+      item.style.opacity = "0";
+      item.style.pointerEvents = "none";
+
+      let lastInsertBefore = null;
+
+      function onMove(ev) {
+        clone.style.top = `${ev.clientY - offsetY}px`;
+
+        const cloneCenterY = ev.clientY - offsetY + rect.height / 2;
+        const otherItems = Array.from(container.querySelectorAll(".prompt-group-nav-item")).filter((c) => c !== item);
+        let newInsertBefore = null;
+
+        for (const other of otherItems) {
+          const r = other.getBoundingClientRect();
+          if (cloneCenterY < r.top + r.height / 2) {
+            newInsertBefore = other;
+            break;
+          }
+        }
+
+        if (newInsertBefore !== lastInsertBefore) {
+          const allItems = Array.from(container.querySelectorAll(".prompt-group-nav-item"));
+          const firstPositions = new Map();
+          allItems.forEach((el) => firstPositions.set(el, el.getBoundingClientRect()));
+
+          if (newInsertBefore) {
+            container.insertBefore(item, newInsertBefore);
+          } else {
+            container.appendChild(item);
+          }
+          lastInsertBefore = newInsertBefore;
+
+          allItems
+            .filter((el) => el !== item)
+            .forEach((el) => {
+              const first = firstPositions.get(el);
+              if (!first) return;
+              const last = el.getBoundingClientRect();
+              const dy = first.top - last.top;
+              if (Math.abs(dy) < 1) return;
+              el.style.transition = "none";
+              el.style.transform = `translateY(${dy}px)`;
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  el.style.transition = "transform 200ms cubic-bezier(0.2,0,0,1)";
+                  el.style.transform = "";
+                });
+              });
+            });
+        }
+      }
+
+      function onUp() {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+
+        const finalRect = item.getBoundingClientRect();
+        clone.style.transition = "top 160ms ease, box-shadow 160ms ease, opacity 160ms ease";
+        clone.style.top = `${finalRect.top}px`;
+        clone.style.boxShadow = "none";
+        clone.style.opacity = "0";
+
+        setTimeout(async () => {
+          clone.remove();
+          item.style.opacity = "";
+          item.style.pointerEvents = "";
+
+          Array.from(container.querySelectorAll(".prompt-group-nav-item")).forEach((el) => {
+            el.style.transition = "";
+            el.style.transform = "";
+          });
+
+          const newGroupIds = Array.from(container.querySelectorAll(".prompt-group-nav-item")).map((c) => c.dataset.groupId);
+          const reordered = newGroupIds.map((id) => promptGroups.find((g) => g.id === id)).filter(Boolean);
+          if (reordered.length === promptGroups.length) {
+            promptGroups = reordered;
+            await persistAll();
+            renderPromptsSection();
+          }
+        }, 160);
+      }
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    }
   }
 
   function createPromptContentPanel(activeGroup) {
@@ -1150,67 +1544,10 @@
     header.className = "prompt-content-header";
     header.innerHTML = `
       <div>
-        <div class="prompt-content-title">${escapeHtml(activeGroup.name)}</div>
+        <div class="prompt-content-title">${escapeHtml(activeGroup.name || "未命名分组")}</div>
         <div class="prompt-content-subtitle">当前分类下共 ${activeGroup.prompts.length} 条提示词</div>
       </div>
     `;
-
-    const groupActions = document.createElement("div");
-    groupActions.className = "prompt-content-actions";
-    const renameInput = document.createElement("input");
-    renameInput.className = "prompt-group-rename-input";
-    renameInput.type = "text";
-    renameInput.value = activeGroup.name;
-    renameInput.placeholder = "请输入分组名称";
-    renameInput.addEventListener("input", (event) => {
-      const nextValue = event.target instanceof HTMLInputElement ? event.target.value : "";
-      activeGroup.name = nextValue;
-    });
-    renameInput.addEventListener("blur", async () => {
-      activeGroup.name = activeGroup.name.trim() || "新建分组";
-      await persistAll();
-      renderPromptsSection();
-    });
-
-    const addPromptBtn = document.createElement("button");
-    addPromptBtn.type = "button";
-    addPromptBtn.className = "prompt-panel-add-btn";
-    addPromptBtn.textContent = "添加提示词";
-    addPromptBtn.addEventListener("click", () => {
-      promptEditorState = {
-        mode: "create",
-        groupId: activeGroup.id,
-        promptId: null,
-        title: "",
-        content: ""
-      };
-      renderPromptsSection();
-    });
-
-    const deleteGroupBtn = document.createElement("button");
-    deleteGroupBtn.type = "button";
-    deleteGroupBtn.className = "prompt-panel-delete-btn";
-    deleteGroupBtn.textContent = "删除分组";
-    deleteGroupBtn.addEventListener("click", async () => {
-      const shouldDelete = window.confirm("是否要删除该提示词分组？");
-      if (!shouldDelete) {
-        return;
-      }
-      promptGroups = promptGroups.filter((group) => group.id !== activeGroup.id);
-      if (!promptGroups.length) {
-        promptGroups = createNormalizedPromptGroups([]);
-      }
-      activePromptGroupId = promptGroups[0]?.id || null;
-      await persistAll();
-      renderPromptsSection();
-    });
-
-    groupActions.appendChild(renameInput);
-    groupActions.appendChild(addPromptBtn);
-    if (promptGroups.findIndex((group) => group.id === activeGroup.id) > 0) {
-      groupActions.appendChild(deleteGroupBtn);
-    }
-    header.appendChild(groupActions);
     panel.appendChild(header);
 
     const list = document.createElement("div");
@@ -1224,6 +1561,7 @@
       activeGroup.prompts.forEach((prompt) => {
         list.appendChild(createPromptCard(activeGroup, prompt));
       });
+      attachPromptItemDrag(list, activeGroup);
     }
     panel.appendChild(list);
 
@@ -1252,12 +1590,11 @@
   function createPromptCard(group, prompt) {
     const item = document.createElement("article");
     item.className = "prompt-card-item";
+    item.dataset.promptId = prompt.id;
+    item.dataset.groupId = group.id;
 
     const inline = document.createElement("div");
     inline.className = "prompt-card-inline";
-
-    const iconGroup = document.createElement("div");
-    iconGroup.className = "prompt-card-icon-group";
 
     // 铅笔编辑按钮
     const editBtn = document.createElement("button");
@@ -1277,81 +1614,147 @@
       renderPromptsSection();
     });
 
-    // 眼睛预览按钮及悬浮浮层
-    const previewWrap = document.createElement("div");
-    previewWrap.className = "prompt-preview-wrap";
-
     const previewBtn = document.createElement("button");
     previewBtn.type = "button";
     previewBtn.className = "prompt-icon-btn prompt-preview-icon-btn";
     previewBtn.setAttribute("aria-label", "预览");
     previewBtn.title = "预览内容";
     previewBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-
-    const popup = document.createElement("div");
-    popup.className = "prompt-preview-popup";
-    popup.setAttribute("aria-hidden", "true");
-    popup.innerHTML = `
-      <div class="prompt-preview-popup-title">${escapeHtml(prompt.title || "未命名提示词")}</div>
-      <div class="prompt-preview-popup-body">${escapeHtml(prompt.content || "（暂无内容）")}</div>
-    `;
-    popup.style.display = "none";
-
-    let popupHideTimer = null;
-
-    function showPopup() {
-      if (popupHideTimer) {
-        clearTimeout(popupHideTimer);
-        popupHideTimer = null;
-      }
-      popup.style.display = "block";
-      popup.classList.add("is-visible");
-
-      // 防止超出右侧边界，动态调整弹出方向
-      requestAnimationFrame(() => {
-        const rect = popup.getBoundingClientRect();
-        if (rect.right > window.innerWidth - 8) {
-          popup.style.left = "auto";
-          popup.style.right = "0";
-        } else {
-          popup.style.left = "0";
-          popup.style.right = "auto";
-        }
-      });
-    }
-
-    function hidePopup() {
-      popupHideTimer = setTimeout(() => {
-        popup.style.display = "none";
-        popup.classList.remove("is-visible");
-      }, 120);
-    }
-
-    previewBtn.addEventListener("mouseenter", showPopup);
-    previewBtn.addEventListener("mouseleave", hidePopup);
-    popup.addEventListener("mouseenter", () => {
-      if (popupHideTimer) {
-        clearTimeout(popupHideTimer);
-        popupHideTimer = null;
-      }
+    previewBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const existing = document.querySelector(".prompt-hover-card");
+      if (existing) { existing.remove(); return; }
+      showPromptHoverCard(prompt, group);
     });
-    popup.addEventListener("mouseleave", hidePopup);
 
-    previewWrap.appendChild(previewBtn);
-    previewWrap.appendChild(popup);
-
-    iconGroup.appendChild(editBtn);
-    iconGroup.appendChild(previewWrap);
+    // 拖拽手柄
+    const dragHandle = document.createElement("button");
+    dragHandle.type = "button";
+    dragHandle.className = "prompt-icon-btn prompt-card-drag-handle";
+    dragHandle.setAttribute("aria-label", "拖动排序");
+    dragHandle.title = "拖动排序";
+    dragHandle.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>`;
 
     const titleEl = document.createElement("div");
     titleEl.className = "prompt-card-title";
     titleEl.textContent = prompt.title || "未命名提示词";
 
-    inline.appendChild(iconGroup);
+    const rightGroup = document.createElement("div");
+    rightGroup.className = "prompt-card-icon-group";
+    rightGroup.appendChild(editBtn);
+    rightGroup.appendChild(previewBtn);
+    rightGroup.appendChild(dragHandle);
+
     inline.appendChild(titleEl);
+    inline.appendChild(rightGroup);
     item.appendChild(inline);
 
     return item;
+  }
+
+  function showPromptHoverCard(prompt, group) {
+    const existing = document.querySelector(".prompt-hover-overlay");
+    if (existing) existing.remove();
+
+    // 遮罩层：覆盖 .settings-content 区域，背景变暗
+    const overlay = document.createElement("div");
+    overlay.className = "prompt-hover-overlay";
+
+    function closeCard() {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) closeCard();
+    });
+
+    const onKey = (ev) => {
+      if (ev.key === "Escape") closeCard();
+    };
+
+    const card = document.createElement("div");
+    card.className = "prompt-hover-card";
+
+    // 头部：左侧操作按钮 + 右侧关闭
+    const header = document.createElement("div");
+    header.className = "prompt-hover-card-header";
+
+    const headerActions = document.createElement("div");
+    headerActions.className = "prompt-hover-card-header-actions";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "prompt-hover-card-copy-btn";
+    copyBtn.textContent = "复制";
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(prompt.content || "").then(() => {
+        copyBtn.textContent = "✓ 已复制";
+        copyBtn.classList.add("is-copied");
+        setTimeout(() => {
+          copyBtn.textContent = "复制";
+          copyBtn.classList.remove("is-copied");
+        }, 1800);
+      }).catch(() => {
+        const ta = document.createElement("textarea");
+        ta.value = prompt.content || "";
+        ta.style.cssText = "position:fixed;opacity:0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        copyBtn.textContent = "✓ 已复制";
+        setTimeout(() => { copyBtn.textContent = "复制"; }, 1800);
+      });
+    });
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "prompt-hover-card-edit-btn";
+    editBtn.textContent = "编辑";
+    editBtn.addEventListener("click", () => {
+      closeCard();
+      promptEditorState = {
+        mode: "edit",
+        groupId: group.id,
+        promptId: prompt.id,
+        title: prompt.title || "",
+        content: prompt.content || ""
+      };
+      renderPromptsSection();
+    });
+
+    headerActions.appendChild(copyBtn);
+    headerActions.appendChild(editBtn);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "prompt-hover-card-close-btn";
+    closeBtn.setAttribute("aria-label", "关闭");
+    closeBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    closeBtn.addEventListener("click", closeCard);
+
+    header.appendChild(headerActions);
+    header.appendChild(closeBtn);
+
+    // 提示词标题行
+    const titleRow = document.createElement("div");
+    titleRow.className = "prompt-hover-card-title";
+    titleRow.textContent = prompt.title || "未命名提示词";
+
+    // 提示词内容
+    const body = document.createElement("div");
+    body.className = "prompt-hover-card-body";
+    body.textContent = prompt.content || "（暂无内容）";
+
+    card.appendChild(header);
+    card.appendChild(titleRow);
+    card.appendChild(body);
+    overlay.appendChild(card);
+
+    document.body.appendChild(overlay);
+
+    setTimeout(() => document.addEventListener("keydown", onKey), 0);
   }
 
   function createPromptEditorModal() {
@@ -1368,14 +1771,25 @@
     modal.className = "prompt-editor-modal";
     modal.innerHTML = `
       <div class="prompt-editor-title">${editorState.mode === "edit" ? "编辑提示词" : "添加提示词"}</div>
-      <label class="field-label">名称</label>
-      <input class="prompt-editor-title-input" type="text" value="${escapeHtml(editorState.title || "")}" />
-      <label class="field-label">分类</label>
-      <select class="prompt-editor-group-select">
-        ${promptGroups.map((group) => `<option value="${escapeHtml(group.id)}" ${group.id === editorGroup.id ? "selected" : ""}>${escapeHtml(group.name)}</option>`).join("")}
-      </select>
-      <label class="field-label">提示词内容</label>
-      <textarea class="prompt-editor-content-input">${escapeHtml(editorState.content || "")}</textarea>
+      <div class="prompt-editor-field">
+        <label class="field-label">名称</label>
+        <input class="prompt-editor-title-input" type="text" value="${escapeHtml(editorState.title || "")}" placeholder="请输入提示词名称" />
+      </div>
+      <div class="prompt-editor-field">
+        <label class="field-label">分类</label>
+        <select class="prompt-editor-group-select">
+          ${promptGroups.map((group) => `<option value="${escapeHtml(group.id)}" ${group.id === editorGroup.id ? "selected" : ""}>${escapeHtml(group.name)}</option>`).join("")}
+          <option value="__new_group__">＋ 新建分组…</option>
+        </select>
+        <div class="prompt-new-group-row" hidden>
+          <input class="prompt-new-group-input" type="text" placeholder="输入新分组名称，按 Enter 确认" />
+          <button class="prompt-new-group-confirm-btn" type="button">创建</button>
+        </div>
+      </div>
+      <div class="prompt-editor-field">
+        <label class="field-label">提示词内容</label>
+        <textarea class="prompt-editor-content-input">${escapeHtml(editorState.content || "")}</textarea>
+      </div>
       <div class="prompt-editor-actions">
         ${editorState.mode === "edit" ? '<button class="prompt-editor-delete-btn" type="button">删除</button>' : '<span></span>'}
         <div class="prompt-editor-main-actions">
@@ -1387,9 +1801,41 @@
 
     const titleInput = modal.querySelector(".prompt-editor-title-input");
     const groupSelect = modal.querySelector(".prompt-editor-group-select");
+    const newGroupRow = modal.querySelector(".prompt-new-group-row");
+    const newGroupInput = modal.querySelector(".prompt-new-group-input");
+    const newGroupConfirmBtn = modal.querySelector(".prompt-new-group-confirm-btn");
     const contentInput = modal.querySelector(".prompt-editor-content-input");
     const cancelBtn = modal.querySelector(".prompt-editor-cancel-btn");
     const saveBtn = modal.querySelector(".prompt-editor-save-btn");
+
+    function showNewGroupRow() {
+      if (newGroupRow) newGroupRow.hidden = false;
+      if (newGroupInput) newGroupInput.focus();
+    }
+
+    function hideNewGroupRow() {
+      if (newGroupRow) newGroupRow.hidden = true;
+      if (newGroupInput) newGroupInput.value = "";
+    }
+
+    function confirmNewGroup() {
+      const name = (newGroupInput ? newGroupInput.value : "").trim();
+      if (!name) return;
+      const newGroup = {
+        id: `prompt-group-${Date.now()}`,
+        name,
+        prompts: []
+      };
+      promptGroups.push(newGroup);
+      const opt = document.createElement("option");
+      opt.value = newGroup.id;
+      opt.textContent = name;
+      const newGroupOpt = groupSelect ? groupSelect.querySelector('option[value="__new_group__"]') : null;
+      if (groupSelect) groupSelect.insertBefore(opt, newGroupOpt);
+      if (groupSelect) groupSelect.value = newGroup.id;
+      promptEditorState.groupId = newGroup.id;
+      hideNewGroupRow();
+    }
 
     if (titleInput) {
       titleInput.addEventListener("input", (event) => {
@@ -1400,7 +1846,24 @@
     if (groupSelect) {
       groupSelect.addEventListener("change", (event) => {
         const nextValue = event.target instanceof HTMLSelectElement ? event.target.value : editorState.groupId;
-        promptEditorState.groupId = nextValue;
+        if (nextValue === "__new_group__") {
+          showNewGroupRow();
+        } else {
+          hideNewGroupRow();
+          promptEditorState.groupId = nextValue;
+        }
+      });
+    }
+    if (newGroupConfirmBtn) {
+      newGroupConfirmBtn.addEventListener("click", confirmNewGroup);
+    }
+    if (newGroupInput) {
+      newGroupInput.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); confirmNewGroup(); }
+        if (ev.key === "Escape") {
+          hideNewGroupRow();
+          if (groupSelect) groupSelect.value = promptEditorState.groupId || (promptGroups[0] ? promptGroups[0].id : "");
+        }
       });
     }
     if (contentInput) {
@@ -1577,6 +2040,118 @@
           const reordered = newGroupIds.map((id) => groups.find((g) => g.id === id)).filter(Boolean);
           if (reordered.length === groups.length) {
             groups = reordered;
+            persistAll();
+          }
+        }, 160);
+      }
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    }
+  }
+
+  function attachPromptItemDrag(listEl, group) {
+    listEl.addEventListener("pointerdown", onPromptPointerDown);
+
+    function onPromptPointerDown(e) {
+      const handle = e.target.closest(".prompt-card-drag-handle");
+      if (!handle) return;
+      const card = handle.closest(".prompt-card-item");
+      if (!card) return;
+
+      e.preventDefault();
+
+      const rect = card.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+
+      const clone = card.cloneNode(true);
+      clone.style.cssText = [
+        "position:fixed",
+        `left:${rect.left}px`,
+        `top:${rect.top}px`,
+        `width:${rect.width}px`,
+        "pointer-events:none",
+        "z-index:9999",
+        "box-shadow:0 8px 28px rgba(0,0,0,0.13)",
+        "opacity:0.95",
+        "transition:none",
+        "border-radius:8px",
+        "background:#fff"
+      ].join(";");
+      document.body.appendChild(clone);
+
+      card.style.opacity = "0";
+      card.style.pointerEvents = "none";
+
+      let lastInsertBefore = null;
+
+      function onMove(ev) {
+        clone.style.top = `${ev.clientY - offsetY}px`;
+
+        const cloneCenterY = ev.clientY - offsetY + rect.height / 2;
+        const otherCards = Array.from(listEl.querySelectorAll(".prompt-card-item")).filter((c) => c !== card);
+        let newInsertBefore = null;
+
+        for (const other of otherCards) {
+          const r = other.getBoundingClientRect();
+          if (cloneCenterY < r.top + r.height / 2) {
+            newInsertBefore = other;
+            break;
+          }
+        }
+
+        if (newInsertBefore !== lastInsertBefore) {
+          const allCards = Array.from(listEl.querySelectorAll(".prompt-card-item"));
+          const firstPositions = new Map();
+          allCards.forEach((el) => firstPositions.set(el, el.getBoundingClientRect()));
+
+          listEl.insertBefore(card, newInsertBefore);
+          lastInsertBefore = newInsertBefore;
+
+          allCards
+            .filter((el) => el !== card)
+            .forEach((el) => {
+              const first = firstPositions.get(el);
+              if (!first) return;
+              const last = el.getBoundingClientRect();
+              const dy = first.top - last.top;
+              if (Math.abs(dy) < 1) return;
+              el.style.transition = "none";
+              el.style.transform = `translateY(${dy}px)`;
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  el.style.transition = "transform 200ms cubic-bezier(0.2,0,0,1)";
+                  el.style.transform = "";
+                });
+              });
+            });
+        }
+      }
+
+      function onUp() {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+
+        const finalRect = card.getBoundingClientRect();
+        clone.style.transition = "top 160ms ease, box-shadow 160ms ease, opacity 160ms ease";
+        clone.style.top = `${finalRect.top}px`;
+        clone.style.boxShadow = "none";
+        clone.style.opacity = "0";
+
+        setTimeout(() => {
+          clone.remove();
+          card.style.opacity = "";
+          card.style.pointerEvents = "";
+
+          Array.from(listEl.querySelectorAll(".prompt-card-item")).forEach((el) => {
+            el.style.transition = "";
+            el.style.transform = "";
+          });
+
+          const newPromptIds = Array.from(listEl.querySelectorAll(".prompt-card-item")).map((c) => c.dataset.promptId);
+          const reordered = newPromptIds.map((id) => group.prompts.find((p) => p.id === id)).filter(Boolean);
+          if (reordered.length === group.prompts.length) {
+            group.prompts = reordered;
             persistAll();
           }
         }, 160);
@@ -1798,6 +2373,365 @@
     const payload = await response.json();
     return (payload.sites || []).filter((site) => site.enabled !== false);
   }
+
+  // ── Import / Export ────────────────────────────────────────────────────────
+
+  function handleExport() {
+    const lines = [];
+    promptGroups.forEach((group, gi) => {
+      if (gi > 0) lines.push("");
+      lines.push(`# ${group.name}`);
+      group.prompts.forEach((p) => {
+        lines.push("");
+        lines.push(`## ${p.title}`);
+        lines.push("");
+        lines.push(flattenPromptContentForExport(p.content));
+      });
+    });
+    const markdown = lines.join("\n");
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Qshow提示词-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // 将提示词内容里的 Markdown 标题（# ~ ######）转成加粗，
+  // 避免与导出文件中 # 分组、## 提示词标题 的结构符号冲突。
+  // 代码围栏内的内容原样保留，列表/段落/序号结构不受影响。
+  function flattenPromptContentForExport(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return text;
+    const lines = text.split(/\r?\n/);
+    const out = [];
+    let inCodeFence = false;
+    for (const line of lines) {
+      const trimmedEnd = line.trimEnd();
+      const trimmed = trimmedEnd.trim();
+      if (trimmed.startsWith("```")) {
+        inCodeFence = !inCodeFence;
+        out.push(trimmedEnd);
+        continue;
+      }
+      if (inCodeFence) {
+        out.push(trimmedEnd);
+        continue;
+      }
+      const headingMatch = trimmedEnd.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        out.push(`**${headingMatch[2].trim()}**`);
+        out.push("");
+      } else {
+        out.push(trimmedEnd);
+      }
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function parseMarkdownPrompts(text) {
+    const groups = [];
+    // Split on lines that start with exactly one # (not ##)
+    const groupChunks = text.split(/\n(?=# (?!#))/);
+    for (const chunk of groupChunks) {
+      const chunkLines = chunk.split("\n");
+      const firstLine = chunkLines[0] || "";
+      if (!firstLine.startsWith("# ") || firstLine.startsWith("## ")) continue;
+      const groupName = firstLine.slice(2).trim();
+      if (!groupName) continue;
+
+      const prompts = [];
+      const rest = chunkLines.slice(1).join("\n");
+      // Split on lines that start with ##
+      const promptChunks = rest.split(/\n(?=## )/);
+      for (const pChunk of promptChunks) {
+        const pLines = pChunk.split("\n");
+        const pFirst = pLines[0] || "";
+        if (!pFirst.startsWith("## ")) continue;
+        const title = pFirst.slice(3).trim();
+        if (!title) continue;
+        const content = pLines.slice(1).join("\n").trim();
+        prompts.push({ title, content });
+      }
+
+      groups.push({ name: groupName, prompts });
+    }
+    return groups;
+  }
+
+  async function handleImportFileChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      let valid = [];
+
+      if (file.name.endsWith(".json") || text.trimStart().startsWith("{")) {
+        const data = JSON.parse(text);
+        if (!data || !Array.isArray(data.promptGroups)) {
+          alert("JSON 格式不正确，请导入从本插件导出的文件。");
+          return;
+        }
+        valid = data.promptGroups.filter(
+          (g) => g && typeof g.name === "string" && g.name.trim() && Array.isArray(g.prompts)
+        );
+      } else {
+        valid = parseMarkdownPrompts(text);
+      }
+
+      if (!valid.length) {
+        alert("文件中没有可导入的提示词分组。");
+        return;
+      }
+      openImportModal(valid);
+    } catch (_) {
+      alert("无法解析文件，请检查文件格式是否正确。");
+    }
+  }
+
+  function openImportModal(importedGroups) {
+    const existingNames = new Set(promptGroups.map((g) => g.name));
+    importModalState = {
+      groups: importedGroups.map((group) => {
+        const prompts = group.prompts.map((p) => ({
+          title: String(p.title || "").trim() || "未命名提示词",
+          content: String(p.content || "")
+        }));
+        const name = group.name.trim();
+        return {
+          name,
+          prompts,
+          expanded: false,
+          conflictExists: existingNames.has(name),
+          conflictStrategy: "merge",
+          promptSelections: prompts.map(() => true)
+        };
+      })
+    };
+    renderImportModal();
+  }
+
+  function renderImportModal() {
+    document.getElementById("promptImportModal")?.remove();
+    if (!importModalState) return;
+
+    const totalPrompts = importModalState.groups.reduce((s, g) => s + g.prompts.length, 0);
+    const selectedCount = importModalState.groups.reduce(
+      (s, g) => s + g.promptSelections.filter(Boolean).length, 0
+    );
+
+    const overlay = document.createElement("div");
+    overlay.id = "promptImportModal";
+    overlay.className = "import-modal-overlay";
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeImportModal(); });
+
+    const dialog = document.createElement("div");
+    dialog.className = "import-modal-dialog";
+
+    // Header
+    const header = document.createElement("div");
+    header.className = "import-modal-header";
+    const headerText = document.createElement("div");
+    const titleEl = document.createElement("div");
+    titleEl.className = "import-modal-title";
+    titleEl.textContent = "导入提示词";
+    const subtitleEl = document.createElement("div");
+    subtitleEl.className = "import-modal-subtitle";
+    subtitleEl.textContent = `共 ${importModalState.groups.length} 个分组，${totalPrompts} 条提示词 · 已选 ${selectedCount} 条`;
+    headerText.appendChild(titleEl);
+    headerText.appendChild(subtitleEl);
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "import-modal-close";
+    closeBtn.setAttribute("aria-label", "关闭");
+    closeBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+    closeBtn.addEventListener("click", closeImportModal);
+    header.appendChild(headerText);
+    header.appendChild(closeBtn);
+
+    // Body
+    const body = document.createElement("div");
+    body.className = "import-modal-body";
+
+    importModalState.groups.forEach((group, gi) => {
+      const selectedInGroup = group.promptSelections.filter(Boolean).length;
+      const allSelected = selectedInGroup === group.prompts.length;
+      const noneSelected = selectedInGroup === 0;
+
+      const groupItem = document.createElement("div");
+      groupItem.className = "import-group-item";
+
+      const groupRow = document.createElement("div");
+      groupRow.className = "import-group-row";
+
+      const groupCheck = document.createElement("input");
+      groupCheck.type = "checkbox";
+      groupCheck.className = "import-checkbox";
+      groupCheck.checked = allSelected;
+      groupCheck.indeterminate = !allSelected && !noneSelected;
+      groupCheck.addEventListener("change", () => {
+        importModalState.groups[gi].promptSelections = importModalState.groups[gi].prompts.map(() => groupCheck.checked);
+        renderImportModal();
+      });
+
+      const expandBtn = document.createElement("button");
+      expandBtn.type = "button";
+      expandBtn.className = "import-expand-btn";
+      expandBtn.setAttribute("aria-label", group.expanded ? "收起" : "展开");
+      expandBtn.innerHTML = group.expanded
+        ? `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="12" height="12"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+        : `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="12" height="12"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      expandBtn.addEventListener("click", () => {
+        importModalState.groups[gi].expanded = !importModalState.groups[gi].expanded;
+        renderImportModal();
+      });
+
+      const groupNameEl = document.createElement("span");
+      groupNameEl.className = "import-group-name";
+      groupNameEl.textContent = group.name;
+      groupNameEl.addEventListener("click", () => {
+        importModalState.groups[gi].expanded = !importModalState.groups[gi].expanded;
+        renderImportModal();
+      });
+
+      const groupMetaEl = document.createElement("span");
+      groupMetaEl.className = "import-group-meta";
+      groupMetaEl.textContent = `${selectedInGroup}/${group.prompts.length}`;
+
+      groupRow.appendChild(groupCheck);
+      groupRow.appendChild(expandBtn);
+      groupRow.appendChild(groupNameEl);
+      groupRow.appendChild(groupMetaEl);
+
+      if (group.conflictExists) {
+        const badge = document.createElement("span");
+        badge.className = "import-conflict-badge";
+        badge.textContent = "已存在";
+        groupRow.appendChild(badge);
+
+        const strategyWrap = document.createElement("div");
+        strategyWrap.className = "import-strategy-wrap";
+
+        ["merge", "new"].forEach((strategy) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = `import-strategy-btn${group.conflictStrategy === strategy ? " is-active" : ""}`;
+          btn.textContent = strategy === "merge" ? "合并" : "新建";
+          btn.title = strategy === "merge" ? "将选中内容追加到已有分组" : "保留原分组，另建新分组";
+          btn.addEventListener("click", () => {
+            importModalState.groups[gi].conflictStrategy = strategy;
+            renderImportModal();
+          });
+          strategyWrap.appendChild(btn);
+        });
+
+        groupRow.appendChild(strategyWrap);
+      }
+
+      groupItem.appendChild(groupRow);
+
+      if (group.expanded) {
+        const promptList = document.createElement("div");
+        promptList.className = "import-prompt-list";
+        group.prompts.forEach((prompt, pi) => {
+          const promptRow = document.createElement("label");
+          promptRow.className = "import-prompt-row";
+          const promptCheck = document.createElement("input");
+          promptCheck.type = "checkbox";
+          promptCheck.className = "import-checkbox";
+          promptCheck.checked = group.promptSelections[pi];
+          promptCheck.addEventListener("change", () => {
+            importModalState.groups[gi].promptSelections[pi] = promptCheck.checked;
+            renderImportModal();
+          });
+          const promptTitle = document.createElement("span");
+          promptTitle.className = "import-prompt-title";
+          promptTitle.textContent = prompt.title;
+          promptRow.appendChild(promptCheck);
+          promptRow.appendChild(promptTitle);
+          promptList.appendChild(promptRow);
+        });
+        groupItem.appendChild(promptList);
+      }
+
+      body.appendChild(groupItem);
+    });
+
+    // Footer
+    const footer = document.createElement("div");
+    footer.className = "import-modal-footer";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "import-footer-cancel-btn";
+    cancelBtn.textContent = "取消";
+    cancelBtn.addEventListener("click", closeImportModal);
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "import-footer-confirm-btn";
+    confirmBtn.textContent = selectedCount > 0 ? `导入已选（${selectedCount} 条）` : "导入";
+    confirmBtn.disabled = selectedCount === 0;
+    confirmBtn.addEventListener("click", doImport);
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(confirmBtn);
+
+    dialog.appendChild(header);
+    dialog.appendChild(body);
+    dialog.appendChild(footer);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+  }
+
+  function closeImportModal() {
+    document.getElementById("promptImportModal")?.remove();
+    importModalState = null;
+  }
+
+  async function doImport() {
+    if (!importModalState) return;
+    const existingGroupMap = new Map(promptGroups.map((g) => [g.name, g]));
+
+    importModalState.groups.forEach((group) => {
+      const selectedPrompts = group.prompts.filter((_, i) => group.promptSelections[i]);
+      if (!selectedPrompts.length) return;
+
+      const newPrompts = selectedPrompts.map((p) => ({
+        id: `prompt-import-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        title: p.title,
+        content: p.content
+      }));
+
+      if (group.conflictExists && group.conflictStrategy === "merge") {
+        const existing = existingGroupMap.get(group.name);
+        if (existing) {
+          existing.prompts.push(...newPrompts);
+        }
+      } else {
+        let name = group.name;
+        if (group.conflictExists && group.conflictStrategy === "new") {
+          let suffix = 2;
+          while (promptGroups.some((g) => g.name === name)) {
+            name = `${group.name} (${suffix++})`;
+          }
+        }
+        promptGroups.push({
+          id: `prompt-group-import-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name,
+          prompts: newPrompts
+        });
+      }
+    });
+
+    await persistAll();
+    closeImportModal();
+    activePromptGroupId = promptGroups[0]?.id || null;
+    renderPromptsSection();
+  }
+
+  // ── End Import / Export ────────────────────────────────────────────────────
 
   function escapeHtml(value) {
     return String(value)
