@@ -23,5 +23,5 @@
     debug: true
   };
 
-  globalThis.AI_COMPARE_BASE_CONFIG = config;
+  globalThis.QSHOT_BASE_CONFIG = config;
 })();

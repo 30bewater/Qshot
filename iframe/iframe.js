@@ -1,5 +1,5 @@
 (function initComparePage() {
-  const BASE_CONFIG = globalThis.AI_COMPARE_BASE_CONFIG || {};
+  const BASE_CONFIG = globalThis.QSHOT_BASE_CONFIG || {};
   const STORAGE_KEYS = {
     cardSizeLevel: "cardSizeLevel",
     layoutRows: "layoutRows",
@@ -1133,7 +1133,7 @@
       return;
     }
 
-    if (payload.type === "AI_COMPARE_URL_UPDATE") {
+    if (payload.type === "QSHOT_URL_UPDATE") {
       ref.injectedPinged = true;
       if (payload.currentUrl) {
         ref.currentUrl = payload.currentUrl;
@@ -1142,7 +1142,7 @@
       return;
     }
 
-    if (payload.type !== "AI_COMPARE_RESULT") {
+    if (payload.type !== "QSHOT_RESULT") {
       return;
     }
 
@@ -2147,11 +2147,11 @@
       const handler = (event) => {
         // ── 安全校验：只接受来自本次提取目标 iframe 的回执 ──
         // requestId 是 UUID/随机串，单靠它虽然攻击者难猜，但同页面里其它卡片/广告 iframe
-        // 仍然可能监听到消息模式后向本对比页发伪造的 AI_COMPARE_EXTRACT_RESULT，
+        // 仍然可能监听到消息模式后向本对比页发伪造的 QSHOT_EXTRACT_RESULT，
         // 从而把导出 / 剪贴板 / 摘要里的内容替换成攻击者写的字符串。
         // 加 event.source 白名单后，即便攻击者抢先回消息，也会因 source 不匹配被丢弃。
         if (event.source !== expectedWindow) return;
-        if (!event.data || event.data.type !== "AI_COMPARE_EXTRACT_RESULT" || event.data.requestId !== requestId) {
+        if (!event.data || event.data.type !== "QSHOT_EXTRACT_RESULT" || event.data.requestId !== requestId) {
           return;
         }
 
@@ -2168,7 +2168,7 @@
 
       try {
         iframe.contentWindow.postMessage({
-          type: "AI_COMPARE_EXTRACT",
+          type: "QSHOT_EXTRACT",
           requestId,
           site
         }, "*");
@@ -2505,7 +2505,7 @@
       try {
         pendingDispatch.ref.iframeEl.contentWindow.postMessage(
           {
-            type: "AI_COMPARE_SEARCH",
+            type: "QSHOT_SEARCH",
             query: pendingDispatch.query,
             site: pendingDispatch.ref.site,
             requestId: pendingDispatch.requestId

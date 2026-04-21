@@ -8,7 +8,7 @@
 
   // 本扩展对比页的 origin，形如 "chrome-extension://<runtime.id>"。
   // inject.js 被注入到"所有 http/https 页面的所有 frame"里，
-  // AI_COMPARE_SEARCH / AI_COMPARE_EXTRACT 必须只接受来自本扩展对比页的 postMessage，
+  // QSHOT_SEARCH / QSHOT_EXTRACT 必须只接受来自本扩展对比页的 postMessage，
   // 否则任意第三方网页都可以伪造相同 type 的消息，诱导 inject.js 在已登录的 AI 站点里
   // 替用户发送任意内容，或把页面内容回写给恶意父窗口。
   const EXTENSION_ORIGIN = (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id)
@@ -49,12 +49,12 @@
 
     if (!event.data) return;
 
-    if (event.data.type === "AI_COMPARE_EXTRACT") {
+    if (event.data.type === "QSHOT_EXTRACT") {
       handleExtractRequest(event.data);
       return;
     }
 
-    if (event.data.type !== "AI_COMPARE_SEARCH") {
+    if (event.data.type !== "QSHOT_SEARCH") {
       return;
     }
 
@@ -780,7 +780,7 @@
     try {
       window.parent.postMessage(
         {
-          type: "AI_COMPARE_RESULT",
+          type: "QSHOT_RESULT",
           siteId: result.siteId,
           requestId: result.requestId,
           ok: result.ok,
@@ -801,7 +801,7 @@
     const targetOrigin = EXTENSION_ORIGIN || "*";
     window.parent.postMessage(
       {
-        type: "AI_COMPARE_EXTRACT_RESULT",
+        type: "QSHOT_EXTRACT_RESULT",
         requestId: message.requestId,
         siteId: message.site?.id,
         content,
@@ -1235,7 +1235,7 @@
     lastReportedUrl = currentUrl;
     window.parent.postMessage(
       {
-        type: "AI_COMPARE_URL_UPDATE",
+        type: "QSHOT_URL_UPDATE",
         siteId: site.id,
         currentUrl
       },
