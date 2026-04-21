@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 批量搜索 MVP</title>
+    <title>Qshot - 子弹搜索</title>
     <link rel="stylesheet" href="iframe.css" />
   </head>
   <body>
@@ -31,13 +31,24 @@
       <section class="bottom-composer">
         <span id="globalStatus" class="global-status visually-hidden">正在加载站点配置...</span>
 
-        <div class="bottom-composer-row">
-          <button id="scrollToStartBtn" class="scroll-edge-btn scroll-edge-btn--left" type="button" aria-label="滚到最左" hidden>
-            <svg viewBox="0 0 1024 1024" aria-hidden="true">
-              <path d="M368.576 116.672a16 16 0 0 0-22.656 0l-45.248 45.248a16 16 0 0 0 0 22.656l327.936 327.936-327.936 327.936a16 16 0 0 0 0 22.592l45.248 45.248a16 16 0 0 0 22.656 0l384.512-384.448a16 16 0 0 0 0-22.656L368.576 116.672z" fill="currentColor"></path>
-            </svg>
-          </button>
+        <div id="cardNavRow" class="card-nav-row">
+          <div id="cardNavStrip" class="card-nav-strip"></div>
+          <div class="add-site-menu-wrap">
+            <button id="addSiteBtn" class="card-nav-add-btn composer-tooltip-btn" type="button" aria-label="临时添加卡片" data-tooltip="添加卡片" aria-expanded="false">+</button>
+            <div id="addSitePopover" class="add-site-popover" hidden>
+              <button id="closeAddSitePopoverBtn" class="add-site-close-btn" type="button" aria-label="关闭">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+              <div id="addSiteTabs" class="add-site-tabs"></div>
+              <div id="addSiteList" class="add-site-list"></div>
+            </div>
+          </div>
+        </div>
 
+        <div class="bottom-composer-row">
         <div class="bottom-composer-bar">
           <div class="composer-input-shell">
             <div class="composer-input-row">
@@ -92,9 +103,17 @@
                     </div>
                   </div>
                 </div>
+
               </div>
 
               <div class="composer-inline-actions">
+                <button id="newChatBtn" class="composer-inline-icon composer-tooltip-btn" type="button" aria-label="新建对话" data-tooltip="新建对话">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+
                 <div class="composer-prompt-wrap">
                   <button id="promptAssistBtn" class="composer-inline-icon" type="button" aria-label="提示词" aria-expanded="false">
                     <svg viewBox="0 0 1024 1024" aria-hidden="true">
@@ -103,13 +122,6 @@
                   </button>
                   <div id="promptPicker" class="composer-prompt-picker" hidden></div>
                 </div>
-
-                <button id="newChatBtn" class="composer-inline-icon composer-tooltip-btn" type="button" aria-label="新建对话" data-tooltip="新建对话">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
 
                 <button id="sendSelectedBtn" class="composer-inline-icon composer-inline-icon-send is-empty" type="button" aria-label="发送">
                   <svg viewBox="0 0 1024 1024" aria-hidden="true">
@@ -121,24 +133,6 @@
           </div>
         </div>
 
-          <button id="scrollToEndBtn" class="scroll-edge-btn scroll-edge-btn--right" type="button" aria-label="滚到最右" hidden>
-            <svg viewBox="0 0 1024 1024" aria-hidden="true">
-              <path d="M368.576 116.672a16 16 0 0 0-22.656 0l-45.248 45.248a16 16 0 0 0 0 22.656l327.936 327.936-327.936 327.936a16 16 0 0 0 0 22.592l45.248 45.248a16 16 0 0 0 22.656 0l384.512-384.448a16 16 0 0 0 0-22.656L368.576 116.672z" fill="currentColor"></path>
-            </svg>
-          </button>
-
-          <div id="scrollVertGroup" class="scroll-vert-group" hidden>
-            <button id="scrollToTopBtn" class="scroll-edge-btn scroll-edge-btn--up" type="button" aria-label="滚到最上">
-              <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                <path d="M368.576 116.672a16 16 0 0 0-22.656 0l-45.248 45.248a16 16 0 0 0 0 22.656l327.936 327.936-327.936 327.936a16 16 0 0 0 0 22.592l45.248 45.248a16 16 0 0 0 22.656 0l384.512-384.448a16 16 0 0 0 0-22.656L368.576 116.672z" fill="currentColor"></path>
-              </svg>
-            </button>
-            <button id="scrollToBottomBtn" class="scroll-edge-btn scroll-edge-btn--down" type="button" aria-label="滚到最下">
-              <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                <path d="M368.576 116.672a16 16 0 0 0-22.656 0l-45.248 45.248a16 16 0 0 0 0 22.656l327.936 327.936-327.936 327.936a16 16 0 0 0 0 22.592l45.248 45.248a16 16 0 0 0 22.656 0l384.512-384.448a16 16 0 0 0 0-22.656L368.576 116.672z" fill="currentColor"></path>
-              </svg>
-            </button>
-          </div>
         </div>
       </section>
     </div>

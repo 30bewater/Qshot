@@ -161,6 +161,24 @@ textarea {
   margin-bottom: 24px;
 }
 
+.settings-logo-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px 0 8px;
+}
+
+.settings-logo-wrap[hidden] {
+  display: none !important;
+}
+
+.settings-logo-image {
+  display: block;
+  width: min(320px, 100%);
+  height: auto;
+}
+
 .settings-content-header h2 {
   margin: 12px 0 0;
   font-size: 24px;
@@ -847,10 +865,69 @@ textarea {
   gap: 12px;
 }
 
+.search-config-io-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.search-config-io-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid #d4d4d4;
+  border-radius: var(--r-md);
+  background: #ffffff;
+  color: #111111;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.search-config-io-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.search-config-io-btn:hover {
+  background: #f5f5f5;
+  border-color: #aaaaaa;
+}
+
+.search-config-export-btn {
+  background: #111111;
+  border-color: #111111;
+  color: #ffffff;
+}
+
+.search-config-export-btn svg {
+  stroke: #ffffff;
+}
+
+.search-config-export-btn:hover {
+  background: #333333;
+  border-color: #333333;
+  color: #ffffff;
+}
+
+.search-config-io-hint {
+  font-size: var(--fs-sm);
+  color: #666666;
+}
+
 .about-plugin-privacy {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.about-plugin-intro {
+  gap: 0;
 }
 
 .about-plugin-privacy p {

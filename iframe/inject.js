@@ -6,6 +6,15 @@
   const requestsInProgress = new Set();
   let lastReportedUrl = "";
 
+  // 本扩展对比页的 origin，形如 "chrome-extension://<runtime.id>"。
+  // inject.js 被注入到"所有 http/https 页面的所有 frame"里，
+  // AI_COMPARE_SEARCH / AI_COMPARE_EXTRACT 必须只接受来自本扩展对比页的 postMessage，
+  // 否则任意第三方网页都可以伪造相同 type 的消息，诱导 inject.js 在已登录的 AI 站点里
+  // 替用户发送任意内容，或把页面内容回写给恶意父窗口。
+  const EXTENSION_ORIGIN = (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id)
+    ? `chrome-extension://${chrome.runtime.id}`
+    : null;
+
   setupUrlReporting();
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -27,6 +36,17 @@
   });
 
   window.addEventListener("message", (event) => {
+    // ── 安全校验：只接受来自本扩展对比页的 postMessage ──
+    // 1) event.origin 必须是本扩展的 chrome-extension://<id>，浏览器会确保该字段不可伪造。
+    // 2) event.source 必须是当前 iframe 的直接父窗口（对比页即 window.parent）。
+    //    这两条同时成立才能保证消息确实来自我们自己的对比页，
+    //    而不是"用户顺手打开的某个恶意网页"里嵌入同一 AI 站点的 iframe 发来的。
+    // 如果 EXTENSION_ORIGIN 获取失败（极端环境），为了不破坏功能暂时只做 type 校验。
+    if (EXTENSION_ORIGIN) {
+      if (event.origin !== EXTENSION_ORIGIN) return;
+      if (event.source !== window.parent) return;
+    }
+
     if (!event.data) return;
 
     if (event.data.type === "AI_COMPARE_EXTRACT") {
@@ -150,14 +170,25 @@
     return String(hostname || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   }
 
+  // 这些 action 一旦"真实"把消息提交出去，就不应该再由后续兜底步骤（多点一次 / 再合成一次 Enter）
+  // 重复触发，否则会出现"同一条查询被站点连发两次"的问题（例如 ChatGPT 的 ProseMirror 在合成
+  // Enter 时仍会走一次发送）。
+  const SUBMIT_ACTIONS = new Set(["click", "sendKeys", "smartSubmit"]);
+
   async function executeSiteHandler(query, handlerConfig) {
     if (!handlerConfig || !Array.isArray(handlerConfig.steps) || handlerConfig.steps.length === 0) {
       throw new Error("无效的站点处理器配置");
     }
 
+    const context = { submitted: false };
+
     for (const step of handlerConfig.steps) {
+      if (context.submitted && SUBMIT_ACTIONS.has(step.action)) {
+        continue;
+      }
+
       try {
-        await executeStep(step, query);
+        await executeStep(step, query, context);
       } catch (error) {
         if (step.optional) {
           continue;
@@ -173,7 +204,7 @@
     }
   }
 
-  async function executeStep(step, query) {
+  async function executeStep(step, query, context) {
     switch (step.action) {
       case "focus":
         await executeFocus(step);
@@ -185,16 +216,22 @@
         await executeTriggerEvents(step);
         return;
       case "click":
-        await executeClick(step);
+        if (await executeClick(step)) {
+          context.submitted = true;
+        }
         return;
       case "wait":
         await delay(step.duration || 0);
         return;
       case "sendKeys":
         await executeSendKeys(step);
+        // sendKeys 通过合成键盘事件发送，站点编辑器对 isTrusted=false 的容忍度不一致，
+        // 不能当成"一定已提交"，故保留上一步的 submitted 标记即可。
         return;
       case "smartSubmit":
-        await executeSmartSubmit(step);
+        if (await executeSmartSubmit(step)) {
+          context.submitted = true;
+        }
         return;
       default:
         throw new Error(`不支持的 action: ${step.action}`);
@@ -210,35 +247,114 @@
   }
 
   async function executeSetValue(step, query) {
-    const element = await findElement(step);
-    safeFocus(element);
+    const text = String(query || "");
+    // ChatGPT 这类 SPA 的 iframe 在 load 事件触发时，#prompt-textarea 已经在 DOM 里，
+    // 但 ProseMirror / React 还没完成水合，此时写进去的文字会被紧接着到来的 rerender 盖掉，
+    // 表现为"第一次从顶部进页面，ChatGPT 输入框空着，也没发送"。
+    // 这里写完后主动校验内容是否真正进入输入框，没进入就稍等再写，直到生效或次数用完。
+    const maxAttempts = step.maxAttempts || 12;
+    let lastError = null;
 
-    const inputType = step.inputType === "auto"
-      ? detectInputType(element)
-      : (step.inputType || detectInputType(element));
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const element = await findElement(step);
+      safeFocus(element);
 
-    if (inputType === "contenteditable") {
-      setContenteditableValue(element, query);
-      return;
+      const inputType = step.inputType === "auto"
+        ? detectInputType(element)
+        : (step.inputType || detectInputType(element));
+
+      try {
+        if (inputType === "contenteditable") {
+          setContenteditableValue(element, text);
+        } else if (isTextControl(element)) {
+          setNativeValue(element, text);
+          dispatchEventList(element, ["input", "change"]);
+        } else {
+          throw new Error("目标元素不是可写输入控件");
+        }
+      } catch (error) {
+        lastError = error;
+      }
+
+      if (!text) {
+        return;
+      }
+
+      // 短暂等待让编辑器自己的事件处理 / React render 先跑完，再读一次当前值做校验。
+      await delay(60 + attempt * 40);
+
+      const current = await readCurrentValue(step);
+      if (current.includes(text)) {
+        return;
+      }
     }
 
-    if (isTextControl(element)) {
-      setNativeValue(element, query);
-      dispatchEventList(element, ["input", "change"]);
-      return;
+    if (lastError) {
+      throw lastError;
     }
+    throw new Error("写入输入框后内容未生效");
+  }
 
-    throw new Error("目标元素不是可写输入控件");
+  async function readCurrentValue(step) {
+    try {
+      const element = await findElement(step);
+      if (!element) {
+        return "";
+      }
+      if (isTextControl(element)) {
+        return String(element.value || "");
+      }
+      return String(element.textContent || "");
+    } catch (_error) {
+      return "";
+    }
   }
 
   async function executeTriggerEvents(step) {
     const element = await findElement(step);
-    dispatchEventList(element, Array.isArray(step.events) ? step.events : []);
+    const events = Array.isArray(step.events) ? step.events : [];
+    // contenteditable 走 execCommand("insertText") 时浏览器已经派发了 isTrusted=true 的
+    // input 事件；这里再派发一次合成 input（data 为空）会让 ChatGPT（ProseMirror）
+    // 之类的编辑器判定为"内容被删空"，出现"文字一闪而过又消失"的问题。
+    const filtered = element && element.isContentEditable
+      ? events.filter((name) => name !== "input" && name !== "beforeinput")
+      : events;
+    dispatchEventList(element, filtered);
   }
 
   async function executeClick(step) {
-    const element = await findElement(step);
-    element.click();
+    // 很多站点（ChatGPT / DeepSeek / Kimi / 豆包 / Gemini）在 setValue 之后，
+    // 需要 React 再跑一次 render 才会把发送按钮从 aria-disabled 切换为可用。
+    // 这里不再"一次抓到就判定"，而是短暂轮询直到按钮真正可点击，
+    // 直接规避 1~2 秒的"输入已进去，但要等 Enter 兜底"的观感。
+    const selectors = getSelectors(step);
+    if (selectors.length === 0) {
+      throw new Error("缺少选择器");
+    }
+
+    const timeoutMs = Number.isFinite(step.timeout) ? step.timeout : 1500;
+    const deadline = Date.now() + timeoutMs;
+    let lastSeen = null;
+
+    while (Date.now() <= deadline) {
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (!element) {
+          continue;
+        }
+        lastSeen = element;
+        if (isUsableSubmitButton(element)) {
+          element.click();
+          return true;
+        }
+      }
+      await delay(25);
+    }
+
+    if (!lastSeen) {
+      throw new Error(`未找到元素: ${selectors.join(", ")}`);
+    }
+    throw new Error("目标按钮处于禁用态");
   }
 
   async function executeSendKeys(step) {
@@ -273,12 +389,12 @@
     if (form) {
       if (typeof form.requestSubmit === "function") {
         form.requestSubmit();
-        return;
+        return true;
       }
 
       if (typeof form.submit === "function") {
         form.submit();
-        return;
+        return true;
       }
     }
 
@@ -294,15 +410,27 @@
           "[role='button'][aria-label*='Send']"
         ];
 
-    const candidate = findBestSubmitButton(anchor, submitSelectors);
-    if (candidate) {
-      candidate.click();
-      return;
+    // 短暂轮询：setValue 后按钮往往需要一次 React render 才从 aria-disabled=true
+    // 切换为可用。不轮询就会直接落到合成 Enter 兜底，而富文本编辑器（Gemini / ChatGPT 等）
+    // 对 isTrusted=false 的合成按键常常直接忽略，因此能点击就优先点击。
+    const waitMs = Number.isFinite(step.submitWaitMs) ? step.submitWaitMs : 1200;
+    const deadline = Date.now() + waitMs;
+    while (Date.now() <= deadline) {
+      const candidate = findBestSubmitButton(anchor, submitSelectors);
+      if (candidate) {
+        candidate.click();
+        return true;
+      }
+      await delay(25);
     }
 
+    // 兜底：轮询结束仍没有可用按钮才派发合成 Enter。
+    // 返回 false 让上层允许后续 sendKeys 再试（此分支本身就已经是 Enter 兜底，
+    // 再跑一次等价 Enter 也不会"重复发送"，因为合成 Enter 并没触发真实提交）。
     dispatchKeyboardEvent(anchor, "keydown", "Enter");
     dispatchKeyboardEvent(anchor, "keypress", "Enter");
     dispatchKeyboardEvent(anchor, "keyup", "Enter");
+    return false;
   }
 
   async function findElement(step) {
@@ -322,7 +450,7 @@
         }
       }
 
-      await delay(50);
+      await delay(25);
     }
 
     throw new Error(`未找到元素: ${selectors.join(", ")}`);
@@ -411,6 +539,47 @@
 
   function setContenteditableValue(element, query) {
     const text = String(query || "");
+    safeFocus(element);
+
+    // 先选中当前编辑器内所有内容，让 insertText 用新文本替换，而不是追加。
+    // 这样既能避免在 Lexical（Kimi）等编辑器中出现文本重复，
+    // 也能保证每次写入都是幂等的。
+    let selectionSet = false;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+        selectionSet = true;
+      }
+    } catch (_error) {
+      selectionSet = false;
+    }
+
+    // 首选方案：document.execCommand("insertText")。
+    // 它会派发原生的、带 inputType="insertText" 的 beforeinput/input 事件对，
+    // ProseMirror（ChatGPT）、Lexical（Kimi）、Slate 等富文本编辑器依赖这一事件同步内部状态，
+    // 进而触发 React 重渲染、使发送按钮从禁用态变为可点击。
+    // 由于我们已经全选了旧内容，本次插入会替换而不是追加，避免出现文本重复。
+    let inserted = false;
+    if (selectionSet || document.activeElement === element) {
+      try {
+        inserted = document.execCommand("insertText", false, text);
+      } catch (_error) {
+        inserted = false;
+      }
+    }
+
+    if (inserted) {
+      // execCommand("insertText") 已经派发了 isTrusted=true 的 beforeinput / input 事件，
+      // ProseMirror（ChatGPT）、Lexical（Kimi）、Slate 会据此同步 React 状态。
+      // 不要再追加合成事件，否则 ChatGPT 会出现"文字短暂出现又被清空"的现象。
+      return;
+    }
+
+    // 兜底方案：当 execCommand 被浏览器/编辑器拒绝时，直接操作 DOM。
     const isLexicalEditor = element.hasAttribute("data-lexical-editor")
       || element.getAttribute("data-lexical-editor") === "true"
       || element.matches("div.chat-input-editor[contenteditable='true']");
@@ -487,7 +656,6 @@
     }
 
     dispatchContenteditableEvents(element, query);
-    tryExecInsertText(element, query);
   }
 
   function updateGenericContenteditable(element, query) {
@@ -512,7 +680,6 @@
     }
 
     dispatchContenteditableEvents(element, query);
-    tryExecInsertText(element, query);
   }
 
   function dispatchContenteditableEvents(element, query) {
@@ -536,16 +703,6 @@
     element.dispatchEvent(new CompositionEvent("compositionupdate", { bubbles: true, data: query }));
     element.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: query }));
     element.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
-  }
-
-  function tryExecInsertText(element, query) {
-    try {
-      safeFocus(element);
-      document.execCommand("selectAll", false);
-      document.execCommand("insertText", false, query);
-    } catch (_error) {
-      // Ignore browsers/editors that reject execCommand.
-    }
   }
 
   // 聚焦时禁用浏览器默认的「滚动聚焦元素到可视区」行为，
@@ -616,6 +773,10 @@
       return;
     }
 
+    // targetOrigin 严格限定为本扩展对比页，确保结果只投递给我们自己的页面；
+    // 如果当前 inject.js 恰好跑在"非本扩展对比页"的父框架下，浏览器会直接丢弃消息，
+    // 避免把 query / result 等信息泄露给第三方父窗口。
+    const targetOrigin = EXTENSION_ORIGIN || "*";
     try {
       window.parent.postMessage(
         {
@@ -626,7 +787,7 @@
           message: result.message,
           error: result.error
         },
-        "*"
+        targetOrigin
       );
     } catch (_error) {
       // 顶层标签页模式下没有父页面可通知，忽略即可。
@@ -636,6 +797,8 @@
   function handleExtractRequest(message) {
     const content = extractReadablePageText();
     const turns = extractConversationTurns();
+    // 同样把提取结果严格投递回本扩展对比页，避免被第三方父窗口窃取会话内容。
+    const targetOrigin = EXTENSION_ORIGIN || "*";
     window.parent.postMessage(
       {
         type: "AI_COMPARE_EXTRACT_RESULT",
@@ -645,7 +808,7 @@
         turns,
         url: window.location.href
       },
-      "*"
+      targetOrigin
     );
   }
 

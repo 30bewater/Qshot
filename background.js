@@ -7,7 +7,7 @@ const WARMUP_COOLDOWN_MS = 5 * 60 * 1000;
 let lastWarmupAt = 0;
 
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log("AI 批量搜索 MVP 已安装");
+  console.log("Qshot - 子弹搜索 已安装");
   await ensureDefaultSearchGroups();
   await syncCommandShortcut();
 });
@@ -77,6 +77,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "OPEN_SETTINGS_PAGE") {
     const section = message.section ? `?section=${message.section}` : "";
     chrome.tabs.create({ url: SETTINGS_PAGE_URL + section })
+      .then((tab) => sendResponse({ ok: true, tabId: tab.id }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "OPEN_EXTERNAL_URL") {
+    chrome.tabs.create({ url: message.url, active: true })
       .then((tab) => sendResponse({ ok: true, tabId: tab.id }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;

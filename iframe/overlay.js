@@ -5,6 +5,7 @@
   window.__QSHOT_OVERLAY_INSTALLED__ = true;
 
   const SEARCH_GROUPS_STORAGE_KEY = "searchGroups";
+  const SEARCH_HISTORY_STORAGE_KEY = "searchHistory";
   const PROMPT_GROUPS_STORAGE_KEY = "promptGroups";
   const UI_PREFS_STORAGE_KEY = "uiPrefs";
   const CUSTOM_SITES_STORAGE_KEY = "customSites";
@@ -191,6 +192,162 @@
       color: #fff;
       border-color: #111;
       transform: translateY(-1px);
+    }
+
+    .group-tooltip {
+      position: absolute;
+      z-index: 30;
+      display: none;
+      max-width: calc(100% - 8px);
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #111111;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      font-size: 12px;
+      line-height: 1.5;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.16);
+      pointer-events: auto;
+    }
+
+    .group-tooltip-list {
+      display: grid;
+      grid-template-columns: repeat(5, max-content);
+      justify-content: start;
+      gap: 6px;
+    }
+
+    .group-tooltip-item {
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      border-radius: 999px;
+      background: #ffffff;
+      color: #111111;
+      font: inherit;
+      line-height: 1.2;
+      padding: 6px 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .group-tooltip-item:hover {
+      background: #111111;
+      border-color: #111111;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .history-section {
+      padding: 0;
+    }
+
+    .history-section[hidden] {
+      display: none !important;
+    }
+
+    .section-divider {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      column-gap: 10px;
+    }
+
+    .section-divider::before,
+    .section-divider::after {
+      content: "";
+      height: 1px;
+      background: rgba(0, 0, 0, 0.24);
+    }
+
+    .section-divider-label {
+      font-size: 13px;
+      color: #313131;
+    }
+
+    .history-list {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .history-empty,
+    .history-item {
+      width: 100%;
+      border-radius: 12px;
+    }
+
+    .history-empty {
+      padding: 12px 10px;
+      text-align: center;
+      color: #888888;
+      font-size: 12px;
+    }
+
+    .history-item {
+      position: relative;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      background: #ffffff;
+      padding: 9px 12px;
+      padding-right: 24px;
+      cursor: pointer;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
+    }
+
+    .history-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-query {
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #111111;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .history-meta {
+      flex: none;
+      font-size: 10px;
+      line-height: 1.5;
+      color: #8d8d8d;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .history-delete-btn {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      border: none;
+      background: transparent;
+      padding: 0;
+      width: 14px;
+      height: 14px;
+      font-size: 14px;
+      line-height: 1;
+      color: #a3a3a3;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s ease, color 0.15s ease;
+    }
+
+    .history-item:hover .history-delete-btn,
+    .history-item:focus-within .history-delete-btn {
+      opacity: 1;
+    }
+
+    .history-delete-btn:hover {
+      color: #6b6b6b;
     }
 
     /* 提示词 picker */
@@ -395,11 +552,15 @@
   let shadowRoot = null;
   let isOpen = false;
   let groups = [];
+  let allSites = [];
+  let historyEntries = [];
   let promptGroups = [];
   let uiPrefs = normalizeUiPrefs();
   let activePromptGroupId = null;
   let isPromptPickerOpen = false;
   let _overlayPreviewMgr = null;
+  let _groupTooltipTimer = null;
+  let _groupTooltipHideTimer = null;
 
   const isTopFrame = (function detectTop() {
     try {
@@ -475,13 +636,20 @@
         syncShortcutToMainWorld();
         if (isOpen) {
           applyUiPrefs();
+          renderHistoryIfOpen();
           renderPromptPickerIfOpen();
         }
       });
     }
     if (!isOpen) return;
+    if (changes[CUSTOM_SITES_STORAGE_KEY]) {
+      refreshAllSites().then(renderGroupsIfOpen);
+    }
     if (changes[SEARCH_GROUPS_STORAGE_KEY]) {
       refreshGroups().then(renderGroupsIfOpen);
+    }
+    if (changes[SEARCH_HISTORY_STORAGE_KEY]) {
+      refreshHistory().then(renderHistoryIfOpen);
     }
     if (changes[PROMPT_GROUPS_STORAGE_KEY]) {
       refreshPromptGroups().then(renderPromptPickerIfOpen);
@@ -523,7 +691,7 @@
 
   async function openOverlay() {
     if (isOpen || !isTopFrame) return;
-    await Promise.all([refreshGroups(), refreshPromptGroups(), refreshUiPrefs()]);
+    await Promise.all([refreshGroups(), refreshAllSites(), refreshHistory(), refreshPromptGroups(), refreshUiPrefs()]);
     if (!activePromptGroupId) {
       activePromptGroupId = promptGroups[0]?.id || null;
     }
@@ -540,6 +708,7 @@
   function closeOverlay() {
     if (!isOpen) return;
     isPromptPickerOpen = false;
+    hideGroupTooltip();
     if (_overlayPreviewMgr) { _overlayPreviewMgr.destroy(); _overlayPreviewMgr = null; }
     if (hostEl && hostEl.parentNode) {
       hostEl.parentNode.removeChild(hostEl);
@@ -652,6 +821,38 @@
     groupsContainer.className = "groups";
     panel.appendChild(groupsContainer);
 
+    const groupTooltip = document.createElement("div");
+    groupTooltip.className = "group-tooltip";
+    groupTooltip.addEventListener("mouseenter", () => {
+      if (_groupTooltipHideTimer) {
+        clearTimeout(_groupTooltipHideTimer);
+        _groupTooltipHideTimer = null;
+      }
+    });
+    groupTooltip.addEventListener("mouseleave", () => {
+      scheduleHideGroupTooltip();
+    });
+    panel.appendChild(groupTooltip);
+
+    const historySection = document.createElement("section");
+    historySection.className = "history-section";
+    historySection.setAttribute("aria-labelledby", "qshotOverlayHistoryTitle");
+
+    const historyDivider = document.createElement("div");
+    historyDivider.className = "section-divider";
+    const historyTitle = document.createElement("span");
+    historyTitle.id = "qshotOverlayHistoryTitle";
+    historyTitle.className = "section-divider-label";
+    historyTitle.textContent = "历史搜索";
+    historyDivider.appendChild(historyTitle);
+
+    const historyList = document.createElement("div");
+    historyList.className = "history-list";
+
+    historySection.appendChild(historyDivider);
+    historySection.appendChild(historyList);
+    panel.appendChild(historySection);
+
     const panelWrap = document.createElement("div");
     panelWrap.className = "panel-wrap";
     panelWrap.appendChild(panel);
@@ -699,6 +900,7 @@
 
     applyUiPrefs();
     renderGroupsIfOpen();
+    renderHistoryIfOpen();
     renderPromptPickerIfOpen();
     syncComposerLayout();
 
@@ -711,6 +913,7 @@
     const diceBtn = shadowRoot.querySelector(".icon-btn.dice");
     const sparkleBtn = shadowRoot.querySelector(".icon-btn.sparkle");
     const actionsRow = shadowRoot.querySelector(".actions-row");
+    const historySection = shadowRoot.querySelector(".history-section");
     if (diceBtn) {
       diceBtn.style.display = uiPrefs.showRandomButton === false ? "none" : "inline-flex";
     }
@@ -720,6 +923,10 @@
     if (actionsRow) {
       const hasVisible = uiPrefs.showRandomButton !== false || uiPrefs.showPromptButton !== false;
       actionsRow.style.display = hasVisible ? "flex" : "none";
+    }
+    if (historySection instanceof HTMLElement) {
+      historySection.hidden = uiPrefs.showHistory === false;
+      historySection.style.display = uiPrefs.showHistory === false ? "none" : "block";
     }
   }
 
@@ -744,12 +951,184 @@
     container.innerHTML = "";
 
     groups.forEach((group) => {
+      const groupSites = getGroupSites(group);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "group-btn";
       btn.textContent = group.name || "未命名搜索组";
-      btn.addEventListener("click", () => runGroup(group));
+      if (groupSites.length) {
+        btn.addEventListener("mouseenter", () => showGroupTooltip(btn, groupSites));
+        btn.addEventListener("mouseleave", () => scheduleHideGroupTooltip());
+      }
+      btn.addEventListener("click", () => {
+        hideGroupTooltip();
+        runGroup(group);
+      });
       container.appendChild(btn);
+    });
+  }
+
+  function getGroupSites(group) {
+    return (group?.siteIds || [])
+      .map((id) => allSites.find((site) => site.id === id))
+      .filter((site) => site && normalizeSiteHomeUrl(site.url))
+      .map((site) => ({
+        id: site.id,
+        name: site.name || site.id,
+        url: normalizeSiteHomeUrl(site.url)
+      }));
+  }
+
+  function getGroupTooltipEl() {
+    return shadowRoot?.querySelector(".group-tooltip") || null;
+  }
+
+  function showGroupTooltip(button, sites) {
+    if (!shadowRoot) return;
+    if (_groupTooltipTimer) {
+      clearTimeout(_groupTooltipTimer);
+      _groupTooltipTimer = null;
+    }
+    if (_groupTooltipHideTimer) {
+      clearTimeout(_groupTooltipHideTimer);
+      _groupTooltipHideTimer = null;
+    }
+
+    _groupTooltipTimer = setTimeout(() => {
+      const tooltip = getGroupTooltipEl();
+      const panel = shadowRoot?.querySelector(".panel");
+      if (!(tooltip instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+        return;
+      }
+
+      renderGroupTooltipSites(tooltip, sites);
+      tooltip.style.display = "block";
+      requestAnimationFrame(() => {
+        const btnRect = button.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const tooltipW = tooltip.offsetWidth;
+        const tooltipH = tooltip.offsetHeight;
+        let left = btnRect.left - panelRect.left + btnRect.width / 2 - tooltipW / 2;
+        if (left < 0) left = 0;
+        if (left + tooltipW > panelRect.width) left = Math.max(0, panelRect.width - tooltipW);
+        let top = btnRect.top - panelRect.top - tooltipH - 8;
+        if (top < 0) {
+          top = btnRect.bottom - panelRect.top + 8;
+        }
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      });
+    }, 450);
+  }
+
+  function hideGroupTooltip() {
+    if (_groupTooltipTimer) {
+      clearTimeout(_groupTooltipTimer);
+      _groupTooltipTimer = null;
+    }
+    if (_groupTooltipHideTimer) {
+      clearTimeout(_groupTooltipHideTimer);
+      _groupTooltipHideTimer = null;
+    }
+    const tooltip = getGroupTooltipEl();
+    if (tooltip instanceof HTMLElement) {
+      tooltip.style.display = "none";
+    }
+  }
+
+  function scheduleHideGroupTooltip() {
+    if (_groupTooltipTimer) {
+      clearTimeout(_groupTooltipTimer);
+      _groupTooltipTimer = null;
+    }
+    if (_groupTooltipHideTimer) {
+      clearTimeout(_groupTooltipHideTimer);
+    }
+    _groupTooltipHideTimer = setTimeout(() => {
+      const tooltip = getGroupTooltipEl();
+      if (tooltip instanceof HTMLElement) {
+        tooltip.style.display = "none";
+      }
+    }, 180);
+  }
+
+  function renderGroupTooltipSites(tooltip, sites) {
+    tooltip.innerHTML = "";
+
+    const list = document.createElement("div");
+    list.className = "group-tooltip-list";
+    list.style.gridTemplateColumns = `repeat(${Math.min(5, Math.max(1, sites.length))}, max-content)`;
+    sites.forEach((site) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "group-tooltip-item";
+      item.textContent = site.name;
+      item.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        hideGroupTooltip();
+        await openSiteHome(site.url);
+      });
+      list.appendChild(item);
+    });
+    tooltip.appendChild(list);
+  }
+
+  function renderHistoryIfOpen() {
+    if (!shadowRoot) return;
+    const historyList = shadowRoot.querySelector(".history-list");
+    if (!(historyList instanceof HTMLElement)) return;
+
+    historyList.innerHTML = "";
+
+    if (!historyEntries.length) {
+      const empty = document.createElement("div");
+      empty.className = "history-empty";
+      empty.textContent = "暂无搜索记录";
+      historyList.appendChild(empty);
+      return;
+    }
+
+    historyEntries.forEach((entry) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "history-item";
+
+      const line = document.createElement("div");
+      line.className = "history-line";
+
+      const query = document.createElement("div");
+      query.className = "history-query";
+      query.textContent = String(entry?.query || "").replace(/\s+/g, " ").trim();
+
+      const meta = document.createElement("div");
+      meta.className = "history-meta";
+      meta.textContent = formatHistoryDate(entry?.createdAt);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "history-delete-btn";
+      deleteBtn.setAttribute("aria-label", "删除这条记录");
+      deleteBtn.textContent = "×";
+      deleteBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        await removeHistoryEntry(entry);
+      });
+
+      line.appendChild(query);
+      line.appendChild(meta);
+      item.appendChild(line);
+      item.appendChild(deleteBtn);
+      item.addEventListener("click", () => {
+        const queryInput = shadowRoot?.querySelector(".query-input");
+        if (queryInput instanceof HTMLTextAreaElement) {
+          queryInput.value = entry?.query || "";
+          syncComposerLayout();
+          queryInput.focus();
+        }
+      });
+      historyList.appendChild(item);
     });
   }
 
@@ -911,6 +1290,40 @@
     }
   }
 
+  async function refreshAllSites() {
+    try {
+      const [builtinResp, stored] = await Promise.all([
+        fetch(chrome.runtime.getURL("config/siteHandlers.json")),
+        chrome.storage.local.get([CUSTOM_SITES_STORAGE_KEY])
+      ]);
+      const payload = await builtinResp.json();
+      const builtin = (payload.sites || []).filter((site) => site.enabled !== false);
+      const custom = Array.isArray(stored[CUSTOM_SITES_STORAGE_KEY]) ? stored[CUSTOM_SITES_STORAGE_KEY] : [];
+      const knownIds = new Set(builtin.map((site) => site.id));
+      const merged = [...builtin];
+      custom.forEach((site) => {
+        if (site && !knownIds.has(site.id)) {
+          merged.push(site);
+          knownIds.add(site.id);
+        }
+      });
+      allSites = merged;
+    } catch (_err) {
+      allSites = [];
+    }
+  }
+
+  async function refreshHistory() {
+    try {
+      const stored = await chrome.storage.local.get([SEARCH_HISTORY_STORAGE_KEY]);
+      historyEntries = Array.isArray(stored[SEARCH_HISTORY_STORAGE_KEY])
+        ? stored[SEARCH_HISTORY_STORAGE_KEY].slice(0, 4)
+        : [];
+    } catch (_err) {
+      historyEntries = [];
+    }
+  }
+
   async function refreshPromptGroups() {
     try {
       const stored = await chrome.storage.local.get([PROMPT_GROUPS_STORAGE_KEY]);
@@ -941,6 +1354,103 @@
     } catch (_err) {
       uiPrefs = normalizeUiPrefs();
     }
+  }
+
+  async function openSiteHome(url) {
+    const safeUrl = normalizeSiteHomeUrl(url);
+    if (!safeUrl) {
+      return;
+    }
+
+    try {
+      await chrome.runtime.sendMessage({ type: "OPEN_EXTERNAL_URL", url: safeUrl });
+    } catch (_err) {
+      /* 忽略 */
+    }
+
+    closeOverlay();
+  }
+
+  async function removeHistoryEntry(entry) {
+    try {
+      const stored = await chrome.storage.local.get([SEARCH_HISTORY_STORAGE_KEY]);
+      const fullHistory = Array.isArray(stored[SEARCH_HISTORY_STORAGE_KEY]) ? stored[SEARCH_HISTORY_STORAGE_KEY] : [];
+      if (!fullHistory.length) {
+        return;
+      }
+
+      let removed = false;
+      const nextHistory = fullHistory.filter((item) => {
+        if (removed) {
+          return true;
+        }
+
+        if (entry?.id && item?.id === entry.id) {
+          removed = true;
+          return false;
+        }
+
+        if (!entry?.id && item?.query === entry?.query && item?.createdAt === entry?.createdAt) {
+          removed = true;
+          return false;
+        }
+
+        return true;
+      });
+
+      if (!removed) {
+        return;
+      }
+
+      await chrome.storage.local.set({ [SEARCH_HISTORY_STORAGE_KEY]: nextHistory });
+    } catch (_err) {
+      /* 忽略 */
+    }
+  }
+
+  function formatHistoryDate(value) {
+    if (!value) {
+      return "";
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    const now = new Date();
+    const sameDay =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate();
+
+    if (sameDay) {
+      return date.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    return date.toLocaleDateString("zh-CN", {
+      month: "numeric",
+      day: "numeric"
+    });
+  }
+
+  function normalizeSiteHomeUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) {
+      return "";
+    }
+
+    let next = raw.replace(/([?&])[^=&]+=\{query\}/g, (_, sep) => (sep === "?" ? "?" : ""));
+    next = next.replace(/\?&/, "?");
+    next = next.replace(/[?&]$/, "");
+    next = next.replace(/\{query\}/g, "");
+    if (!/^https?:\/\//i.test(next)) {
+      return "";
+    }
+    return next;
   }
 
   function normalizeUiPrefs(input) {

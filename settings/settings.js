@@ -18,7 +18,7 @@
     groups: {
       eyebrow: "搜索组设置",
       title: "分组与调用内容",
-      subtitle: "管理搜索组名称、打开方式，以及每个组内调用的网站或 AI 模型。"
+      subtitle: "管理搜索组名称、打开方式，以及每个组内调用的网站或 AI 模型。首次加载时部分页面可能未能自动发送，手动刷新后重新发送即可，后续使用会更流畅。"
     },
     prompts: {
       eyebrow: "提示词设置",
@@ -31,14 +31,14 @@
       subtitle: "添加自己的搜索站点，保存后可在搜索组的“自定义”分类中直接勾选。"
     },
     other: {
-      eyebrow: "其他的设置",
-      title: "首页显示控制",
-      subtitle: "控制首页中历史记录、随机骰子和提示词入口是否显示。"
+      eyebrow: "快捷键设置",
+      title: "",
+      subtitle: ""
     },
     about: {
-      eyebrow: "关于本插件",
-      title: "隐私与数据说明",
-      subtitle: "本插件在本地运行，不收集您的搜索与对话内容；与 AI 网站的交互由您与对方站点直接完成。"
+      eyebrow: "",
+      title: "",
+      subtitle: ""
     }
   };
 
@@ -48,6 +48,8 @@
   const otherSection = document.getElementById("otherSection");
   const aboutSection = document.getElementById("aboutSection");
   const sectionEyebrow = document.getElementById("sectionEyebrow");
+  const sectionLogoWrap = document.getElementById("sectionLogoWrap");
+  const sectionTitleRow = document.getElementById("sectionTitleRow");
   const sectionTitle = document.getElementById("sectionTitle");
   const sectionSubtitle = document.getElementById("sectionSubtitle");
   const promptsHeaderActions = document.getElementById("promptsHeaderActions");
@@ -163,8 +165,13 @@
     navItems.forEach((item) => item.classList.toggle("is-active", item.dataset.section === sectionKey));
     const meta = SECTION_META[sectionKey];
     sectionEyebrow.textContent = meta.eyebrow;
+    sectionEyebrow.hidden = !meta.eyebrow;
     sectionTitle.textContent = meta.title;
+    sectionTitle.hidden = !meta.title;
     sectionSubtitle.textContent = meta.subtitle;
+    sectionSubtitle.hidden = !meta.subtitle;
+    sectionLogoWrap.hidden = sectionKey !== "about";
+    sectionTitleRow.hidden = !meta.title && sectionKey !== "prompts";
     updateSectionVisibility();
     renderCurrentSection();
   }
@@ -1081,6 +1088,7 @@
 
     otherSection.appendChild(card);
     otherSection.appendChild(createShortcutCard());
+    otherSection.appendChild(createSearchConfigIoCard());
   }
 
   function createShortcutCard() {
@@ -1109,6 +1117,113 @@
     }
 
     return card;
+  }
+
+  // ── 搜索配置 导入 / 导出 ──────────────────────────────────────────────────────
+
+  function createSearchConfigIoCard() {
+    const card = document.createElement("section");
+    card.className = "other-settings-card";
+    card.innerHTML = `
+      <div class="other-settings-intro">
+        <strong>导入 / 导出搜索配置</strong>
+        <span>导出当前的搜索组与自定义搜索站点，分享给他人后可一键导入还原。不含提示词设置。</span>
+      </div>
+      <div class="search-config-io-row">
+        <button type="button" class="search-config-io-btn search-config-export-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出配置
+        </button>
+        <button type="button" class="search-config-io-btn search-config-import-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="17"/></svg>
+          导入配置
+        </button>
+        <span class="search-config-io-hint" aria-live="polite"></span>
+      </div>
+    `;
+
+    card.querySelector(".search-config-export-btn").addEventListener("click", exportSearchConfig);
+    card.querySelector(".search-config-import-btn").addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json,application/json";
+      input.addEventListener("change", handleSearchConfigImportFile);
+      input.click();
+    });
+
+    return card;
+  }
+
+  function exportSearchConfig() {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      searchGroups: groups,
+      customSites: customSites
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Qshot搜索配置-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleSearchConfigImportFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    let payload;
+    try {
+      const text = await file.text();
+      payload = JSON.parse(text);
+    } catch (_) {
+      alert("无法解析文件，请确认是否为从本插件导出的 JSON 配置文件。");
+      return;
+    }
+
+    if (!payload || typeof payload !== "object" || payload.version !== 1) {
+      alert("文件格式不正确，请使用本插件导出的搜索配置文件。");
+      return;
+    }
+
+    const importedGroups = Array.isArray(payload.searchGroups) ? payload.searchGroups : [];
+    const importedCustomSites = Array.isArray(payload.customSites) ? payload.customSites : [];
+
+    if (!importedGroups.length && !importedCustomSites.length) {
+      alert("文件中没有可导入的搜索组或自定义站点。");
+      return;
+    }
+
+    const groupCount = importedGroups.length;
+    const siteCount = importedCustomSites.length;
+    const desc = [
+      groupCount ? `${groupCount} 个搜索组` : "",
+      siteCount ? `${siteCount} 个自定义站点` : ""
+    ].filter(Boolean).join("、");
+
+    const confirmed = confirm(
+      `即将导入 ${desc}。\n\n导入后将完全覆盖当前的搜索组配置${siteCount ? "和自定义站点" : ""}，此操作不可撤销。\n\n确认继续？`
+    );
+    if (!confirmed) return;
+
+    if (importedGroups.length) {
+      groups = createNormalizedGroups(importedGroups);
+    }
+    if (importedCustomSites.length) {
+      customSites = createNormalizedCustomSites(importedCustomSites);
+    }
+
+    await persistAll();
+    renderOtherSection();
+
+    if (activeSection === "groups") {
+      renderGroupsSection();
+    }
+    if (activeSection === "custom") {
+      renderCustomSection();
+    }
   }
 
   function createShortcutsPageHint() {
@@ -1223,6 +1338,9 @@
     const card = document.createElement("section");
     card.className = "other-settings-card about-plugin-card";
     card.innerHTML = `
+      <div class="other-settings-intro about-plugin-intro">
+        <strong>隐私与数据说明</strong>
+      </div>
       <div class="about-plugin-privacy" role="note">
         <p><strong>本地运行：</strong>是一个纯客户端工具，所有搜索逻辑均在您的浏览器本地执行。我们不运行任何后端服务器。</p>
         <p><strong>零数据收集：</strong>我们不会收集、上传或存储您的搜索关键词、历史记录或任何个人身份信息。</p>

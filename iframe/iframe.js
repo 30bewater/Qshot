@@ -8,8 +8,20 @@
     promptGroups: "promptGroups"
   };
 
+  const SITE_CATEGORIES = [
+    { id: "ai", label: "AI", builtinIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "perplexity", "grok"] },
+    { id: "other", label: "社媒", builtinIds: ["xiaohongshu", "bilibili", "zhihu", "douyin"] },
+    { id: "custom", label: "自定义", builtinIds: [] }
+  ];
+
+  // 本轮会话内保留的历史问答快照上限。每条快照包含所有当前卡片的完整回答文本，
+  // 单条可能几十 KB 起步，长会话下不设上限会让页面内存持续增长。
+  // 20 条足够覆盖绝大多数"连续追问 + 一次性导出"的场景。
+  const SESSION_SNAPSHOTS_MAX = 20;
+
   const state = {
     sites: [],
+    allSites: [],
     requestedSiteIds: null,
     hiddenSiteIds: new Set(),
     cardRefs: new Map(),
@@ -37,7 +49,16 @@
     isSending: false,
     sessionSnapshots: [],
     lastSearchQuery: null,
-    lastSearchTime: null
+    lastSearchTime: null,
+    isAddSitePickerOpen: false,
+    activeAddSiteCategory: "ai",
+    // 并发槽位系统：
+    //   loadingRefs：当前处于"加载中"（已赋 src、尚未 load/error/超时）的 ref 集合，
+    //                size 不会超过 BASE_CONFIG.iframeMaxConcurrent。
+    //   loadQueue ：已创建 iframe DOM 但尚未被允许赋 src 的 ref 队列，按入队顺序 FIFO。
+    // 每当 loadingRefs 里有 ref 完成/失败/超时时调用 pumpLoadQueue 从队列取下一个补位。
+    loadingRefs: new Set(),
+    loadQueue: []
   };
 
   const elements = {};
@@ -89,6 +110,13 @@
     elements.scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
     elements.scrollVertGroup = document.getElementById("scrollVertGroup");
     elements.newChatBtn = document.getElementById("newChatBtn");
+    elements.settingsBtn = document.getElementById("settingsBtn");
+    elements.addSiteBtn = document.getElementById("addSiteBtn");
+    elements.addSitePopover = document.getElementById("addSitePopover");
+    elements.addSiteTabs = document.getElementById("addSiteTabs");
+    elements.addSiteList = document.getElementById("addSiteList");
+    elements.closeAddSitePopoverBtn = document.getElementById("closeAddSitePopoverBtn");
+    elements.cardNavStrip = document.getElementById("cardNavStrip");
   }
 
   function bindEvents() {
@@ -277,10 +305,68 @@
         getScrollGuardDurationMs(state.cardRefs.size)
       );
 
+      // 新建对话会让所有卡片一起重新加载，这里显式走并发队列（immediate=false），
+      // 避免 N 张卡片同时冷启动打满 CPU。单张"刷新"按钮仍走立即路径（immediate=true）。
       state.cardRefs.forEach((ref) => {
-        refreshSiteCard(ref);
+        refreshSiteCard(ref, { immediate: false });
       });
+
+      // "新建对话"意味着所有卡片都已 reload，上一轮的对话在页面里已经不存在。
+      // 把本轮会话相关的内存状态也一起清掉：
+      //   - sessionSnapshots：之前各轮问答的快照，清掉避免导出时混入已不可见的旧对话
+      //   - lastSearchQuery / lastSearchTime：上次问题元信息，清掉避免导出标题显示陈旧问题
+      // 搜索历史（state.searchHistory）是持久化的用户资产，不在此清理。
+      state.sessionSnapshots = [];
+      state.lastSearchQuery = null;
+      state.lastSearchTime = null;
+      state.currentHistoryEntryId = null;
+
       setGlobalStatus("已新建对话，所有卡片已重置。");
+    });
+
+    elements.settingsBtn?.addEventListener("click", () => {
+      try {
+        chrome.runtime.sendMessage({ type: "OPEN_SETTINGS_PAGE" });
+      } catch (_error) {
+        window.open(chrome.runtime.getURL("settings/settings.html"), "_blank", "noopener,noreferrer");
+      }
+    });
+
+    elements.addSiteBtn?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleAddSitePicker();
+    });
+
+    // 在弹层上用 capture 阶段记录点击位置，避免子元素 click 时同步重渲染
+    // 导致 event.target 脱离 DOM，使外层 document 判定失真而误关闭弹层。
+    elements.addSitePopover?.addEventListener("mousedown", (event) => {
+      state._addSitePickerMouseInside = elements.addSitePopover.contains(event.target);
+    }, true);
+
+    elements.closeAddSitePopoverBtn?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeAddSitePicker();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!state.isAddSitePickerOpen || !elements.addSitePopover) {
+        return;
+      }
+      if (state._addSitePickerMouseInside) {
+        state._addSitePickerMouseInside = false;
+        return;
+      }
+      const insidePopover = elements.addSitePopover.contains(event.target);
+      const insideBtn = elements.addSiteBtn?.contains(event.target);
+      if (!insidePopover && !insideBtn) {
+        closeAddSitePicker();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && state.isAddSitePickerOpen) {
+        closeAddSitePicker();
+      }
     });
   }
 
@@ -398,6 +484,7 @@
     const builtinSites = (payload.sites || []).filter((site) => site.enabled !== false);
     const customSites = await loadCustomSitesFromStorage();
     const mergedSites = mergeSiteLists(builtinSites, customSites);
+    state.allSites = mergedSites;
     if (state.requestedSiteIds && state.requestedSiteIds.size > 0) {
       state.sites = mergedSites.filter((site) => state.requestedSiteIds.has(site.id));
     } else {
@@ -460,13 +547,11 @@
       return;
     }
 
-    // 错峰加载：按顺序每隔 STAGGER_MS 才为下一个 iframe 赋 src，
-    // 避免一次性 6~8 个重型 SPA（DeepSeek/Kimi/Gemini 等）同时初始化导致白屏。
-    const STAGGER_MS = (BASE_CONFIG.iframeStaggerMs != null)
-      ? BASE_CONFIG.iframeStaggerMs
-      : 120;
-    selectedSites.forEach((site, index) => {
-      const card = createSiteCard(site, index * STAGGER_MS);
+    // 多卡片场景下使用并发槽位系统（见 pumpLoadQueue）：
+    // 所有卡片先把 DOM 建出来插入容器并入队，由槽位系统按
+    // BASE_CONFIG.iframeMaxConcurrent 限流，避免 6~8 个重型 SPA 同时冷启动打满 CPU。
+    selectedSites.forEach((site) => {
+      const card = createSiteCard(site);
       if (isWideMediaSite(site.id)) {
         card.classList.add("iframe-card-wide-media");
       }
@@ -486,9 +571,10 @@
     elements.iframesContainer.scrollLeft = 0;
     elements.iframesContainer.scrollTop = 0;
     activateScrollGuard(0, 0, getScrollGuardDurationMs(selectedSites.length));
+    renderCardNavStrip();
   }
 
-  function createSiteCard(site, loadDelay = 0) {
+  function createSiteCard(site) {
     const card = document.createElement("article");
     card.className = "iframe-card";
     card.dataset.siteId = site.id;
@@ -559,6 +645,11 @@
     closeBtn.setAttribute("aria-label", "关闭这张卡片");
     closeBtn.addEventListener("click", () => {
       state.hiddenSiteIds.add(site.id);
+      // 先把本卡片尚未完成的派发全部清理掉：
+      // 1) state.pendingDispatches 里挂着的 setTimeout（默认最多 3 次 × 12s 重试 ≈ 36s）
+      // 2) sendSmartToSite 在"iframe 未加载完"时挂起的 pendingQueryResolver
+      // 如果不清，Promise.all 会一直 hang，handleSendSelected 的 isSending 解不开，UI 卡死。
+      abortPendingWorkForSite(site.id);
       const ref = state.cardRefs.get(site.id);
       if (ref?.cardEl) {
         ref.cardEl.remove();
@@ -578,6 +669,7 @@
         renderSiteNav();
       }
       ensureCardsNotEmpty();
+      renderCardNavStrip();
       setGlobalStatus(`已关闭 ${site.name} 卡片。`);
     });
 
@@ -600,11 +692,18 @@
       loaded: false,
       pendingQuery: "",
       pendingQueryResolver: null,
-      currentUrl: site.url
+      currentUrl: site.url,
+      // 本张卡片当前 iframe 相关的两个定时器：
+      //   loadDelayTimerId：错峰加载排队中，到点给 iframe 赋 src
+      //   fallbackTimerId：超过 embedTimeoutMs 仍未加载成功时切换到 fallback 页
+      // 刷新 / 关闭卡片时必须清理，否则旧 timer 会把新 iframe 踢掉或在已关闭卡片上跑。
+      loadDelayTimerId: null,
+      fallbackTimerId: null
     };
 
     state.cardRefs.set(site.id, ref);
-    createIframeBody(ref, loadDelay);
+    // 默认走并发队列（immediate=false）；调用方可通过 refreshSiteCard 传 immediate=true 走立即路径。
+    createIframeBody(ref);
 
     card.appendChild(title);
     card.appendChild(body);
@@ -612,34 +711,153 @@
     return card;
   }
 
-  function refreshSiteCard(ref) {
+  function refreshSiteCard(ref, options = {}) {
+    // immediate=true（默认）：单卡片主动刷新，立即加载、不受并发槽位限制。
+    // immediate=false：  批量刷新（例如"新建对话"），统一走并发队列，避免所有卡片同时冷启动。
+    const { immediate = true } = options;
     ref.loaded = false;
     ref.pendingQuery = "";
     ref.pendingQueryResolver = null;
     ref.iframeEl = null;
-    createIframeBody(ref);
+    createIframeBody(ref, { immediate });
     setSiteStatus(ref.site.id, "正在重新加载…");
   }
 
-  function createIframeBody(ref, loadDelay = 0) {
+  // 统一清理 ref 上的 load-delay 和 fallback 定时器。
+  // 在重建 iframe（刷新 / 换 src）或关闭卡片之前必须调用一次，
+  // 否则旧 iframe 的 fallback timer 会在 ~25s 后触发，把新 iframe 直接踢成 fallback 面板。
+  function clearIframeTimers(ref) {
+    if (!ref) return;
+    if (ref.loadDelayTimerId) {
+      window.clearTimeout(ref.loadDelayTimerId);
+      ref.loadDelayTimerId = null;
+    }
+    if (ref.fallbackTimerId) {
+      window.clearTimeout(ref.fallbackTimerId);
+      ref.fallbackTimerId = null;
+    }
+  }
+
+  // ── 并发槽位系统 ──
+  // 目标：同一时刻最多允许 BASE_CONFIG.iframeMaxConcurrent 张 iframe 真正在加载。
+  // - enqueueLoad(ref)：入队，尝试立即补位
+  // - pumpLoadQueue()  ：当槽位空闲时，从队首取 ref 调用 beginIframeLoad
+  // - beginIframeLoad(ref)：真正给 iframe 赋 src 并启动 fallback 定时器
+  // - releaseLoadSlot(ref)：ref 加载完成/失败/超时时释放槽位，触发下一个
+  // - removeFromLoadQueue(ref)：从队列中移除（关闭卡片 / 重建前使用）
+
+  function enqueueLoad(ref) {
+    if (!ref) return;
+    if (state.loadingRefs.has(ref)) return;
+    if (state.loadQueue.indexOf(ref) >= 0) return;
+    state.loadQueue.push(ref);
+    setSiteStatus(ref.site.id, "等待加载中…");
+    pumpLoadQueue();
+  }
+
+  function pumpLoadQueue() {
+    const max = Math.max(1, BASE_CONFIG.iframeMaxConcurrent | 0 || 3);
+    const staggerMs = (BASE_CONFIG.iframeStaggerMs != null) ? BASE_CONFIG.iframeStaggerMs : 120;
+    // 本次"补位批"内部仍然保留微小错峰，避免同一 tick 多个一起赋 src。
+    let batchDelay = 0;
+    while (state.loadingRefs.size < max && state.loadQueue.length > 0) {
+      const next = state.loadQueue.shift();
+      // ref 可能在排队期间被关闭、被重建：跳过无效项。
+      if (!next || !next.iframeEl || !state.cardRefs.has(next.site.id)) {
+        continue;
+      }
+      state.loadingRefs.add(next);
+      if (batchDelay === 0) {
+        beginIframeLoad(next);
+      } else {
+        const target = next;
+        window.setTimeout(() => {
+          // 延迟到点时再校验一遍，期间可能已被关闭/刷新。
+          if (state.loadingRefs.has(target) && target.iframeEl) {
+            beginIframeLoad(target);
+          }
+        }, batchDelay);
+      }
+      batchDelay += staggerMs;
+    }
+  }
+
+  function releaseLoadSlot(ref) {
+    if (!ref) return;
+    if (state.loadingRefs.has(ref)) {
+      state.loadingRefs.delete(ref);
+    }
+    pumpLoadQueue();
+  }
+
+  function removeFromLoadQueue(ref) {
+    const idx = state.loadQueue.indexOf(ref);
+    if (idx >= 0) {
+      state.loadQueue.splice(idx, 1);
+    }
+  }
+
+  // 真正给 iframe 赋 src 并启动 fallback 定时器。
+  // 仅由 enqueueLoad → pumpLoadQueue 驱动，或由 immediate 路径直接调用。
+  function beginIframeLoad(ref) {
+    const iframe = ref?.iframeEl;
+    const targetSrc = ref?._targetSrc;
+    if (!iframe || !targetSrc) return;
+    // 极端情况下 ref 可能在排队期间被替换成新 iframe，这里以当前 iframeEl 为准。
+    iframe.src = targetSrc;
+    setSiteStatus(ref.site.id, "正在加载…");
+
+    // fallback 超时从"真正开始加载"的时刻算起，和是否排过队无关。
+    const timeoutMs = BASE_CONFIG.embedTimeoutMs || 18000;
+    ref.fallbackTimerId = window.setTimeout(() => {
+      ref.fallbackTimerId = null;
+      if (!ref._loadState?.resolved && ref.iframeEl === iframe) {
+        // 超时也算一次"结束"，释放槽位让队列继续前进。
+        releaseLoadSlot(ref);
+        renderFallback(ref, "站点未能在限定时间内完成 iframe 加载。可能仍被目标站点限制嵌入。");
+      }
+    }, timeoutMs);
+  }
+
+  function createIframeBody(ref, options = {}) {
+    // immediate=true：绕过并发槽位直接加载（用户主动刷新等场景）。
+    // immediate=false（默认）：走队列，受 iframeMaxConcurrent 限制。
+    const { immediate = false } = options;
+
+    // 重建 iframe 之前，先把本 ref 的所有历史"挂件"都清理干净：
+    //   1) load-delay / fallback 定时器
+    //   2) 如果还在排队 / 加载中，把槽位释放掉
+    clearIframeTimers(ref);
+    removeFromLoadQueue(ref);
+    if (state.loadingRefs.has(ref)) {
+      state.loadingRefs.delete(ref);
+      // 这一次不立即 pump：下面会把新 iframe 加回队列（或直接加载），
+      // 避免在同一 tick 里先释放再占用造成短暂的"空转补位"。
+    }
+
     const iframe = document.createElement("iframe");
     iframe.className = "ai-iframe";
     iframe.dataset.siteId = ref.site.id;
     iframe.loading = "eager";
     iframe.allow = "clipboard-read; clipboard-write; microphone; camera; geolocation; autoplay; fullscreen; picture-in-picture; storage-access; web-share";
 
-    let resolved = false;
-    const targetSrc = buildSiteUrl(ref.site, "");
+    const loadState = { resolved: false };
+    ref._loadState = loadState;
+    ref._targetSrc = buildSiteUrl(ref.site, "");
 
     iframe.addEventListener("load", () => {
-      // 过滤掉 about:blank 的初始加载（iframe 无 src 插入 DOM 时浏览器会立即触发一次 load）
+      // 守卫 1：iframe 可能已被替换（刷新 / 关闭），当前 ref 不再持有这张 iframe 就忽略。
+      if (ref.iframeEl !== iframe) return;
+      // 守卫 2：过滤掉 about:blank 的初始 load 事件。
       const currentSrc = iframe.src || "";
       if (!currentSrc || currentSrc === "about:blank") {
         return;
       }
-      resolved = true;
+      loadState.resolved = true;
       ref.loaded = true;
       ref.currentUrl = currentSrc;
+      clearIframeTimers(ref);
+      releaseLoadSlot(ref);
       setSiteStatus(ref.site.id, "iframe 已加载，可直接在卡片内操作。");
 
       if (ref.pendingQuery) {
@@ -657,40 +875,32 @@
     });
 
     iframe.addEventListener("error", () => {
-      if (!resolved) {
-        resolved = true;
+      if (ref.iframeEl !== iframe) return;
+      if (!loadState.resolved) {
+        loadState.resolved = true;
+        clearIframeTimers(ref);
+        releaseLoadSlot(ref);
         renderFallback(ref, "加载失败，目标站点未响应或拒绝了连接。");
       }
     });
 
-    if (loadDelay > 0) {
-      // 有延迟：先插入 DOM（不设 src），延迟后再赋 src
-      ref.bodyEl.innerHTML = "";
-      ref.bodyEl.appendChild(iframe);
-      ref.iframeEl = iframe;
-      setSiteStatus(ref.site.id, "等待加载中…");
-      setTimeout(() => {
-        if (ref.iframeEl === iframe) {
-          iframe.src = targetSrc;
-        }
-      }, loadDelay);
-    } else {
-      // 无延迟：先设 src 再插入 DOM，避免触发 about:blank 的 load 事件
-      iframe.src = targetSrc;
-      ref.bodyEl.innerHTML = "";
-      ref.bodyEl.appendChild(iframe);
-      ref.iframeEl = iframe;
-    }
+    // 先把 iframe 节点插入 DOM（不赋 src），再决定走立即加载还是入队。
+    ref.bodyEl.innerHTML = "";
+    ref.bodyEl.appendChild(iframe);
+    ref.iframeEl = iframe;
 
-    const timeoutMs = (BASE_CONFIG.embedTimeoutMs || 18000) + loadDelay;
-    setTimeout(() => {
-      if (!resolved) {
-        renderFallback(ref, "站点未能在限定时间内完成 iframe 加载。可能仍被目标站点限制嵌入。");
-      }
-    }, timeoutMs);
+    if (immediate) {
+      // 立即加载路径不占用普通槽位，用户主动操作瞬时突破上限是可接受的。
+      state.loadingRefs.add(ref);
+      beginIframeLoad(ref);
+    } else {
+      enqueueLoad(ref);
+    }
   }
 
   function renderFallback(ref, message) {
+    // 进入 fallback 意味着当前 iframe 已作废，同时收掉本张卡片残留的加载/超时定时器。
+    clearIframeTimers(ref);
     ref.bodyEl.innerHTML = `
       <div class="fallback-panel">
         <div class="warning-box">
@@ -708,7 +918,8 @@
     const retryButton = ref.bodyEl.querySelector("[data-retry-load]");
     if (retryButton) {
       retryButton.addEventListener("click", () => {
-        createIframeBody(ref);
+        // 用户主动点击"重新加载"：走立即路径，不受并发上限限制。
+        createIframeBody(ref, { immediate: true });
         setSiteStatus(ref.site.id, "正在重新加载…");
       });
     }
@@ -758,6 +969,10 @@
             time: state.lastSearchTime,
             responses: prevResponses
           });
+          // 超过上限则丢弃最旧的快照，防止长会话内存无限增长。
+          if (state.sessionSnapshots.length > SESSION_SNAPSHOTS_MAX) {
+            state.sessionSnapshots = state.sessionSnapshots.slice(-SESSION_SNAPSHOTS_MAX);
+          }
         } catch (_snapErr) {
           // 快照失败不阻断发送流程
         }
@@ -911,14 +1126,18 @@
       return;
     }
 
+    // 安全校验：消息必须来自我们已登记的某张卡片的 iframe，且 payload.siteId 要与该卡片匹配。
+    // 这样可以阻止第三方内嵌广告 / 跨站 iframe 伪造 URL_UPDATE / RESULT 污染 UI 或历史记录。
+    const ref = findCardRefByMessageSource(event.source);
+    if (!ref || ref.site.id !== payload.siteId) {
+      return;
+    }
+
     if (payload.type === "AI_COMPARE_URL_UPDATE") {
-      const ref = state.cardRefs.get(payload.siteId);
-      if (ref) {
-        ref.injectedPinged = true;
-        if (payload.currentUrl) {
-          ref.currentUrl = payload.currentUrl;
-          updateLatestHistoryUrl(payload.siteId, payload.currentUrl);
-        }
+      ref.injectedPinged = true;
+      if (payload.currentUrl) {
+        ref.currentUrl = payload.currentUrl;
+        updateLatestHistoryUrl(payload.siteId, payload.currentUrl);
       }
       return;
     }
@@ -936,6 +1155,20 @@
     } else {
       setSiteStatus(payload.siteId, payload.error || "iframe 页面处理失败。", "error");
     }
+  }
+
+  // 遍历当前活跃的卡片，找到 contentWindow === source 的那一张。
+  // 注意：AI 站点内部的 sub-iframe 发来的消息，source 会是那个内部 window，
+  // 匹配不上我们的 ref.iframeEl.contentWindow，会被直接丢弃——这正是我们要的。
+  function findCardRefByMessageSource(source) {
+    if (!source) return null;
+    for (const ref of state.cardRefs.values()) {
+      const win = ref.iframeEl && ref.iframeEl.contentWindow;
+      if (win && win === source) {
+        return ref;
+      }
+    }
+    return null;
   }
 
   function setSiteStatus(siteId, message, kind = "info") {
@@ -1116,6 +1349,58 @@
     }
   }
 
+  // 顶部卡片导航条：显示当前页面所有卡片，一键滚动到对应卡片。
+  // 不做"当前所在页"的高亮追踪，按钮只在 hover 时才会显黑底，避免滚动时色块乱跳。
+  function renderCardNavStrip() {
+    const strip = elements.cardNavStrip;
+    if (!strip) return;
+
+    strip.innerHTML = "";
+
+    const visibleSites = getSelectedSites().filter((site) => state.cardRefs.has(site.id));
+    if (visibleSites.length <= 1) {
+      return;
+    }
+
+    visibleSites.forEach((site) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "card-nav-chip";
+      chip.dataset.siteId = site.id;
+      chip.textContent = site.name;
+      chip.addEventListener("click", (event) => {
+        event.stopPropagation();
+        scrollToCard(site.id);
+      });
+      strip.appendChild(chip);
+    });
+  }
+
+  function scrollToCard(siteId) {
+    const ref = state.cardRefs.get(siteId);
+    if (!ref?.cardEl) return;
+
+    if (state.layoutMode === "sidebar") {
+      activateSidebarSite(siteId);
+      return;
+    }
+
+    const card = ref.cardEl;
+    const container = elements.iframesContainer;
+    if (!container) return;
+
+    const cardRect = card.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    if (state.layoutRows === 1) {
+      const target = container.scrollLeft + (cardRect.left - containerRect.left) - 12;
+      container.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+    } else {
+      const target = container.scrollTop + (cardRect.top - containerRect.top) - 12;
+      container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+    }
+  }
+
   function openHistoryPanel() {
     elements.historyPanel.classList.add("is-open");
   }
@@ -1169,6 +1454,142 @@
     state.isPromptPickerOpen = false;
     if (_iframePreviewMgr) _iframePreviewMgr.hide();
     renderPromptPicker();
+  }
+
+  // ── 临时添加卡片（+）选择器 ──
+  function toggleAddSitePicker() {
+    if (state.isAddSitePickerOpen) {
+      closeAddSitePicker();
+      return;
+    }
+    state.isAddSitePickerOpen = true;
+    elements.addSiteBtn?.setAttribute("aria-expanded", "true");
+    if (elements.addSitePopover) {
+      elements.addSitePopover.hidden = false;
+    }
+    renderAddSitePicker();
+  }
+
+  function closeAddSitePicker() {
+    if (!state.isAddSitePickerOpen) {
+      return;
+    }
+    state.isAddSitePickerOpen = false;
+    elements.addSiteBtn?.setAttribute("aria-expanded", "false");
+    if (elements.addSitePopover) {
+      elements.addSitePopover.hidden = true;
+    }
+  }
+
+  function getSitesForCategory(categoryId) {
+    if (!Array.isArray(state.allSites) || state.allSites.length === 0) {
+      return [];
+    }
+    if (categoryId === "custom") {
+      return state.allSites.filter((s) => s && s.isCustom);
+    }
+    const category = SITE_CATEGORIES.find((c) => c.id === categoryId);
+    const ids = new Set(category?.builtinIds || []);
+    const byId = new Map(state.allSites.map((s) => [s.id, s]));
+    return Array.from(ids).map((id) => byId.get(id)).filter(Boolean);
+  }
+
+  function renderAddSitePicker() {
+    if (!elements.addSiteTabs || !elements.addSiteList) {
+      return;
+    }
+
+    elements.addSiteTabs.innerHTML = "";
+    SITE_CATEGORIES.forEach((category) => {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = `add-site-tab${state.activeAddSiteCategory === category.id ? " is-active" : ""}`;
+      tab.textContent = category.label;
+      tab.addEventListener("click", (event) => {
+        event.stopPropagation();
+        state.activeAddSiteCategory = category.id;
+        renderAddSitePicker();
+      });
+      elements.addSiteTabs.appendChild(tab);
+    });
+
+    elements.addSiteList.innerHTML = "";
+    const sites = getSitesForCategory(state.activeAddSiteCategory);
+    if (sites.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "add-site-empty";
+      empty.textContent = state.activeAddSiteCategory === "custom"
+        ? "还没有自定义站点，前往设置页添加。"
+        : "暂无可添加的站点。";
+      elements.addSiteList.appendChild(empty);
+      return;
+    }
+
+    sites.forEach((site) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "add-site-chip";
+      const isAlreadyActive = state.cardRefs.has(site.id);
+      if (isAlreadyActive) {
+        chip.classList.add("is-active");
+        chip.title = "该卡片已在页面中";
+      }
+      chip.textContent = site.name || site.id;
+      chip.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (state.cardRefs.has(site.id)) {
+          return;
+        }
+        addSiteCardToPage(site);
+        renderAddSitePicker();
+      });
+      elements.addSiteList.appendChild(chip);
+    });
+  }
+
+  function addSiteCardToPage(site) {
+    if (!site || !site.id) {
+      return;
+    }
+
+    state.hiddenSiteIds.delete(site.id);
+
+    if (state.cardRefs.has(site.id)) {
+      setGlobalStatus(`${site.name} 卡片已在页面中。`);
+      return;
+    }
+
+    if (!state.sites.some((s) => s.id === site.id)) {
+      state.sites = [...state.sites, site];
+    }
+
+    const emptyState = elements.iframesContainer.querySelector(".empty-state");
+    if (emptyState) {
+      emptyState.remove();
+    }
+
+    const card = createSiteCard(site);
+    if (isWideMediaSite(site.id)) {
+      card.classList.add("iframe-card-wide-media");
+    }
+    elements.iframesContainer.appendChild(card);
+
+    if (state.layoutMode === "sidebar") {
+      state.activeSidebarSiteId = site.id;
+      state.cardRefs.forEach((ref, siteId) => {
+        if (ref.cardEl) ref.cardEl.hidden = siteId !== state.activeSidebarSiteId;
+      });
+      renderSiteNav();
+    }
+
+    activateScrollGuard(
+      elements.iframesContainer.scrollLeft,
+      elements.iframesContainer.scrollTop,
+      getScrollGuardDurationMs(1)
+    );
+    updateScrollEdgeBtns();
+    renderCardNavStrip();
+    setGlobalStatus(`已在当前页面临时添加 ${site.name} 卡片。`);
   }
 
   // ── 编辑弹窗 ──
@@ -1542,7 +1963,13 @@
       return;
     }
 
-    const selectedSiteIds = new Set(Array.from(state.cardRefs.keys()));
+    const aiSiteIds = new Set(
+      (SITE_CATEGORIES.find((c) => c.id === "ai")?.builtinIds) || []
+    );
+    const exportableRefs = Array.from(state.cardRefs.values()).filter((ref) =>
+      aiSiteIds.has(ref?.site?.id)
+    );
+    const selectedSiteIds = new Set(exportableRefs.map((ref) => ref.site.id));
     let selectedFormat = "markdown";
 
     const modal = document.createElement("div");
@@ -1554,7 +1981,7 @@
           <h3 class="export-modal-title">导出对话结果</h3>
           <button class="export-close-btn" type="button" aria-label="关闭"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
-        <div class="export-notice">将读取各卡片当前已加载的 AI 回答内容，结果取决于页面加载状态。<br>此功能还处于测试阶段，可能存在内容提取不完整或格式异常等问题。</div>
+        <div class="export-notice">将读取各卡片当前已加载的 AI 回答内容，结果取决于页面加载状态。<br>此功能还处于测试阶段，可能存在内容提取不完整或格式异常等问题。<br>仅支持 AI 模型对话导出。</div>
         <div class="export-modal-body">
           <div class="export-section">
             <div class="export-section-title">导出格式</div>
@@ -1579,25 +2006,32 @@
 
     const siteList = modal.querySelector(".export-site-list");
 
-    Array.from(state.cardRefs.values()).forEach((ref) => {
-      const row = document.createElement("label");
-      row.className = "export-site-item";
-      row.innerHTML = `
-        <input type="checkbox" checked data-site-id="${escapeHtml(ref.site.id)}" />
-        <span>${escapeHtml(ref.site.name)}</span>
-      `;
+    if (exportableRefs.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "export-site-empty";
+      empty.textContent = "当前页面没有可导出的 AI 模型卡片。";
+      siteList.appendChild(empty);
+    } else {
+      exportableRefs.forEach((ref) => {
+        const row = document.createElement("label");
+        row.className = "export-site-item";
+        row.innerHTML = `
+          <input type="checkbox" checked data-site-id="${escapeHtml(ref.site.id)}" />
+          <span>${escapeHtml(ref.site.name)}</span>
+        `;
 
-      const checkbox = row.querySelector("input");
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          selectedSiteIds.add(ref.site.id);
-        } else {
-          selectedSiteIds.delete(ref.site.id);
-        }
+        const checkbox = row.querySelector("input");
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            selectedSiteIds.add(ref.site.id);
+          } else {
+            selectedSiteIds.delete(ref.site.id);
+          }
+        });
+
+        siteList.appendChild(row);
       });
-
-      siteList.appendChild(row);
-    });
+    }
 
     modal.querySelectorAll("[data-export-format]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -1705,8 +2139,18 @@
   function requestIframeContent(iframe, site) {
     return new Promise((resolve) => {
       const requestId = createRequestId();
+      // 在闭包里快照 contentWindow，后续 event 校验一律对照这个快照做来源判定。
+      // 为什么不在 handler 里每次读 iframe.contentWindow：iframe 被 detach 后它会变 null，
+      // 那样任何 event.source 都会 !== null 而通过校验，反而变成"零校验"。
+      const expectedWindow = iframe.contentWindow;
 
       const handler = (event) => {
+        // ── 安全校验：只接受来自本次提取目标 iframe 的回执 ──
+        // requestId 是 UUID/随机串，单靠它虽然攻击者难猜，但同页面里其它卡片/广告 iframe
+        // 仍然可能监听到消息模式后向本对比页发伪造的 AI_COMPARE_EXTRACT_RESULT，
+        // 从而把导出 / 剪贴板 / 摘要里的内容替换成攻击者写的字符串。
+        // 加 event.source 白名单后，即便攻击者抢先回消息，也会因 source 不匹配被丢弃。
+        if (event.source !== expectedWindow) return;
         if (!event.data || event.data.type !== "AI_COMPARE_EXTRACT_RESULT" || event.data.requestId !== requestId) {
           return;
         }
@@ -2123,6 +2567,50 @@
     state.pendingDispatches.delete(requestId);
     restoreLockedScrollPosition();
     pendingDispatch.resolve(result);
+  }
+
+  // 卡片被关闭时调用：
+  // 1) 取消本站点在 pendingDispatches 里所有尚未完成的 setTimeout 重试，并 resolve 对应 Promise。
+  // 2) 如果 sendSmartToSite 在等待 iframe 加载完（pendingQueryResolver 未执行），也一并 resolve，
+  //    避免 handleSendSelected 里的 Promise.all 永不完成、state.isSending 卡在 true。
+  function abortPendingWorkForSite(siteId) {
+    const toCancel = [];
+    state.pendingDispatches.forEach((pending, requestId) => {
+      if (pending?.ref?.site?.id === siteId) {
+        toCancel.push(requestId);
+      }
+    });
+    toCancel.forEach((requestId) => {
+      finalizePendingDispatch(requestId, {
+        ok: false,
+        siteId,
+        error: "卡片已关闭"
+      });
+    });
+
+    const ref = state.cardRefs.get(siteId);
+    if (ref?.pendingQueryResolver) {
+      const resolver = ref.pendingQueryResolver;
+      ref.pendingQueryResolver = null;
+      ref.pendingQuery = "";
+      try {
+        resolver({ ok: false, siteId, error: "卡片已关闭" });
+      } catch (_e) {
+        /* resolver 异常不影响关闭流程 */
+      }
+    }
+    // 顺带收掉本张卡片 iframe 相关的延迟加载 / 超时回退定时器，
+    // 避免关闭卡片后 25s 内仍触发 renderFallback 操作已 detach 的 DOM。
+    clearIframeTimers(ref);
+    // 从并发队列和加载中集合里移除这张卡片；如果它原本占着一个槽位，
+    // 释放后立刻 pumpLoadQueue 让后面排队的卡片补上。
+    if (ref) {
+      removeFromLoadQueue(ref);
+      if (state.loadingRefs.has(ref)) {
+        state.loadingRefs.delete(ref);
+        pumpLoadQueue();
+      }
+    }
   }
 
   function createRequestId() {

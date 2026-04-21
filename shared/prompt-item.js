@@ -158,12 +158,19 @@
         cardEl.className = 'qshot-preview-card';
         cardEl.hidden = true;
         cardEl.addEventListener('mouseenter', () => {
-          if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+          cancelHide();
         });
         cardEl.addEventListener('mouseleave', () => scheduleHide());
         host.appendChild(cardEl);
       }
       return cardEl;
+    }
+
+    function cancelHide() {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
     }
 
     /**
@@ -172,7 +179,7 @@
      * @param {{ onEdit?: (p:any)=>void }} [opts]
      */
     function show(anchorEl, prompt, opts) {
-      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      cancelHide();
       const card = ensureCard();
       card.innerHTML = '';
       currentPrompt = prompt;
@@ -271,14 +278,14 @@
     }
 
     function hide() {
-      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      cancelHide();
       if (cardEl) cardEl.hidden = true;
       currentOnEdit = null;
       currentPrompt = null;
     }
 
     function scheduleHide() {
-      if (hideTimer) { clearTimeout(hideTimer); }
+      cancelHide();
       hideTimer = setTimeout(() => hide(), 260);
     }
 
@@ -288,7 +295,7 @@
       cardEl = null;
     }
 
-    return { show, hide, scheduleHide, destroy };
+    return { show, hide, scheduleHide, cancelHide, destroy };
   }
 
   // ── 提示词条目工厂 ──────────────────────────────────────────────────────────
@@ -334,13 +341,20 @@
     eyeBtn.title = '预览';
     eyeBtn.innerHTML = _EYE;
     if (previewManager) {
-      eyeBtn.addEventListener('mouseenter', () => {
+      const showPreview = () => {
+        previewManager.cancelHide?.();
         previewManager.show(eyeBtn, prompt, { onEdit });
-      });
-      eyeBtn.addEventListener('mouseleave', () => previewManager.scheduleHide());
+      };
+      const hidePreview = () => previewManager.scheduleHide();
+      eyeBtn.addEventListener('mouseenter', showPreview);
+      eyeBtn.addEventListener('pointerenter', showPreview);
+      eyeBtn.addEventListener('focus', showPreview);
+      eyeBtn.addEventListener('mouseleave', hidePreview);
+      eyeBtn.addEventListener('pointerleave', hidePreview);
+      eyeBtn.addEventListener('blur', hidePreview);
       eyeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        previewManager.show(eyeBtn, prompt, { onEdit });
+        showPreview();
       });
     }
 

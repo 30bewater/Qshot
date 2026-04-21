@@ -32,36 +32,7 @@
               "textarea"
             ],
             "inputType": "auto",
-            "waitAfter": 80,
-            "description": "写入查询内容，等待 React 状态更新"
-          },
-          {
-            "action": "triggerEvents",
-            "selectors": [
-              "#prompt-textarea",
-              "div[contenteditable='true']",
-              "textarea"
-            ],
-            "events": [
-              "input",
-              "change"
-            ],
-            "description": "触发输入事件"
-          },
-          {
-            "action": "wait",
-            "duration": 80,
-            "description": "等待发送按钮激活"
-          },
-          {
-            "action": "click",
-            "selectors": [
-              "button[data-testid='send-button']",
-              "button[aria-label*='Send']",
-              "button[aria-label*='发送']"
-            ],
-            "optional": true,
-            "description": "尝试点击发送按钮"
+            "description": "写入查询内容（execCommand insertText 会派发原生 input 事件同步 React 状态）"
           },
           {
             "action": "smartSubmit",
@@ -76,8 +47,8 @@
               "button[aria-label*='发送']",
               "button[type='submit']"
             ],
-            "optional": true,
-            "description": "smartSubmit 兜底发送"
+            "submitWaitMs": 3000,
+            "description": "轮询发送按钮由 aria-disabled 切换为可用后立即点击（ChatGPT 冷启动水合较慢，等长一点）"
           },
           {
             "action": "sendKeys",
@@ -129,30 +100,20 @@
             "inputType": "auto"
           },
           {
-            "action": "triggerEvents",
+            "action": "smartSubmit",
             "selectors": [
               "textarea",
-              "div[contenteditable='true']",
-              "[placeholder*='发送']",
-              "[placeholder*='问点']"
+              "div[contenteditable='true']"
             ],
-            "events": [
-              "input",
-              "change"
-            ]
-          },
-          {
-            "action": "wait",
-            "duration": 60
-          },
-          {
-            "action": "click",
-            "selectors": [
+            "submitSelectors": [
               "button[type='submit']",
               "button[aria-label*='Send']",
-              "button[aria-label*='发送']"
+              "button[aria-label*='发送']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']",
+              "div[role='button'][tabindex='0']"
             ],
-            "optional": true
+            "submitWaitMs": 1500
           },
           {
             "action": "sendKeys",
@@ -201,44 +162,12 @@
             "inputType": "auto"
           },
           {
-            "action": "triggerEvents",
-            "selectors": [
-              "div.chat-input-editor[contenteditable='true']",
-              "[data-lexical-editor='true'][contenteditable='true']",
-              "textarea",
-              "div[contenteditable='true']"
-            ],
-            "events": [
-              "input",
-              "change"
-            ]
-          },
-          {
-            "action": "wait",
-            "duration": 60
-          },
-          {
-            "action": "click",
-            "selectors": [
-              "button[type='submit']",
-              "button[aria-label*='发送']",
-              "button[aria-label*='Send']",
-              "button[title*='发送']",
-              "button[title*='Send']",
-              "[role='button'][aria-label*='发送']",
-              "[role='button'][aria-label*='Send']"
-            ],
-            "optional": true
-          },
-          {
             "action": "smartSubmit",
             "selectors": [
               "div.chat-input-editor[contenteditable='true']",
               "[data-lexical-editor='true'][contenteditable='true']",
               "textarea",
-              "div[contenteditable='true']",
-              "[placeholder*='发送']",
-              "[placeholder*='问点']"
+              "div[contenteditable='true']"
             ],
             "submitSelectors": [
               "button[type='submit']",
@@ -248,9 +177,9 @@
               "button[title*='Send']",
               "[role='button'][aria-label*='发送']",
               "[role='button'][aria-label*='Send']",
-              "div[role='button'][tabindex='0']",
-              "button:not([disabled]) svg"
-            ]
+              "div[role='button'][tabindex='0']"
+            ],
+            "submitWaitMs": 1500
           },
           {
             "action": "sendKeys",
@@ -384,28 +313,21 @@
             "inputType": "auto"
           },
           {
-            "action": "triggerEvents",
+            "action": "smartSubmit",
             "selectors": [
               "textarea",
               "div[contenteditable='true']"
             ],
-            "events": [
-              "input",
-              "change"
-            ]
-          },
-          {
-            "action": "wait",
-            "duration": 60
-          },
-          {
-            "action": "click",
-            "selectors": [
+            "submitSelectors": [
               "button[type='submit']",
               "button[aria-label*='发送']",
-              "button[aria-label*='Send']"
+              "button[aria-label*='Send']",
+              "button[data-testid*='send']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']",
+              "div[role='button'][tabindex='0']"
             ],
-            "optional": true
+            "submitWaitMs": 1500
           },
           {
             "action": "sendKeys",
@@ -437,50 +359,48 @@
           {
             "action": "focus",
             "selectors": [
+              "div[contenteditable='true'].ql-editor",
               "div[contenteditable='true']",
+              "rich-textarea div[contenteditable='true']",
               "textarea"
             ]
           },
           {
             "action": "setValue",
             "selectors": [
+              "div[contenteditable='true'].ql-editor",
               "div[contenteditable='true']",
+              "rich-textarea div[contenteditable='true']",
               "textarea"
             ],
             "inputType": "auto"
           },
           {
-            "action": "triggerEvents",
-            "selectors": [
-              "div[contenteditable='true']",
-              "textarea"
-            ],
-            "events": [
-              "input",
-              "change"
-            ]
-          },
-          {
-            "action": "wait",
-            "duration": 60
-          },
-          {
             "action": "smartSubmit",
             "selectors": [
+              "div[contenteditable='true'].ql-editor",
               "div[contenteditable='true']",
               "textarea"
             ],
             "submitSelectors": [
+              "button.send-button",
+              "button[aria-label='Send message']",
+              "button[aria-label*='Send message']",
+              "button[mattooltip*='Send']",
+              "button[data-test-id*='send']",
+              "send-button button",
               "button[type='submit']",
               "button[aria-label*='Send']",
               "button[aria-label*='发送']",
               "[role='button'][aria-label*='Send']",
               "[role='button'][aria-label*='发送']"
-            ]
+            ],
+            "submitWaitMs": 2000
           },
           {
             "action": "sendKeys",
             "selectors": [
+              "div[contenteditable='true'].ql-editor",
               "div[contenteditable='true']",
               "textarea"
             ],

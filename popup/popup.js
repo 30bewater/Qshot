@@ -132,6 +132,11 @@
       return;
     }
 
+    if (changes[CUSTOM_SITES_STORAGE_KEY]) {
+      await refreshAllSites();
+      await refreshGroups();
+    }
+
     if (changes[SEARCH_GROUPS_STORAGE_KEY]) {
       await refreshGroups();
     }
@@ -182,14 +187,11 @@
       button.type = "button";
       button.innerHTML = `<span class="popup-group-name">${escapeHtml(group.name)}</span>`;
 
-      const siteNames = (group.siteIds || [])
-        .map((id) => allSites.find((s) => s.id === id)?.name)
-        .filter(Boolean)
-        .join("、");
+      const groupSites = getGroupSites(group);
 
-      if (siteNames) {
-        button.addEventListener("mouseenter", () => showGroupTooltip(button, siteNames));
-        button.addEventListener("mouseleave", () => hideGroupTooltip());
+      if (groupSites.length) {
+        button.addEventListener("mouseenter", () => showGroupTooltip(button, groupSites));
+        button.addEventListener("mouseleave", () => scheduleHideGroupTooltip());
       }
 
       button.addEventListener("click", async () => {
@@ -203,21 +205,43 @@
   // ── 搜索组 tooltip ──
   let _groupTooltipEl = null;
   let _groupTooltipTimer = null;
+  let _groupTooltipHideTimer = null;
 
   function getOrCreateGroupTooltip() {
     if (!_groupTooltipEl) {
       _groupTooltipEl = document.createElement("div");
       _groupTooltipEl.className = "group-tooltip";
+      _groupTooltipEl.addEventListener("mouseenter", () => {
+        if (_groupTooltipHideTimer) {
+          clearTimeout(_groupTooltipHideTimer);
+          _groupTooltipHideTimer = null;
+        }
+      });
+      _groupTooltipEl.addEventListener("mouseleave", () => {
+        scheduleHideGroupTooltip();
+      });
       document.body.appendChild(_groupTooltipEl);
     }
     return _groupTooltipEl;
   }
 
-  function showGroupTooltip(button, siteNames) {
+  function getGroupSites(group) {
+    return (group.siteIds || [])
+      .map((id) => allSites.find((site) => site.id === id))
+      .filter((site) => site && normalizeSiteHomeUrl(site.url))
+      .map((site) => ({
+        id: site.id,
+        name: site.name || site.id,
+        url: normalizeSiteHomeUrl(site.url)
+      }));
+  }
+
+  function showGroupTooltip(button, sites) {
     if (_groupTooltipTimer) { clearTimeout(_groupTooltipTimer); _groupTooltipTimer = null; }
+    if (_groupTooltipHideTimer) { clearTimeout(_groupTooltipHideTimer); _groupTooltipHideTimer = null; }
     _groupTooltipTimer = setTimeout(() => {
       const tooltip = getOrCreateGroupTooltip();
-      tooltip.textContent = siteNames;
+      renderGroupTooltipSites(tooltip, sites);
       tooltip.style.display = "block";
       requestAnimationFrame(() => {
         const btnRect = button.getBoundingClientRect();
@@ -226,18 +250,85 @@
         let left = btnRect.left + btnRect.width / 2 - tooltipW / 2;
         if (left < 4) left = 4;
         if (left + tooltipW > window.innerWidth - 4) left = window.innerWidth - tooltipW - 4;
-        const top = btnRect.top - tooltipH - 6;
+        let top = btnRect.top - tooltipH - 8;
+        if (top < 4) {
+          top = btnRect.bottom + 8;
+        }
         tooltip.style.left = `${left}px`;
         tooltip.style.top = `${top}px`;
       });
-    }, 1000);
+    }, 450);
   }
 
   function hideGroupTooltip() {
     if (_groupTooltipTimer) { clearTimeout(_groupTooltipTimer); _groupTooltipTimer = null; }
+    if (_groupTooltipHideTimer) { clearTimeout(_groupTooltipHideTimer); _groupTooltipHideTimer = null; }
     if (_groupTooltipEl) {
       _groupTooltipEl.style.display = "none";
     }
+  }
+
+  function scheduleHideGroupTooltip() {
+    if (_groupTooltipTimer) { clearTimeout(_groupTooltipTimer); _groupTooltipTimer = null; }
+    if (_groupTooltipHideTimer) { clearTimeout(_groupTooltipHideTimer); }
+    _groupTooltipHideTimer = setTimeout(() => {
+      if (_groupTooltipEl) {
+        _groupTooltipEl.style.display = "none";
+      }
+    }, 180);
+  }
+
+  function renderGroupTooltipSites(tooltip, sites) {
+    tooltip.innerHTML = "";
+
+    const list = document.createElement("div");
+    list.className = "group-tooltip-list";
+    list.style.gridTemplateColumns = `repeat(${Math.min(5, Math.max(1, sites.length))}, max-content)`;
+    sites.forEach((site) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "group-tooltip-item";
+      item.textContent = site.name;
+      item.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        hideGroupTooltip();
+        await openSiteHome(site.url);
+      });
+      list.appendChild(item);
+    });
+    tooltip.appendChild(list);
+  }
+
+  async function openSiteHome(url) {
+    const safeUrl = normalizeSiteHomeUrl(url);
+    if (!safeUrl) {
+      return;
+    }
+
+    try {
+      await chrome.runtime.sendMessage({ type: "OPEN_EXTERNAL_URL", url: safeUrl });
+    } catch (_err) {
+      /* 忽略 */
+    }
+
+    window.close();
+  }
+
+  function normalizeSiteHomeUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) {
+      return "";
+    }
+
+    let next = raw.replace(/([?&])[^=&]+=\{query\}/g, (_, sep) => (sep === "?" ? "?" : ""));
+    next = next.replace(/\?&/, "?");
+    next = next.replace(/[?&]$/, "");
+    next = next.replace(/\{query\}/g, "");
+    if (!/^https?:\/\//i.test(next)) {
+      return "";
+    }
+    return next;
   }
 
   async function refreshAllSites() {
