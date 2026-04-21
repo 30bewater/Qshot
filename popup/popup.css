@@ -389,10 +389,10 @@ svg {
 }
 
 .popup-groups {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
-  justify-items: stretch;
 }
 
 .popup-groups:empty {
@@ -405,10 +405,9 @@ svg {
 }
 
 .popup-group-btn {
-  width: 100%;
-  min-width: 0;
+  min-width: 84px;
   min-height: 32px;
-  padding: 0 6px;
+  padding: 0 14px;
   border: 1px solid rgba(0, 0, 0, 0.62);
   border-radius: 999px;
   background: #ffffff;
@@ -557,14 +556,15 @@ svg {
 
 .settings-entry-btn {
   width: 100%;
-  min-height: 24px;
-  padding: 0 14px;
+  /* 底部“设置”黑条：高度/字号与上方搜索组按钮一致 */
+  min-height: 30px;
+  padding: 6px 14px;
   border: none;
   border-radius: 0;
   background: #111111;
   color: #ffffff;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
   display: flex;
@@ -575,6 +575,7 @@ svg {
 }
 
 .settings-entry-label {
+  font-size: inherit;
   line-height: 1;
 }
 

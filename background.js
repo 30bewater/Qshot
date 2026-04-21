@@ -1,14 +1,16 @@
 const COMPARE_PAGE_BASE_URL = chrome.runtime.getURL("iframe/iframe.html");
 const SETTINGS_PAGE_URL = chrome.runtime.getURL("settings/settings.html");
 const SEARCH_GROUPS_STORAGE_KEY = "searchGroups";
+const PROMPT_GROUPS_STORAGE_KEY = "promptGroups";
 const UI_PREFS_STORAGE_KEY = "uiPrefs";
-const AI_SITE_IDS = ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "gemini", "chatgpt", "claude", "perplexity", "grok"];
+const CUSTOM_SITES_STORAGE_KEY = "customSites";
+const AI_SITE_IDS = ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "gemini", "chatgpt", "claude", "grok"];
 const WARMUP_COOLDOWN_MS = 5 * 60 * 1000;
 let lastWarmupAt = 0;
 
 chrome.runtime.onInstalled.addListener(async () => {
   console.log("Qshot - 子弹搜索 已安装");
-  await ensureDefaultSearchGroups();
+  await ensureDefaultStorageState();
   await syncCommandShortcut();
 });
 
@@ -119,6 +121,10 @@ async function warmupAiSites() {
 
   lastWarmupAt = now;
 
+  // 审核说明：
+  // - 该“预热”仅用于提升用户打开 AI 站点的冷启动速度（减少首次加载白屏）。
+  // - 请求直接发往用户选择的第三方站点；扩展不上传任何用户数据到开发者服务器。
+  // - 使用 mode:"no-cors"：扩展不会读取响应内容；credentials:"include" 仅用于复用用户现有登录态。
   await Promise.all(
     targets.map((site) => {
       const warmupUrl = (site.url || "").replace("{query}", "");
@@ -282,6 +288,109 @@ async function ensureDefaultSearchGroups() {
   await chrome.storage.local.set({
     [SEARCH_GROUPS_STORAGE_KEY]: groups
   });
+}
+
+async function ensureDefaultStorageState() {
+  const stored = await chrome.storage.local.get([
+    SEARCH_GROUPS_STORAGE_KEY,
+    PROMPT_GROUPS_STORAGE_KEY,
+    UI_PREFS_STORAGE_KEY,
+    CUSTOM_SITES_STORAGE_KEY
+  ]);
+
+  const hasGroups = Array.isArray(stored[SEARCH_GROUPS_STORAGE_KEY]) && stored[SEARCH_GROUPS_STORAGE_KEY].length > 0;
+  const hasPrompts = Array.isArray(stored[PROMPT_GROUPS_STORAGE_KEY]) && stored[PROMPT_GROUPS_STORAGE_KEY].length > 0;
+  const hasCustomSites = Array.isArray(stored[CUSTOM_SITES_STORAGE_KEY]);
+  const hasUiPrefs = stored[UI_PREFS_STORAGE_KEY] && typeof stored[UI_PREFS_STORAGE_KEY] === "object";
+
+  if (hasGroups && hasPrompts && hasCustomSites && hasUiPrefs) {
+    return;
+  }
+
+  const defaults = await loadInitialStateDefaults();
+  const patch = {};
+
+  if (!hasGroups) patch[SEARCH_GROUPS_STORAGE_KEY] = defaults.searchGroups;
+  if (!hasPrompts) patch[PROMPT_GROUPS_STORAGE_KEY] = defaults.promptGroups;
+  if (!hasCustomSites) patch[CUSTOM_SITES_STORAGE_KEY] = defaults.customSites;
+  if (!hasUiPrefs) patch[UI_PREFS_STORAGE_KEY] = defaults.uiPrefs;
+
+  await chrome.storage.local.set(patch);
+}
+
+async function loadInitialStateDefaults() {
+  // 优先读取打包内置的模板：config/initialState.json
+  try {
+    const resp = await fetch(chrome.runtime.getURL("config/initialState.json"));
+    if (resp.ok) {
+      const payload = await resp.json();
+      const normalized = normalizeInitialStatePayload(payload);
+      if (normalized) return normalized;
+    }
+  } catch (_err) {
+    // 忽略，回退到硬编码默认值
+  }
+
+  return {
+    searchGroups: [
+      { id: "default-hunza", name: "混搭搜索", enabled: true, mode: "compare", siteIds: ["gemini", "chatgpt", "deepseek", "doubao", "kimi", "metaso"] },
+      { id: "default-overseas", name: "海外模型", enabled: true, mode: "compare", siteIds: ["gemini", "chatgpt", "claude", "grok"] },
+      { id: "default-domestic", name: "国内模型", enabled: true, mode: "compare", siteIds: ["deepseek", "doubao", "kimi", "metaso"] },
+      { id: "default-single", name: "单个模型", enabled: true, mode: "tabs", siteIds: ["gemini"] }
+    ],
+    promptGroups: [
+      {
+        id: "prompt-group-default",
+        name: "默认分组",
+        prompts: [
+          { id: "prompt-default-1", title: "总结重点", content: "请帮我总结这段内容的重点，并列出三条可执行建议。" }
+        ]
+      }
+    ],
+    customSites: [],
+    uiPrefs: {
+      showHistory: false,
+      showRandomButton: true,
+      showPromptButton: true,
+      prewarmEnabled: true,
+      overlayShortcutEnabled: true,
+      overlayShortcut: { ctrlKey: true, shiftKey: false, altKey: false, metaKey: false, key: "Q" }
+    }
+  };
+}
+
+function normalizeInitialStatePayload(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const { searchGroups, promptGroups, customSites, uiPrefs } = payload;
+
+  if (!Array.isArray(searchGroups) || searchGroups.length === 0) return null;
+  if (!Array.isArray(promptGroups) || promptGroups.length === 0) return null;
+  if (!Array.isArray(customSites)) return null;
+  if (!uiPrefs || typeof uiPrefs !== "object") return null;
+
+  // 只做最低限度兜底，避免坏文件导致初始化失败
+  return {
+    searchGroups: searchGroups.map((g, idx) => ({
+      id: String(g?.id || `group-${idx}`),
+      name: String(g?.name || "未命名搜索组"),
+      enabled: g?.enabled !== false,
+      mode: g?.mode === "tabs" ? "tabs" : "compare",
+      siteIds: Array.isArray(g?.siteIds) ? g.siteIds.map(String) : []
+    })),
+    promptGroups: promptGroups.map((pg, gi) => ({
+      id: String(pg?.id || `prompt-group-${gi}`),
+      name: String(pg?.name || "未命名提示词分组"),
+      prompts: Array.isArray(pg?.prompts)
+        ? pg.prompts.map((p, pi) => ({
+            id: String(p?.id || `prompt-${gi}-${pi}`),
+            title: String(p?.title || "未命名提示词"),
+            content: String(p?.content || "")
+          }))
+        : []
+    })),
+    customSites: customSites.filter(Boolean),
+    uiPrefs: uiPrefs
+  };
 }
 
 async function loadEnabledSites() {

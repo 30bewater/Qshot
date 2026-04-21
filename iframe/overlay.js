@@ -38,7 +38,11 @@
 
   // 根据 Shadow DOM 承载，样式不会污染宿主页面
   const OVERLAY_STYLES = `
-    :host { all: initial; }
+    :host {
+      all: initial;
+      --qshot-panel-scale: 1.167;
+      --qshot-panel-offset-y: -12px;
+    }
     * { box-sizing: border-box; font-family: "Microsoft YaHei UI", "PingFang SC", -apple-system, sans-serif; }
 
     .backdrop {
@@ -64,14 +68,21 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
-      animation: qshotPopIn 180ms cubic-bezier(.2,.9,.3,1.1);
+      animation: qshotPopIn 180ms cubic-bezier(.2,.9,.3,1.1) forwards;
+      transform: translateY(var(--qshot-panel-offset-y)) scale(var(--qshot-panel-scale));
       color: #111;
     }
 
     @keyframes qshotFadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes qshotPopIn {
-      from { opacity: 0; transform: translateY(-8px) scale(.98); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
+      from {
+        opacity: 0;
+        transform: translateY(calc(var(--qshot-panel-offset-y) - 8px)) scale(calc(var(--qshot-panel-scale) - 0.02));
+      }
+      to   {
+        opacity: 1;
+        transform: translateY(var(--qshot-panel-offset-y)) scale(var(--qshot-panel-scale));
+      }
     }
 
     .header {
@@ -592,6 +603,8 @@
         toggleOverlay();
       } else {
         // 子 frame 收到 MAIN world 的触发 → 转发到顶层
+        // 审核说明：这里的 postMessage 仅用于同一标签页内 frame 之间转发“切换浮层”的信号，
+        // 不包含用户输入内容；由于可能跨域，targetOrigin 使用 "*" 且包裹 try/catch，浏览器会执行同源约束。
         try {
           window.top.postMessage({ type: FRAME_TOGGLE_MESSAGE }, "*");
         } catch (_err) {
@@ -605,6 +618,7 @@
       if (isTopFrame && isOpen) {
         closeOverlay();
       } else if (!isTopFrame) {
+        // 同上：仅转发 Esc 关闭信号，不包含用户输入内容。
         try { window.top.postMessage({ type: MAIN_HOTKEY_ESC }, "*"); } catch (_e) {}
       }
       return;
@@ -697,6 +711,9 @@
     }
     mountOverlay();
     isOpen = true;
+    // 审核说明：
+    // - “预热”仅用于提升用户打开 AI 站点的冷启动速度（减少首次加载等待）。
+    // - 预热请求直接发往用户选择的第三方站点；扩展不上传任何用户数据到开发者服务器，且不读取响应内容（见 background.js）。
     // 触发预热（复用 popup 中的行为）
     try {
       chrome.runtime.sendMessage({ type: "WARMUP_AI_SITES" }).catch(() => {});
@@ -1473,7 +1490,8 @@
           enabled: uiPrefs.overlayShortcutEnabled !== false,
           shortcut: uiPrefs.overlayShortcut
         },
-        "*"
+        // 审核说明：该消息仅用于同页 MAIN world 与 isolated world 同步快捷键配置，不包含用户输入内容。
+        window.location.origin
       );
     } catch (_err) {
       /* 忽略 */

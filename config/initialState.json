@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "searchGroups": [
+    {
+      "id": "default-hunza",
+      "name": "混搭搜索",
+      "enabled": true,
+      "mode": "compare",
+      "siteIds": ["gemini", "chatgpt", "deepseek", "doubao", "kimi", "metaso"]
+    },
+    {
+      "id": "default-overseas",
+      "name": "海外模型",
+      "enabled": true,
+      "mode": "compare",
+      "siteIds": ["gemini", "chatgpt", "claude", "grok"]
+    },
+    {
+      "id": "default-domestic",
+      "name": "国内模型",
+      "enabled": true,
+      "mode": "compare",
+      "siteIds": ["deepseek", "doubao", "kimi", "metaso"]
+    },
+    {
+      "id": "default-single",
+      "name": "单个模型",
+      "enabled": true,
+      "mode": "tabs",
+      "siteIds": ["gemini"]
+    }
+  ],
+  "promptGroups": [
+    {
+      "id": "prompt-group-default",
+      "name": "默认分组",
+      "prompts": [
+        {
+          "id": "prompt-default-1",
+          "title": "总结重点",
+          "content": "请帮我总结这段内容的重点，并列出三条可执行建议。"
+        }
+      ]
+    }
+  ],
+  "customSites": [],
+  "uiPrefs": {
+    "showHistory": false,
+    "showRandomButton": true,
+    "showPromptButton": true,
+    "prewarmEnabled": true,
+    "overlayShortcutEnabled": true,
+    "overlayShortcut": { "ctrlKey": true, "shiftKey": false, "altKey": false, "metaKey": false, "key": "Q" }
+  }
+}
+

@@ -9,7 +9,7 @@
   };
 
   const SITE_CATEGORIES = [
-    { id: "ai", label: "AI", builtinIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "perplexity", "grok"] },
+    { id: "ai", label: "AI", builtinIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "grok"] },
     { id: "other", label: "社媒", builtinIds: ["xiaohongshu", "bilibili", "zhihu", "douyin"] },
     { id: "custom", label: "自定义", builtinIds: [] }
   ];
@@ -839,7 +839,7 @@
     iframe.className = "ai-iframe";
     iframe.dataset.siteId = ref.site.id;
     iframe.loading = "eager";
-    iframe.allow = "clipboard-read; clipboard-write; microphone; camera; geolocation; autoplay; fullscreen; picture-in-picture; storage-access; web-share";
+    iframe.allow = "clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture";
 
     const loadState = { resolved: false };
     ref._loadState = loadState;
@@ -2139,6 +2139,9 @@
   function requestIframeContent(iframe, site) {
     return new Promise((resolve) => {
       const requestId = createRequestId();
+      // 审核说明：
+      // - 仅在用户进行“导出/汇总”等操作时，才向各卡片 iframe 请求提取可读文本。
+      // - 通过 event.source 绑定到目标 iframe，避免第三方 iframe 伪造回执污染导出内容。
       // 在闭包里快照 contentWindow，后续 event 校验一律对照这个快照做来源判定。
       // 为什么不在 handler 里每次读 iframe.contentWindow：iframe 被 detach 后它会变 null，
       // 那样任何 event.source 都会 !== null 而通过校验，反而变成"零校验"。
@@ -2167,11 +2170,22 @@
       window.addEventListener("message", handler);
 
       try {
+        // 跨域 iframe 通信：targetOrigin 优先使用 iframe 当前 src 的 origin（若可解析），否则回退 "*"
+        // （同时依赖 event.source 校验来保证回执来源正确）。
+        let targetOrigin = "*";
+        try {
+          const src = iframe.src || "";
+          if (src && src !== "about:blank") {
+            targetOrigin = new URL(src).origin;
+          }
+        } catch (_e) {
+          targetOrigin = "*";
+        }
         iframe.contentWindow.postMessage({
           type: "QSHOT_EXTRACT",
           requestId,
           site
-        }, "*");
+        }, targetOrigin);
       } catch (_error) {
         window.removeEventListener("message", handler);
         resolve({
@@ -2503,6 +2517,17 @@
       }
 
       try {
+        // 跨域 iframe 通信：targetOrigin 优先使用 iframe 当前 src 的 origin（若可解析），否则回退 "*"
+        // （同时依赖 inject.js 的 event.origin/event.source 校验来拒绝非扩展对比页的伪造请求）。
+        let targetOrigin = "*";
+        try {
+          const src = pendingDispatch.ref.iframeEl.src || "";
+          if (src && src !== "about:blank") {
+            targetOrigin = new URL(src).origin;
+          }
+        } catch (_e) {
+          targetOrigin = "*";
+        }
         pendingDispatch.ref.iframeEl.contentWindow.postMessage(
           {
             type: "QSHOT_SEARCH",
@@ -2510,7 +2535,7 @@
             site: pendingDispatch.ref.site,
             requestId: pendingDispatch.requestId
           },
-          "*"
+          targetOrigin
         );
         setSiteStatus(pendingDispatch.ref.site.id, "查询已发送到卡片 iframe，等待页面响应...");
         restoreLockedScrollPosition();

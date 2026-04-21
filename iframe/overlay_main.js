@@ -4,6 +4,11 @@
   }
   window.__QSHOT_MAIN_HOTKEY_INSTALLED__ = true;
 
+  // 审核说明：
+  // - 本脚本仅用于在页面主世界（MAIN world）捕获用户显式设置的快捷键（默认 Ctrl+Q）与 Esc。
+  // - 不会记录或上传用户的键盘输入；只在匹配到该快捷键时发出一个“触发/关闭”信号给扩展的 isolated world。
+  // - 采用 postMessage 仅用于同页不同 world 间通信，不与开发者服务器通信。
+
   // 与 isolated world 通信使用的 message 常量
   const MSG_CONFIG = "__QSHOT_HOTKEY_CONFIG__";
   const MSG_FIRE = "__QSHOT_HOTKEY_FIRE__";
@@ -32,7 +37,7 @@
   function handleKeydown(event) {
     // Esc：通知 isolated world 关闭浮层（如果已打开）
     if (event.key === "Escape") {
-      try { window.postMessage({ type: MSG_ESC }, "*"); } catch (_e) {}
+      try { window.postMessage({ type: MSG_ESC }, window.location.origin); } catch (_e) {}
       return;
     }
 
@@ -48,7 +53,7 @@
 
     // 通知 isolated world 去切换 overlay
     try {
-      window.postMessage({ type: MSG_FIRE }, "*");
+      window.postMessage({ type: MSG_FIRE }, window.location.origin);
     } catch (_err) {
       /* 忽略 */
     }

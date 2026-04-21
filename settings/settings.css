@@ -951,6 +951,135 @@ textarea {
   color: #333333;
 }
 
+.about-plugin-inline-link {
+  color: #111111;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.about-plugin-inline-link:hover {
+  color: #000000;
+}
+
+.about-plugin-permission-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--fs-md);
+  line-height: 1.65;
+  color: #666666;
+}
+
+.about-plugin-permission-list li + li {
+  margin-top: 8px;
+}
+
+.about-plugin-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.about-plugin-links-wrap {
+  width: 100%;
+}
+
+.about-plugin-action-btn {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #ececec;
+  border-radius: var(--r-lg);
+  background: #ffffff;
+  color: #111111;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.about-plugin-action-btn:hover {
+  background: #f7f7f7;
+  border-color: #d7d7d7;
+  transform: translateY(-1px);
+}
+
+.about-plugin-action-btn:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
+}
+
+.about-plugin-action-btn--author {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  cursor: default;
+  box-sizing: border-box;
+}
+
+.about-plugin-action-btn--author:hover {
+  background: #f7f7f7;
+  border-color: #d7d7d7;
+  transform: translateY(-1px);
+}
+
+.about-plugin-author-label {
+  flex-shrink: 0;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: #111111;
+}
+
+.about-plugin-author-links {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.about-plugin-social {
+  border: none;
+  background: transparent;
+  padding: 4px;
+  margin: 0;
+  min-width: 28px;
+  min-height: 28px;
+  color: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background 140ms ease, opacity 140ms ease;
+}
+
+.about-plugin-social svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.about-plugin-social:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.about-plugin-social:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .about-plugin-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .other-setting-row {
   display: flex;
   align-items: center;
@@ -3378,29 +3507,20 @@ textarea {
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* 遮罩：全屏覆盖，背景变暗 */
-.prompt-hover-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  background: rgba(0, 0, 0, 0.38);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
+/* 悬浮预览卡片：直接 fixed 定位在按钮旁边，无遮罩 */
 .prompt-hover-card {
-  width: min(520px, 100%);
-  max-height: min(560px, calc(100vh - 120px));
+  position: fixed;
+  z-index: 10000;
+  width: min(380px, calc(100vw - 40px));
+  max-height: min(460px, calc(100vh - 40px));
   background: #ffffff;
   border-radius: var(--r-lg);
-  box-shadow: 0 20px 56px rgba(15, 23, 42, 0.22), 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(0,0,0,0.08);
   border: 1px solid rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: promptHoverCardIn 180ms ease;
+  animation: promptHoverCardIn 150ms ease;
   flex-shrink: 0;
 }
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Qshot",
-  "version": "0.1.0",
-  "description": "在一个扩展页面中以多卡片 iframe 形式并排展示多个 AI 站点。",
+  "version": "1.1.0",
+  "description": "Qshot-子弹搜索-让搜索更快、更全面。让你同时调用多个 AI 搜索、快速跳转任意网站",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -19,7 +19,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; frame-src *; img-src 'self' chrome-extension: data: blob:;"
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https: http:; img-src 'self' chrome-extension: data: blob:;"
   },
   "background": {
     "service_worker": "background.js"
@@ -80,10 +80,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "iframe/*",
-        "config/*",
-        "popup/*",
-        "shared/*"
+        "popup/logo.svg"
       ],
       "matches": [
         "<all_urls>",

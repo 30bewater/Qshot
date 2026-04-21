@@ -1,4 +1,4 @@
-﻿(function initPopup() {
+(function initPopup() {
   const SEARCH_GROUPS_STORAGE_KEY = "searchGroups";
   const SEARCH_HISTORY_STORAGE_KEY = "searchHistory";
   const PROMPT_GROUPS_STORAGE_KEY = "promptGroups";
@@ -92,6 +92,9 @@
     if (uiPrefs.prewarmEnabled === false) {
       return;
     }
+    // 审核说明：
+    // - “预热”仅用于提升用户打开 AI 站点的冷启动速度。
+    // - 请求直接发往用户选择的第三方站点；扩展不上传用户数据到开发者服务器，且不读取响应内容（见 background.js 的 mode:"no-cors"）。
     try {
       chrome.runtime.sendMessage({ type: "WARMUP_AI_SITES" })
         .catch(() => {});

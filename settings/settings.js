@@ -4,15 +4,16 @@
   const UI_PREFS_STORAGE_KEY = "uiPrefs";
   const CUSTOM_SITES_STORAGE_KEY = "customSites";
   const PICKER_CLOSE_DELAY_MS = 320;
+  let _hoverCardKeyHandler = null;
   const COMMON_SEARCH_PARAM_KEYS = ["q", "query", "wd", "word", "kw", "keyword", "s", "search", "key", "k", "text", "term", "w"];
   const SITE_CATEGORIES = {
-    ai: { label: "AI", siteIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "perplexity", "grok"] },
+    ai: { label: "AI", siteIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "grok"] },
     other: { label: "社媒平台", siteIds: ["xiaohongshu", "bilibili", "zhihu", "douyin"] },
     custom: { label: "自定义", siteIds: [] }
   };
   const AI_SITE_GROUPS = [
     { label: "国内", siteIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso"] },
-    { label: "国外", siteIds: ["gemini", "chatgpt", "claude", "perplexity", "grok"] }
+    { label: "国外", siteIds: ["gemini", "chatgpt", "claude", "grok"] }
   ];
   const SECTION_META = {
     groups: {
@@ -793,10 +794,10 @@
     converter.innerHTML = `
       <div class="custom-search-card-head">
         <strong>URL 规则转换</strong>
-        <span>粘贴一条带搜索词的 URL，我们尝试自动识别搜索参数并替换为 <code>{query}</code>。</span>
+        <span>粘贴一条带搜索词的 URL，我们尝试自动识别搜索参数并替换为 <code>{query}</code>。<br />注意：该转换不一定 100% 成功，但覆盖绝大多数常见网站的搜索格式。</span>
       </div>
       <div class="custom-converter-row">
-        <input class="custom-converter-input" type="text" placeholder="例如：https://www.30aitool.com/?s=test&type=post" />
+        <input class="custom-converter-input" type="text" />
         <button class="custom-converter-btn" type="button">转换</button>
       </div>
       <div class="custom-converter-msg" data-field="converter-msg"></div>
@@ -866,11 +867,11 @@
       </div>
       <label class="custom-field">
         <span class="field-label inline-field-label">名称</span>
-        <input class="custom-form-input" type="text" data-field="name" placeholder="例如：30AI 工具导航" />
+        <input class="custom-form-input" type="text" data-field="name" />
       </label>
       <label class="custom-field">
         <span class="field-label inline-field-label">URL 链接</span>
-        <input class="custom-form-input" type="text" data-field="url" placeholder="例如：https://www.example.com/?s={query}" />
+        <input class="custom-form-input" type="text" data-field="url" />
       </label>
       <div class="custom-form-msg" data-field="form-msg"></div>
       <div class="custom-form-actions">
@@ -1335,19 +1336,64 @@
   function renderAboutSection() {
     aboutSection.innerHTML = "";
 
-    const card = document.createElement("section");
-    card.className = "other-settings-card about-plugin-card";
-    card.innerHTML = `
+    const privacyCard = document.createElement("section");
+    privacyCard.className = "other-settings-card about-plugin-card";
+    privacyCard.innerHTML = `
       <div class="other-settings-intro about-plugin-intro">
         <strong>隐私与数据说明</strong>
       </div>
       <div class="about-plugin-privacy" role="note">
-        <p><strong>本地运行：</strong>是一个纯客户端工具，所有搜索逻辑均在您的浏览器本地执行。我们不运行任何后端服务器。</p>
-        <p><strong>零数据收集：</strong>我们不会收集、上传或存储您的搜索关键词、历史记录或任何个人身份信息。</p>
-        <p><strong>交互透明性：</strong>插件通过 <code>iframe</code> 技术加载 AI 官方网页，您与 AI 的所有交互、登录状态均直接发生在您与原网站之间。本插件无法且不会拦截您的登录凭据或对话内容。</p>
+        <p><strong>开源且免费：</strong>Qshot 是一个开源且免费插件，不会进行任何后端服务器运行。欢迎审查与贡献。</p>
+        <p><strong>零数据收集：</strong>Qshot 不会将您的搜索关键词、浏览记录或页面内容上传到开发者服务器。用于功能的配置数据仅保存在本地。</p>
+        <p><strong>交互透明性：</strong>插件通过 <code>iframe</code> 或「新标签页模式」打开目标网站，您与网站的登录与交互均直接发生在浏览器与目标网站之间。</p>
+        <p><strong>隐私政策：</strong>你可以在这里查看 <a class="about-plugin-inline-link" href="../PRIVACY.md" target="_blank" rel="noreferrer noopener">PRIVACY.md</a>（上架到 Chrome Web Store 时，请以开发者后台填写的隐私政策 URL 为准）。</p>
+      </div>
+      <div class="about-plugin-privacy about-plugin-privacy--permissions" role="note" aria-label="权限说明">
+        <p><strong>权限用途（简要）：</strong></p>
+        <ul class="about-plugin-permission-list">
+          <li><code>&lt;all_urls&gt;</code>：用于在任意网页唤起快捷搜索浮层，以及在你打开的目标站点页面中执行自动化操作（写入输入框、触发发送、提取对比所需信息）。</li>
+          <li><code>tabs</code>/<code>activeTab</code>：用于打开/切换标签页，并向已打开页面发送扩展消息以触发自动化。</li>
+          <li><code>storage</code>：用于保存分组、站点、提示词、历史记录与界面偏好（本地）。</li>
+          <li><code>declarativeNetRequest</code>：仅对白名单站点的 iframe 子帧请求移除部分响应头，以提升可嵌入性。</li>
+        </ul>
       </div>
     `;
-    aboutSection.appendChild(card);
+    aboutSection.appendChild(privacyCard);
+
+    const linksRow = document.createElement("div");
+    linksRow.className = "about-plugin-links-wrap";
+    linksRow.innerHTML = `
+      <div class="about-plugin-actions" aria-label="相关链接">
+        <a class="about-plugin-action-btn" href="https://www.30aitool.com/qshot" target="_blank" rel="noreferrer noopener">插件官网</a>
+        <a class="about-plugin-action-btn" href="#" target="_blank" rel="noreferrer noopener">开源地址</a>
+        <div class="about-plugin-action-btn about-plugin-action-btn--author" role="group" aria-label="作者账号">
+          <span class="about-plugin-author-label">作者账号：</span>
+          <div class="about-plugin-author-links">
+          <a class="about-plugin-social" href="https://space.bilibili.com/101651671" target="_blank" rel="noreferrer noopener" aria-label="B站">
+            <svg viewBox="0 0 1071 1024" aria-hidden="true">
+              <path fill="currentColor" d="M887.365188 952.783894H184.455499C82.758914 952.783894 0 876.72402 0 783.272408V336.111466c0-93.477378 82.758914-169.537251 184.455499-169.537252h704.043373c51.969094 0 101.67082 20.225949 136.377002 55.498973A159.256801 159.256801 0 0 1 1071.846453 336.420652V783.272408c0 93.451613-82.758914 169.511486-184.481265 169.511486zM184.455499 251.600495c-54.829069 0-99.429218 37.901109-99.429218 84.510971V783.272408c0 46.609861 44.600149 84.51097 99.429218 84.51097H887.365188c54.829069 0 99.429218-37.901109 99.429218-84.51097V335.415796a74.539706 74.539706 0 0 0-22.570613-53.72115c-18.808844-19.11803-46.377972-30.09415-75.750687-30.094151z" />
+              <path fill="currentColor" d="M397.794168 495.316736L219.651226 535.923226a36.355177 36.355177 0 0 1-15.175903-71.112889l178.142942-40.55496a35.8141 35.8141 0 0 1 43.131513 27.955611c4.302845 19.169562-8.786049 38.854434-27.95561 43.157279zM674.052285 495.316736c-19.169562-4.302845-32.258456-23.987717-27.955611-43.157279a35.8141 35.8141 0 0 1 43.131514-27.955611l178.142941 40.55496a36.355177 36.355177 0 0 1-15.175902 71.112889l-178.142942-40.554959zM268.811876 1023.999845a56.684187 56.684187 0 0 1-56.684187-56.813015v-42.590437a56.684187 56.684187 0 1 1 113.600264 0v42.590437a56.684187 56.684187 0 0 1-56.684187 56.813015zM803.034577 1023.999845a56.684187 56.684187 0 0 1-56.813015-56.813015v-42.590437a56.684187 56.684187 0 1 1 113.600264 0v42.590437a56.684187 56.684187 0 0 1-56.684187 56.813015z" />
+              <path fill="currentColor" d="M248.918821 42.946487m26.538343-29.671097l0 0q26.538343-29.671097 56.20944-3.132755l185.900469 166.272595q29.671097 26.538343 3.132754 56.20944l0 0q-26.538343 29.671097-56.20944 3.132755l-185.900468-166.272595q-29.671097-26.538343-3.132755-56.20944Z" />
+              <path fill="currentColor" d="M577.629382 262.330313m-26.538343-29.671098l0 0q-26.538343-29.671097 3.132755-56.20944l185.900468-166.272595q29.671097-26.538343 56.209441 3.132755l0 0q26.538343 29.671097-3.132755 56.20944l-185.900468 166.272595q-29.671097 26.538343-56.209441-3.132755Z" />
+              <path fill="currentColor" d="M595.621982 756.373184a39.447041 39.447041 0 0 1-30.738289-14.686357L533.346672 702.677799l-32.438814 38.467951a39.730462 39.730462 0 0 1-55.473207 5.153108l-44.316729-36.535535a23.188986 23.188986 0 1 1 29.501543-35.762569l39.163621 32.258455 33.495202-39.601634a39.6274 39.6274 0 0 1 61.038563 0.566842l32.722236 40.323069 45.424646-33.933215A23.188986 23.188986 0 1 1 669.904033 710.665117l-50.655051 37.798047a39.369745 39.369745 0 0 1-23.627 7.91002z" />
+            </svg>
+          </a>
+          <a class="about-plugin-social" href="https://www.douyin.com/user/MS4wLjABAAAADBh-jUk9v7E7KNECLoVzxFBsoRNGaXNQ0U1Fyf5KOSlQQq0b38ulL6fObIsagi2T" target="_blank" rel="noreferrer noopener" aria-label="抖音">
+            <svg viewBox="0 0 1024 1024" aria-hidden="true">
+              <path fill="currentColor" d="M937.4 423.9c-84 0-165.7-27.3-232.9-77.8v352.3c0 179.9-138.6 325.6-309.6 325.6S85.3 878.3 85.3 698.4c0-179.9 138.6-325.6 309.6-325.6 17.1 0 33.7 1.5 49.9 4.3v186.6c-15.5-6.1-32-9.2-48.6-9.2-76.3 0-138.2 65-138.2 145.3 0 80.2 61.9 145.3 138.2 145.3 76.2 0 138.1-65.1 138.1-145.3V0H707c0 134.5 103.7 243.5 231.6 243.5v180.3l-1.2 0.1" />
+            </svg>
+          </a>
+          <a class="about-plugin-social" href="https://www.xiaohongshu.com/user/profile/6301f593000000001200ee74?m_source=itab" target="_blank" rel="noreferrer noopener" aria-label="小红书">
+            <svg viewBox="0 0 1024 1024" aria-hidden="true">
+              <path fill="currentColor" d="M996.152 56.513c-7.986-10.852-17.61-20.885-28.871-28.87C944.143 10.442 916.09 0 885.377 0H138.419c-30.715 0-59.176 10.443-82.314 27.642-10.852 7.986-20.885 17.61-28.87 28.87C10.444 79.448 0.001 107.703 0.001 138.623V885.58c0 30.715 10.442 59.176 27.641 81.905 7.986 10.852 17.61 20.885 28.871 28.87 23.138 17.2 51.19 27.643 81.904 27.643h746.959c30.714 0 59.175-10.443 81.904-27.642 10.852-7.986 20.885-17.61 28.87-28.87 17.2-23.139 27.643-51.19 27.643-81.905V138.622c0-30.92-10.852-59.175-27.642-82.11z m-629.633 410.54c16.38-36.241 34.81-71.87 52.213-107.497h59.995c-14.743 29.28-31.124 57.947-41.566 85.794 24.366-1.433 46.48-2.662 72.484-4.095-13.923 27.847-26.209 52.623-38.494 77.398-1.639 3.276-3.277 6.757-4.915 10.033-12.9 25.8-12.9 26.004 15.767 26.62 3.071 0 5.938 0.41 11.466 1.022-7.985 15.767-15.152 30.1-22.728 44.228-1.229 2.253-4.71 4.915-6.962 4.915-21.09 0-42.385 0.614-63.475-1.639-15.152-1.638-21.09-13.309-15.152-27.642 7.166-17.814 15.766-35.219 23.752-52.828 2.662-6.143 5.528-12.08 9.42-21.09-11.673 0-20.272 0.206-28.872 0-24.776-1.023-33.17-12.285-22.933-35.218zM76.171 658.299c-12.695-22.114-24.16-42.59-35.832-63.065 0-2.458 22.933-72.485 17.814-151.726h63.065s2.253 148.45-45.047 214.791z m147.222-7.985c0.614 37.061-24.98 37.061-24.98 37.061H162.17l-38.085-50.37h39.928v-277.45h59.994c0 90.915-0.204 199.846-0.614 290.76z m87.227 4.71c-28.666-25.186-44.227-100.333-43.818-211.925h59.175c-4.504 58.765 14.538 137.187 14.538 137.187s-17.404 38.495-29.895 74.737z m129.817 26.004c-1.638 3.071-6.757 5.938-10.443 6.142-27.847 0.41-55.9 0.205-87.842 0.205 12.081-24.16 22.114-43.818 30.92-61.018h95.621c-10.647 20.885-19.042 38.085-28.256 54.67z m244.481 6.552h-215.2c10.442-20.68 29.075-57.537 29.075-57.537h61.428V441.87h-38.29v-58.766h138.622v57.947h-37.88v189.196h62.245v57.333z m284.615-43.409c0 43.409-42.385 42.18-42.385 42.18h-55.285l-23.138-49.756 59.995 0.205s0.614-45.047 0-60.609c-0.41-13.105-7.576-21.5-20.886-21.704-26.618-0.615-53.442-0.205-82.722-0.205v132.274h-59.38V555.1h-59.995v-61.222h58.356v-51.804h-38.7v-57.947h39.315v-24.571h59.994l0.41 24.57h47.708s44.024-1.023 44.228 41.77c0.205 12.697 0.41 54.263 0.41 68.187 50.575-0.205 72.075 10.033 72.075 45.25V644.17z m-25.39-200.46H912.2v-30.507c0-11.057 5.528-21.295 14.947-27.233 10.647-6.757 25.39-11.057 39.314 2.252 0.614 0.41 1.024 1.024 1.433 1.638 19.247 20.27 4.095 53.852-23.752 53.852z" />
+              <path fill="currentColor" d="M805.521 493.878h39.723v-52.01h-40.132z" />
+            </svg>
+          </a>
+        </div>
+        </div>
+      </div>
+    `;
+    aboutSection.appendChild(linksRow);
   }
 
   function createOtherSettingToggle(key, title, desc, tip) {
@@ -1738,11 +1784,14 @@
     previewBtn.setAttribute("aria-label", "预览");
     previewBtn.title = "预览内容";
     previewBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-    previewBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      const existing = document.querySelector(".prompt-hover-card");
-      if (existing) { existing.remove(); return; }
-      showPromptHoverCard(prompt, group);
+    let hoverTimer = null;
+    previewBtn.addEventListener("mouseenter", () => {
+      hoverTimer = setTimeout(() => {
+        showPromptHoverCard(prompt, group, previewBtn);
+      }, 200);
+    });
+    previewBtn.addEventListener("mouseleave", () => {
+      if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
     });
 
     // 拖拽手柄
@@ -1770,31 +1819,23 @@
     return item;
   }
 
-  function showPromptHoverCard(prompt, group) {
-    const existing = document.querySelector(".prompt-hover-overlay");
+  function showPromptHoverCard(prompt, group, anchorBtn) {
+    const existing = document.querySelector(".prompt-hover-card");
     if (existing) existing.remove();
-
-    // 遮罩层：覆盖 .settings-content 区域，背景变暗
-    const overlay = document.createElement("div");
-    overlay.className = "prompt-hover-overlay";
-
-    function closeCard() {
-      overlay.remove();
-      document.removeEventListener("keydown", onKey);
-    }
-
-    overlay.addEventListener("click", (ev) => {
-      if (ev.target === overlay) closeCard();
-    });
-
-    const onKey = (ev) => {
-      if (ev.key === "Escape") closeCard();
-    };
+    document.removeEventListener("keydown", _hoverCardKeyHandler);
 
     const card = document.createElement("div");
     card.className = "prompt-hover-card";
 
-    // 头部：左侧操作按钮 + 右侧关闭
+    function closeCard() {
+      card.remove();
+      document.removeEventListener("keydown", _hoverCardKeyHandler);
+    }
+
+    _hoverCardKeyHandler = (ev) => {
+      if (ev.key === "Escape") closeCard();
+    };
+
     const header = document.createElement("div");
     header.className = "prompt-hover-card-header";
 
@@ -1868,11 +1909,59 @@
     card.appendChild(header);
     card.appendChild(titleRow);
     card.appendChild(body);
-    overlay.appendChild(card);
 
-    document.body.appendChild(overlay);
+    document.body.appendChild(card);
 
-    setTimeout(() => document.addEventListener("keydown", onKey), 0);
+    const cardRect = card.getBoundingClientRect();
+    const row = anchorBtn.closest(".prompt-card-item");
+    const titleEl = row ? row.querySelector(".prompt-card-title") : null;
+    const iconsEl = row ? row.querySelector(".prompt-card-icon-group") : null;
+
+    let left, top;
+    if (titleEl && iconsEl) {
+      const titleR = titleEl.getBoundingClientRect();
+      const iconsR = iconsEl.getBoundingClientRect();
+      const gapLeft = titleR.right;
+      const gapRight = iconsR.left;
+      const gapW = gapRight - gapLeft;
+
+      if (cardRect.width <= gapW) {
+        left = gapLeft + (gapW - cardRect.width) / 2;
+      } else {
+        left = gapRight - cardRect.width;
+      }
+
+      const rowR = row.getBoundingClientRect();
+      top = rowR.top;
+    } else {
+      const rect = anchorBtn.getBoundingClientRect();
+      left = rect.right + 10;
+      top = rect.top - 10;
+    }
+    if (left + cardRect.width > window.innerWidth - 12) {
+      left = window.innerWidth - cardRect.width - 12;
+    }
+    if (left < 12) left = 12;
+    if (top + cardRect.height > window.innerHeight - 12) {
+      top = window.innerHeight - cardRect.height - 12;
+    }
+    if (top < 12) top = 12;
+    card.style.left = left + "px";
+    card.style.top = top + "px";
+
+    let leaveTimer = null;
+    const startLeave = () => {
+      leaveTimer = setTimeout(() => closeCard(), 300);
+    };
+    const cancelLeave = () => {
+      if (leaveTimer) { clearTimeout(leaveTimer); leaveTimer = null; }
+    };
+    card.addEventListener("mouseenter", cancelLeave);
+    card.addEventListener("mouseleave", startLeave);
+    anchorBtn.addEventListener("mouseleave", startLeave);
+    anchorBtn.addEventListener("mouseenter", cancelLeave);
+
+    setTimeout(() => document.addEventListener("keydown", _hoverCardKeyHandler), 0);
   }
 
   function createPromptEditorModal() {

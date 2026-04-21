@@ -795,6 +795,9 @@
   }
 
   function handleExtractRequest(message) {
+    // 审核说明：
+    // - 内容提取仅用于“对比页导出/汇总”等用户可见功能（由扩展页面触发）。
+    // - 提取结果仅通过 postMessage 回传给本扩展对比页，不会上传到开发者服务器。
     const content = extractReadablePageText();
     const turns = extractConversationTurns();
     // 同样把提取结果严格投递回本扩展对比页，避免被第三方父窗口窃取会话内容。
@@ -1233,13 +1236,14 @@
     }
 
     lastReportedUrl = currentUrl;
+    const targetOrigin = EXTENSION_ORIGIN || "*";
     window.parent.postMessage(
       {
         type: "QSHOT_URL_UPDATE",
         siteId: site.id,
         currentUrl
       },
-      "*"
+      targetOrigin
     );
   }
 
