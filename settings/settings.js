@@ -1365,7 +1365,7 @@
     linksRow.innerHTML = `
       <div class="about-plugin-actions" aria-label="相关链接">
         <a class="about-plugin-action-btn" href="https://www.30aitool.com/qshot" target="_blank" rel="noreferrer noopener">插件官网</a>
-        <a class="about-plugin-action-btn" href="#" target="_blank" rel="noreferrer noopener">开源地址</a>
+        <a class="about-plugin-action-btn" href="https://github.com/30bewater/Qshot" target="_blank" rel="noreferrer noopener">开源地址</a>
         <div class="about-plugin-action-btn about-plugin-action-btn--author" role="group" aria-label="作者账号">
           <span class="about-plugin-author-label">作者账号：</span>
           <div class="about-plugin-author-links">
