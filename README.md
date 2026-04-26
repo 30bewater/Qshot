@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/30bewater/Qshot/blob/main/src/icons/icon128.png?raw=true" width="80" height="80" alt="Qshot Logo">
+    <img src="https://github.com/30bewater/Qshot/blob/main/icons/icon128.png?raw=true" width="80" height="80" alt="Qshot Logo">
 </p>
 
 <h1 align="center">Qshot - 子弹搜索</h1>
