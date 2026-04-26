@@ -91,11 +91,6 @@ Qshot 申请的权限与用途（简要）：
 ### 安装
 
 1. 下载或克隆本仓库
-
-```bash
-git clone https://github.com/你的用户名/qshot.git
-```
-
 2. 打开 Chrome，访问 `chrome://extensions`
 3. 开启右上角的 **开发者模式**
 4. 点击 **加载已解压的扩展程序**，选择项目文件夹
