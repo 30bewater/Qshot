@@ -59,6 +59,8 @@ vitest.config.js
 playwright.config.js
 scripts/check-lines.mjs
 scripts/check-smoke-build.mjs
+scripts/pack-store.mjs
+scripts/zip-dist.py
 edge-baidu.png
 qshot-2.png
 qshot-open.png

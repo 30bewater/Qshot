@@ -7,8 +7,7 @@
     "build": "node build.mjs",
     "build:store": "node build.mjs --features=store",
     "watch": "node build.mjs --watch",
-    "watch:store": "node build.mjs --watch --features=store",
-    "pack:store": "node scripts/pack-store.mjs"
+    "watch:store": "node build.mjs --watch --features=store"
   },
   "devDependencies": {
     "esbuild": "^0.24.2"
