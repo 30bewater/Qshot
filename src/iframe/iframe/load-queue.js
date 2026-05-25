@@ -88,14 +88,23 @@ export function beginIframeLoad(ref) {
   setSiteStatus(ref.site.id, "正在加载…");
   updateLoadingOverlay(ref, "正在加载…");
 
-  // fallback 超时从"真正开始加载"的时刻算起，和是否排过队无关。
-  const timeoutMs = BASE_CONFIG.embedTimeoutMs || 18000;
+  armIframeFallbackTimer(ref, iframe);
+}
+
+/** 从 iframe 真正开始 navigates 时起算 fallback 超时（含历史复原二段跳转）。 */
+export function armIframeFallbackTimer(ref, iframe) {
+  if (!ref || !iframe) return;
+  if (ref.fallbackTimerId) {
+    window.clearTimeout(ref.fallbackTimerId);
+    ref.fallbackTimerId = null;
+  }
+  const timeoutMs = ref._retryTimeoutMs || BASE_CONFIG.embedTimeoutMs || 25000;
+  ref._retryTimeoutMs = 0;
   ref.fallbackTimerId = window.setTimeout(() => {
     ref.fallbackTimerId = null;
     if (!ref._loadState?.resolved && ref.iframeEl === iframe) {
-      // 超时也算一次"结束"，释放槽位让队列继续前进。
       releaseLoadSlot(ref);
-      renderFallback(ref, "站点未能在限定时间内完成 iframe 加载。可能仍被目标站点限制嵌入。");
+      renderFallback(ref, "站点未能在限定时间内完成 iframe 加载。可能仍被目标站点限制嵌入。", { fromTimeout: true });
     }
   }, timeoutMs);
 }

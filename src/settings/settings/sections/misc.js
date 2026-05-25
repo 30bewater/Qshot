@@ -1,26 +1,11 @@
 import { state, msg, applyDomI18n, SECTION_META } from "../state.js";
-import { createOtherSettingToggle, createSearchConfigIoCard } from "./other.js";
+import { createOtherSettingToggle } from "./other.js";
+import { createSearchConfigIoCard } from "./config-io.js";
 import { persistAll } from "../store.js";
-
-let _darkModeMediaListener = null;
+import { applyDarkModeToDoc } from "../../../shared/theme.js";
 
 export function applyDarkMode(mode) {
-  if (_darkModeMediaListener) {
-    window.matchMedia("(prefers-color-scheme: dark)").removeEventListener("change", _darkModeMediaListener);
-    _darkModeMediaListener = null;
-  }
-  if (mode === "dark") {
-    document.documentElement.dataset.theme = "dark";
-  } else if (mode === "light") {
-    document.documentElement.dataset.theme = "";
-  } else {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    document.documentElement.dataset.theme = mq.matches ? "dark" : "";
-    _darkModeMediaListener = (e) => {
-      document.documentElement.dataset.theme = e.matches ? "dark" : "";
-    };
-    mq.addEventListener("change", _darkModeMediaListener);
-  }
+  applyDarkModeToDoc(mode);
 }
 
 export function renderMiscSection() {
@@ -34,37 +19,7 @@ export function renderMiscSection() {
   miscSection.appendChild(topRow);
 
   miscSection.appendChild(createHomeDisplayCard());
-  miscSection.appendChild(createTextSelectionCard());
   miscSection.appendChild(createSearchConfigIoCard());
-}
-
-function createTextSelectionCard() {
-  const card = document.createElement("section");
-  card.className = "other-settings-card";
-  card.innerHTML = `
-    <div class="other-settings-intro">
-      <strong>${msg("settings_misc_textSelectionTitle", "\u9009\u6587\u641c\u7d22")}</strong>
-    </div>
-    <div class="other-settings-list two-col"></div>
-  `;
-  const list = card.querySelector(".other-settings-list");
-  list.appendChild(
-    createOtherSettingToggle(
-      "contextMenuEnabled",
-      msg("settings_other_contextMenuToggleTitle", "\u53f3\u952e\u641c\u7d22\u83dc\u5355"),
-      msg("settings_other_contextMenuToggleDesc", "\u9009\u4e2d\u6587\u5b57\u540e\u53f3\u952e\u53ef\u8c03\u7528\u641c\u7d22\u7ec4\u3002")
-    )
-  );
-  list.appendChild(
-    createOtherSettingToggle(
-      "selectionSearchEnabled",
-      msg("settings_other_selectionSearchToggleTitle", "\u5212\u8bcd\u641c\u7d22\u6c14\u6ce1"),
-      msg("settings_other_selectionSearchToggleDesc", "\u9009\u4e2d\u6587\u5b57\u540e\u81ea\u52a8\u5f39\u51fa\u641c\u7d22\u5feb\u6377\u6c14\u6ce1\u3002"),
-      undefined,
-      { defaultValue: false }
-    )
-  );
-  return card;
 }
 
 function createThemeModeCard() {
@@ -228,8 +183,12 @@ function createLocaleCard() {
       if (state.dom.sectionEyebrow)  state.dom.sectionEyebrow.hidden = true;
       if (state.dom.sectionTitle)    { state.dom.sectionTitle.textContent = title;    state.dom.sectionTitle.hidden = !title; }
       if (state.dom.sectionSubtitle) { state.dom.sectionSubtitle.textContent = subtitle; state.dom.sectionSubtitle.hidden = !subtitle; }
+      if (state.dom.sectionContentHeader) {
+        state.dom.sectionContentHeader.hidden =
+          !title && !subtitle && state.activeSection !== "about" && state.activeSection !== "prompts";
+      }
     }
-    state.renderMiscSection();
+    state.renderCurrentSection();
   });
 
   document.addEventListener("click", (e) => {
@@ -244,24 +203,24 @@ function createHomeDisplayCard() {
   card.className = "other-settings-card";
   card.innerHTML = `
     <div class="other-settings-intro">
-      <strong>${msg("settings_other_homeDisplayTitle", "\u9996\u9875\u663e\u793a\u9879")}</strong>
+      <strong>${msg("settings_other_homeDisplayTitle", "\u641c\u7d22\u6846\u663e\u793a")}</strong>
+      <span>${msg("settings_other_homeDisplayDesc", "Ctrl+Q \u5feb\u6377\u952e\u4e0e\u70b9\u51fb\u9876\u90e8\u63d2\u4ef6\u56fe\u6807\u5747\u53ef\u89e6\u53d1\u7684\u641c\u7d22\u6846\u3002")}</span>
     </div>
     <div class="other-settings-list two-col"></div>
   `;
   const list = card.querySelector(".other-settings-list");
   [
     {
-      key: "showPromptButton",
-      title: msg("settings_other_showPromptTitle", "\u663e\u793a\u63d0\u793a\u8bcd\u6309\u9215"),
-      desc: msg("settings_other_showPromptDesc", "\u5173\u95ed\u540e\u8f93\u5165\u6846\u4e0b\u65b9\u7684\u63d0\u793a\u8bcd\u5165\u53e3\u5c06\u9690\u85cf\u3002")
+      key: "showHistory",
+      title: msg("settings_other_showHistoryTitle", "\u663e\u793a\u641c\u7d22\u5386\u53f2")
     },
     {
-      key: "showHistory",
-      title: msg("settings_other_showHistoryTitle", "\u663e\u793a\u641c\u7d22\u5386\u53f2"),
-      desc: msg("settings_other_showHistoryDesc", "\u5173\u95ed\u540e\u9996\u9875\u5386\u53f2\u533a\u57df\u4e0d\u518d\u663e\u793a\u3002")
+      key: "showPromptButton",
+      title: msg("settings_other_showPromptTitle", "\u663e\u793a\u63d0\u793a\u8bcd\u6309\u9215")
     }
   ].forEach((item) => {
-    list?.appendChild(createOtherSettingToggle(item.key, item.title, item.desc));
+    list?.appendChild(createOtherSettingToggle(item.key, item.title));
   });
   return card;
 }
+

@@ -1,6 +1,9 @@
 import { loadEnabledSites, buildSiteUrl, canSearchByUrl, delay } from "./sites.js";
 
 const COMPARE_PAGE_BASE_URL = chrome.runtime.getURL("iframe/iframe.html");
+const TAB_SEND_RETRY_COUNT = 8;
+const TAB_SEND_RETRY_DELAY_MS = 2000;
+const DEFAULT_POST_LOAD_SEND_DELAY_MS = 1200;
 
 export async function openComparePage(query = "", siteIds = []) {
   const targetUrl = buildComparePageUrl(query, siteIds);
@@ -30,6 +33,38 @@ export async function runSearchGroup(group, query) {
 
   const tab = await openComparePage(query, group.siteIds || []);
   return { tabId: tab.id };
+}
+
+export function buildContextSearchQuery(prompt, selection) {
+  const prefix = String(prompt || "").trim();
+  const body = String(selection || "").trim();
+  if (!prefix) return body;
+  if (!body) return prefix;
+  return `${prefix}\n\n${body}`;
+}
+
+export async function runSelectionContextGroup(ctxGroup, selectionText, searchGroups = []) {
+  if (!ctxGroup) return null;
+
+  const query = buildContextSearchQuery(ctxGroup.prompt, selectionText);
+  if (!query) return null;
+
+  let targetGroup;
+  if (ctxGroup.targetType === "group" && ctxGroup.refGroupId) {
+    const refGroup = searchGroups.find((g) => g.id === ctxGroup.refGroupId);
+    if (refGroup) {
+      const overrideMode = ctxGroup.mode === "compare" || ctxGroup.mode === "tabs" ? ctxGroup.mode : null;
+      targetGroup = overrideMode ? { ...refGroup, mode: overrideMode } : refGroup;
+    }
+  } else {
+    targetGroup = {
+      mode: ctxGroup.mode === "compare" ? "compare" : "tabs",
+      siteIds: ctxGroup.siteIds || [],
+    };
+  }
+
+  if (!targetGroup || !(targetGroup.siteIds || []).length) return null;
+  return runSearchGroup(targetGroup, query);
 }
 
 export async function openSitesInTabs(siteIds, query) {
@@ -77,7 +112,7 @@ export async function openSitesInTabs(siteIds, query) {
       tabSitePairs.map(async ({ tab, site }) => {
         try {
           if (!canSearchByUrl(site)) {
-            await waitForTabComplete(tab.id);
+            await waitForSiteTabReady(tab.id, site);
             await sendQueryToTab(tab.id, site, query);
           }
           return {
@@ -108,11 +143,11 @@ export async function openSiteTabAndSend(site, query) {
 
   const tab = await chrome.tabs.create({
     url: buildSiteUrl(site, query),
-    active: true,
+    active: false,
   });
 
   if (query && !canSearchByUrl(site)) {
-    await waitForTabComplete(tab.id);
+    await waitForSiteTabReady(tab.id, site);
     await sendQueryToTab(tab.id, site, query);
   }
 
@@ -120,22 +155,67 @@ export async function openSiteTabAndSend(site, query) {
 }
 
 async function sendQueryToTab(tabId, site, query) {
-  const maxAttempts = 6;
   let lastError = null;
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+  for (let attempt = 0; attempt < TAB_SEND_RETRY_COUNT; attempt += 1) {
     try {
-      await chrome.tabs.sendMessage(tabId, {
+      const result = await chrome.tabs.sendMessage(tabId, {
         type: "SEARCH_SITE_QUERY",
         site,
         query,
       });
-      return;
+      if (result?.ok) {
+        return;
+      }
+      lastError = new Error(result?.error || "自动发送未成功");
     } catch (error) {
       lastError = error;
-      await delay(300);
+    }
+    if (attempt < TAB_SEND_RETRY_COUNT - 1) {
+      await delay(TAB_SEND_RETRY_DELAY_MS);
     }
   }
   throw lastError || new Error("内容脚本未就绪，自动发送失败");
+}
+
+function hostnameMatchesSite(hostname, site) {
+  const host = String(hostname || "").toLowerCase();
+  const patterns = Array.isArray(site?.matchPatterns) ? site.matchPatterns : [];
+  return patterns.some((pattern) => host.includes(String(pattern || "").toLowerCase()));
+}
+
+async function waitForSiteTabReady(tabId, site, timeoutMs = 30000) {
+  await waitForTabComplete(tabId, timeoutMs);
+
+  const patterns = Array.isArray(site?.matchPatterns) ? site.matchPatterns : [];
+  const postLoadDelayMs = Number.isFinite(site?.postLoadSendDelayMs)
+    ? site.postLoadSendDelayMs
+    : DEFAULT_POST_LOAD_SEND_DELAY_MS;
+
+  if (patterns.length > 0) {
+    const urlWaitDeadline = Date.now() + Math.min(timeoutMs, 15000);
+    while (Date.now() < urlWaitDeadline) {
+      let tab;
+      try {
+        tab = await chrome.tabs.get(tabId);
+      } catch (error) {
+        throw error;
+      }
+      let hostname = "";
+      try {
+        hostname = new URL(tab.url || "about:blank").hostname;
+      } catch (_error) {
+        hostname = "";
+      }
+      if (hostnameMatchesSite(hostname, site)) {
+        break;
+      }
+      await delay(400);
+    }
+  }
+
+  if (postLoadDelayMs > 0) {
+    await delay(postLoadDelayMs);
+  }
 }
 
 function waitForTabComplete(tabId, timeoutMs = 20000) {

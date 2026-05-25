@@ -19,10 +19,20 @@ import {
   showPromptHoverCard,
   createPromptEditorModal,
 } from "./prompts-editor.js";
+import { createAiPageLauncherSetting } from "./prompts-ai-launcher-setting.js";
+
+function createPromptDisplayToggleCard() {
+  const card = document.createElement("section");
+  card.className = "other-settings-card prompt-settings-toggle-card";
+  card.appendChild(createAiPageLauncherSetting());
+  return card;
+}
 
 export function renderPromptsSection() {
   const { promptsSection } = state.dom;
   promptsSection.innerHTML = "";
+  promptsSection.appendChild(createPromptDisplayToggleCard());
+
   if (!state.promptGroups.length) {
     state.promptGroups = createNormalizedPromptGroups([]);
   }

@@ -31,6 +31,18 @@ html[data-theme="dark"] .layout-option-btn.is-active {
   border-color: #f4f4f5;
 }
 
+html[data-theme="dark"] .card-size-slider {
+  background: linear-gradient(to right, #f4f4f5 var(--slider-fill), #3f3f46 var(--slider-fill));
+}
+
+html[data-theme="dark"] .card-size-slider::-webkit-slider-thumb {
+  background: #f4f4f5;
+}
+
+html[data-theme="dark"] .card-size-slider::-moz-range-thumb {
+  background: #f4f4f5;
+}
+
 /* ── 提示词选择器 ───────────────────────────────────────── */
 html[data-theme="dark"] .composer-prompt-picker {
   border-color: #3f3f46;
@@ -252,10 +264,29 @@ html[data-theme="dark"] .add-site-chip.is-active {
   border-color: #3f3f46;
 }
 
+html[data-theme="dark"] .add-site-group + .add-site-group {
+  border-top-color: rgba(255, 255, 255, .1);
+}
+
+html[data-theme="dark"] .add-site-group-title {
+  color: #71717a;
+}
+
 html[data-theme="dark"] .add-site-chip.is-active:hover {
   background: #3f3f46;
   color: #71717a;
   border-color: #3f3f46;
+}
+
+html[data-theme="dark"] .add-site-chip.is-external-only:hover {
+  background: #323238;
+  color: #d4d4d8;
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .add-site-chip.is-external-only::after {
+  background: #52525b;
+  color: #f4f4f5;
 }
 
 /* ── 侧边站点导航 ───────────────────────────────────────── */

@@ -188,11 +188,42 @@
   cursor: not-allowed;
 }
 
+.config-export-dialog {
+  max-width: 480px;
+}
+
+.config-export-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding-top: 4px;
+}
+
+.config-export-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.config-export-option:hover {
+  background: #fafafa;
+}
+
+.config-export-option-label {
+  font-size: var(--fs-lg);
+  color: #111111;
+  user-select: none;
+}
+
 /* ── End Import / Export ──────────────────────────────────────────────────── */
 
 /* ── Prompts: fixed height, scroll, aligned bottom buttons ──────────────── */
 .prompt-settings-shell {
-  height: 560px;
+  height: auto;
   min-height: unset !important;
   align-items: stretch;
 }
@@ -242,7 +273,7 @@
 
 .prompt-content-panel {
   min-height: unset !important;
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
 }
@@ -250,7 +281,22 @@
 .prompt-cards-list {
   flex: 1;
   min-height: 0;
+  max-height: calc(7 * 53px + 1px);
   overflow-y: auto;
+}
+
+.prompt-cards-list::-webkit-scrollbar {
+  width: 6px;
+}
+.prompt-cards-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.prompt-cards-list::-webkit-scrollbar-thumb {
+  background: #dcdcdc;
+  border-radius: 3px;
+}
+.prompt-cards-list::-webkit-scrollbar-thumb:hover {
+  background: #bbbbbb;
 }
 
 .prompt-panel-bottom-add {

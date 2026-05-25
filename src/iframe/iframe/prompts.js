@@ -5,7 +5,34 @@ import {
   getDisplayPromptEntries,
 } from "../../shared/prompt-groups.js";
 import { state, elements, STORAGE_KEYS, promptPreview } from "./state.js";
-import { escapeHtml, setQueryInputValue } from "./utils.js";
+import { updateSendBtnState } from "./status.js";
+import { escapeHtml } from "./utils.js";
+
+/** 将提示词插入底部输入框光标位置（各布局通用） */
+export function applyPromptFill(prompt) {
+  const ta = elements.queryInput;
+  if (!ta) return;
+
+  const content = String(prompt?.content || "");
+  const start = ta.selectionStart ?? ta.value.length;
+  const end = ta.selectionEnd ?? ta.value.length;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + content + after;
+  const newCursor = before.length + content.length;
+
+  closePromptPicker();
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+  updateSendBtnState();
+
+  requestAnimationFrame(() => {
+    ta.focus();
+    try {
+      ta.setSelectionRange(newCursor, newCursor);
+    } catch (_) {}
+    updateSendBtnState();
+  });
+}
 
 export function bindPromptPickerEvents() {
   document.addEventListener("click", (event) => {
@@ -221,10 +248,7 @@ function buildPromptsColumn(activeGroup) {
     promptPreview.mgr = promptPreview.mgr || window.PromptItemUI.createPreviewManager(null);
     entries.forEach(({ prompt, sourceGroup }) => {
       const item = window.PromptItemUI.createItem(prompt, {
-        onFill: (p) => {
-          setQueryInputValue(p.content || "", { focus: true });
-          closePromptPicker();
-        },
+        onFill: (p) => applyPromptFill(p),
         onEdit: (p) => openPromptEditModal(p, sourceGroup.id),
         previewManager: promptPreview.mgr,
       });

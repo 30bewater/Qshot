@@ -17,8 +17,7 @@ export function renderHistoryIfOpen() {
   }
 
   state.historyEntries.forEach((entry) => {
-    const item = document.createElement("button");
-    item.type = "button";
+    const item = document.createElement("div");
     item.className = "history-item";
 
     const line = document.createElement("div");
@@ -27,38 +26,64 @@ export function renderHistoryIfOpen() {
     const query = document.createElement("div");
     query.className = "history-query";
     query.textContent = String(entry?.query || "").replace(/\s+/g, " ").trim();
+    query.addEventListener("click", () => {
+      const queryInput = state.shadowRoot?.querySelector(".query-input");
+      if (queryInput instanceof HTMLTextAreaElement) {
+        queryInput.value = entry?.query || "";
+        queryInput.dispatchEvent(new Event("input", { bubbles: true }));
+        queryInput.focus();
+      }
+    });
+
+    const metaSlot = document.createElement("div");
+    metaSlot.className = "history-meta-slot";
 
     const meta = document.createElement("div");
     meta.className = "history-meta";
     meta.textContent = formatHistoryDate(entry?.createdAt);
 
+    const actionButtons = document.createElement("div");
+    actionButtons.className = "history-action-buttons";
+
+    const restoreBtn = document.createElement("button");
+    restoreBtn.type = "button";
+    restoreBtn.className = "history-restore-btn";
+    restoreBtn.textContent = t("overlay_historyRestore", null, "复原");
+    restoreBtn.setAttribute("aria-label", t("overlay_restoreHistoryEntry", null, "新开页面复原这次搜索会话"));
+    restoreBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openOverlayHistoryRestorePage(entry?.id);
+    });
+    actionButtons.appendChild(restoreBtn);
+
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.className = "history-delete-btn";
+    deleteBtn.textContent = t("overlay_historyDelete", null, "删除");
     deleteBtn.setAttribute("aria-label", t("overlay_deleteHistoryEntry", null, "删除这条记录"));
-    deleteBtn.textContent = "×";
     deleteBtn.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
       await removeHistoryEntry(entry);
     });
+    actionButtons.appendChild(deleteBtn);
 
+    metaSlot.appendChild(meta);
+    metaSlot.appendChild(actionButtons);
     line.appendChild(query);
-    line.appendChild(meta);
+    line.appendChild(metaSlot);
     item.appendChild(line);
-    item.appendChild(deleteBtn);
-    item.addEventListener("click", () => {
-      const queryInput = state.shadowRoot?.querySelector(".query-input");
-      if (queryInput instanceof HTMLTextAreaElement) {
-        queryInput.value = entry?.query || "";
-        // syncComposerLayout is called by main via input event subscription;
-        // dispatch an input event so the layout updates for the pasted text.
-        queryInput.dispatchEvent(new Event("input", { bubbles: true }));
-        queryInput.focus();
-      }
-    });
     historyList.appendChild(item);
   });
+}
+
+function openOverlayHistoryRestorePage(entryId) {
+  if (!entryId) return;
+  const url = new URL(chrome.runtime.getURL("iframe/iframe.html"));
+  url.searchParams.set("restoreHistoryId", entryId);
+  chrome.tabs.create({ url: url.toString() }).catch(() => {});
+  state.closeOverlay?.();
 }
 
 async function removeHistoryEntry(entry) {

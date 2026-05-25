@@ -1,6 +1,7 @@
 import { safeFocus } from "./dom-utils.js";
 
-export function setContenteditableValue(element, query) {
+// append=true: insert at cursor/end (prompt fill); append=false: select-all replace (search query)
+export function setContenteditableValue(element, query, append = false) {
   const text = String(query || "");
   safeFocus(element);
 
@@ -9,17 +10,17 @@ export function setContenteditableValue(element, query) {
   // React model updating, so the placeholder layer stays visible and the
   // send button remains disabled.
   if (isSlateEditor(element)) {
-    updateSlateEditorContent(element, text);
+    updateSlateEditorContent(element, text, append);
     return;
   }
 
-  // Select all current contents first so insertText replaces rather than
-  // appends — avoids duplicated text in Lexical (Kimi) etc. and keeps each
-  // write idempotent.
+  // When replacing: select all so insertText overwrites existing content.
+  // When appending: collapse to end so insertText inserts after existing content.
   let selectionSet = false;
   try {
     const range = document.createRange();
     range.selectNodeContents(element);
+    if (append) range.collapse(false);
     const selection = window.getSelection();
     if (selection) {
       selection.removeAllRanges();
@@ -61,11 +62,11 @@ export function setContenteditableValue(element, query) {
     element.getAttribute("data-lexical-editor") === "true";
 
   if (isLexicalEditor) {
-    updateLexicalEditorContent(element, text);
+    updateLexicalEditorContent(element, text, append);
     return;
   }
 
-  updateGenericContenteditable(element, text);
+  updateGenericContenteditable(element, text, append);
 }
 
 export function isSlateEditor(element) {
@@ -82,11 +83,11 @@ export function isSlateEditor(element) {
 // Slate keeps its own Editor+Selection model; only a valid beforeinput with
 // inputType="insertText" and data=<text> triggers Transforms.insertText, which
 // updates the model, clears the placeholder layer and enables the send button.
-export function updateSlateEditorContent(element, query) {
+export function updateSlateEditorContent(element, query, append = false) {
   safeFocus(element);
 
-  // Step 1: cover all existing content with a selection. Slate's beforeinput
-  // handler reads window.getSelection(); without one it silently returns.
+  // Step 1: set up selection. When replacing: select all so Slate's model gets
+  // overwritten. When appending: collapse to end so new text is inserted after.
   const selection = window.getSelection();
   let selectionSet = false;
   try {
@@ -94,6 +95,7 @@ export function updateSlateEditorContent(element, query) {
       selection.removeAllRanges();
       const range = document.createRange();
       range.selectNodeContents(element);
+      if (append) range.collapse(false);
       selection.addRange(range);
       selectionSet = true;
     }
@@ -101,24 +103,26 @@ export function updateSlateEditorContent(element, query) {
     selectionSet = false;
   }
 
-  // Step 2: if there's leftover text, have Slate clear its own model via
+  // Step 2: when replacing, have Slate clear its own model first via
   // deleteContentBackward rather than mutating DOM directly.
-  const existingText = String(element.textContent || "");
-  if (existingText.trim()) {
-    element.dispatchEvent(
-      new InputEvent("beforeinput", {
-        bubbles: true,
-        cancelable: true,
-        inputType: "deleteContentBackward",
-      })
-    );
-    element.dispatchEvent(
-      new InputEvent("input", {
-        bubbles: true,
-        cancelable: true,
-        inputType: "deleteContentBackward",
-      })
-    );
+  if (!append) {
+    const existingText = String(element.textContent || "");
+    if (existingText.trim()) {
+      element.dispatchEvent(
+        new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "deleteContentBackward",
+        })
+      );
+      element.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "deleteContentBackward",
+        })
+      );
+    }
   }
 
   if (!query) {
@@ -165,15 +169,16 @@ export function updateSlateEditorContent(element, query) {
   }
 }
 
-export function updateLexicalEditorContent(element, query) {
+export function updateLexicalEditorContent(element, query, append = false) {
   safeFocus(element);
 
-  // Prefer selection + beforeinput so Lexical updates its own EditorState
-  // (which is what actually re-enables the send button).
+  // When replacing: select all so Lexical overwrites existing EditorState.
+  // When appending: collapse to end so new text is inserted after.
   let selectionSet = false;
   try {
     const range = document.createRange();
     range.selectNodeContents(element);
+    if (append) range.collapse(false);
     const sel = window.getSelection();
     if (sel) {
       sel.removeAllRanges();
@@ -194,6 +199,23 @@ export function updateLexicalEditorContent(element, query) {
   // executeSetValue stops retrying.
   const currentText = String(element.textContent || "");
   if (!query || currentText.includes(query)) {
+    return;
+  }
+
+  if (append) {
+    // Append to the last paragraph rather than replacing.
+    const paragraphs = element.querySelectorAll("p");
+    const target = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] : null;
+    const span = document.createElement("span");
+    span.setAttribute("data-lexical-text", "true");
+    span.textContent = query;
+    if (target) {
+      target.appendChild(span);
+    } else {
+      const p = document.createElement("p");
+      p.appendChild(span);
+      element.appendChild(p);
+    }
     return;
   }
 
@@ -225,24 +247,37 @@ export function updateLexicalEditorContent(element, query) {
   }
 }
 
-export function updateGenericContenteditable(element, query) {
+export function updateGenericContenteditable(element, query, append = false) {
   safeFocus(element);
 
-  const paragraphs = element.querySelectorAll("p");
-  if (paragraphs.length > 0) {
-    if (paragraphs.length > 1) {
-      for (let index = 1; index < paragraphs.length; index += 1) {
-        paragraphs[index].remove();
-      }
+  if (append) {
+    // Append to last paragraph; only mutate DOM — events already fired above.
+    const paragraphs = element.querySelectorAll("p");
+    if (paragraphs.length > 0) {
+      const lastP = paragraphs[paragraphs.length - 1];
+      lastP.textContent = (lastP.textContent || "") + query;
+    } else {
+      const p = document.createElement("p");
+      p.textContent = query;
+      element.appendChild(p);
     }
-    const firstParagraph = paragraphs[0];
-    firstParagraph.classList.remove("is-empty", "is-editor-empty");
-    firstParagraph.textContent = query;
   } else {
-    element.innerHTML = "";
-    const paragraph = document.createElement("p");
-    paragraph.textContent = query;
-    element.appendChild(paragraph);
+    const paragraphs = element.querySelectorAll("p");
+    if (paragraphs.length > 0) {
+      if (paragraphs.length > 1) {
+        for (let index = 1; index < paragraphs.length; index += 1) {
+          paragraphs[index].remove();
+        }
+      }
+      const firstParagraph = paragraphs[0];
+      firstParagraph.classList.remove("is-empty", "is-editor-empty");
+      firstParagraph.textContent = query;
+    } else {
+      element.innerHTML = "";
+      const paragraph = document.createElement("p");
+      paragraph.textContent = query;
+      element.appendChild(paragraph);
+    }
   }
 
   dispatchContenteditableEvents(element, query);

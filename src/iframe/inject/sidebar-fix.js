@@ -1,6 +1,25 @@
 // Injects site-specific CSS into the AI site's iframe to hide its internal
 // sidebar so our compare page layout isn't wasted on e.g. ChatGPT's nav panel.
 // Only runs in iframes (not top tabs) and only for sites in SITE_STYLE_MAP.
+
+import { isDeepSeekHistoryRestorePaused } from "./deepseek-restore-pause.js";
+
+const DEEPSEEK_GUARD = "html:not(.qshot-user-active):not(.qshot-history-restore)";
+
+const DEEPSEEK_EARLY_SIDEBAR_SELECTORS = [
+  "[class*='sidebar']",
+  "[class*='side-bar']",
+  "[class*='sider']",
+  "[class*='drawer']",
+  "[class*='chat-list']",
+  "[class*='conversation-list']",
+  "[class*='history-sidebar']",
+  "[class*='history-list']",
+  "[class*='chat-history']",
+].join(", ");
+
+const DEEPSEEK_SIDEBAR_HIDE_SELECTORS = DEEPSEEK_EARLY_SIDEBAR_SELECTORS;
+
 export async function initEmbedSidebarFix(resolveSite) {
   if (window.parent === window) return;
 
@@ -31,6 +50,12 @@ export async function initEmbedSidebarFix(resolveSite) {
     "nav:not(:has(textarea)):not(:has([contenteditable='true'])) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
     "[class*='layout'], [class*='container'], [class*='wrapper'] { margin-left: 0 !important; padding-left: 0 !important; }",
   ];
+  const KIMI_CHAT_CSS = [
+    "#app > .app, .app.has-sidebar { display: flex !important; width: 100% !important; min-width: 0 !important; }",
+    "aside.sidebar, .sidebar-placeholder, .sidebar-nav, .sidebar-new-chat, .sidebar-footer, .claw-sidebar, [class*='conversation-sidebar'], [class*='chat-history'], [class*='left-sidebar'], [class*='nav-sidebar'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
+    "main, [role='main'], [class*='main-content'], [class*='chat-main'], [class*='conversation'] { flex: 1 1 auto !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin-left: 0 !important; padding-left: 0 !important; }",
+    "[class*='layout'], [class*='container'], [class*='wrapper'] { margin-left: 0 !important; padding-left: 0 !important; }",
+  ];
 
   // Some sites expose important controls behind their own sidebar drawer.
   // Keep Doubao and Gemini out of this map so their in-card sidebar buttons
@@ -49,17 +74,11 @@ export async function initEmbedSidebarFix(resolveSite) {
     ],
     deepseek: [
       "/* AI批量搜索：隐藏 DeepSeek 侧边栏，消除左侧留白；用户点击时临时解除抑制 */",
-      "html:not(.qshot-user-active) [class*='sidebar'], html:not(.qshot-user-active) [class*='side-bar'], html:not(.qshot-user-active) [class*='left-panel'], html:not(.qshot-user-active) [class*='left_panel'], html:not(.qshot-user-active) [class*='nav-panel'], html:not(.qshot-user-active) [class*='chat-list'], html:not(.qshot-user-active) [class*='conversation-list'], html:not(.qshot-user-active) [class*='history'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; transform: translateX(-120%) !important; pointer-events: none !important; }",
-      "html:not(.qshot-user-active) aside, html:not(.qshot-user-active) nav, html:not(.qshot-user-active) [role='navigation'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; transform: translateX(-120%) !important; pointer-events: none !important; }",
-      "html:not(.qshot-user-active) div:has(> aside), html:not(.qshot-user-active) div:has(> nav), html:not(.qshot-user-active) div:has([class*='sidebar']):not(:has(textarea)):not(:has([contenteditable='true'])) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
-      "/* structural fallback: hide sidebar by DOM position regardless of class names */",
-      "html:not(.qshot-user-active) #root > div > div:first-child:not(:has(textarea)):not(:has([contenteditable='true'])):not(:last-child) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; transform: translateX(-120%) !important; pointer-events: none !important; }",
+      `html:not(.qshot-user-active):not(.qshot-history-restore) ${DEEPSEEK_SIDEBAR_HIDE_SELECTORS} { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; transform: translateX(-120%) !important; pointer-events: none !important; }`,
+      `${DEEPSEEK_GUARD} aside, ${DEEPSEEK_GUARD} nav, ${DEEPSEEK_GUARD} [role='navigation'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; transform: translateX(-120%) !important; pointer-events: none !important; }`,
+      `${DEEPSEEK_GUARD} div:has(> aside), ${DEEPSEEK_GUARD} div:has(> nav), ${DEEPSEEK_GUARD} div:has([class*='sidebar']):not(:has(textarea)):not(:has([contenteditable='true'])) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }`,
+      `${DEEPSEEK_GUARD} #root > div > div:first-child:not(:has(textarea)):not(:has([contenteditable='true'])):not(:only-child):not(:last-child) { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; transform: translateX(-120%) !important; pointer-events: none !important; }`,
       "main, [role='main'], [class*='chat-main'], [class*='main-content'], [class*='conversation'] { flex: 1 1 auto !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; padding-left: 0 !important; margin-left: 0 !important; transform: none !important; }",
-    ],
-    qwen: [
-      "/* AI批量搜索：隐藏通义千问 / Qwen 侧边栏 */",
-      ...DOMESTIC_CHAT_CSS,
-      ".t-layout__sider, .t-chat__sider, .t-chat-sider, [class*='ant-layout-sider'], [class*='conversation-sidebar'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
     ],
     yuanbao: [
       "/* AI批量搜索：隐藏腾讯元宝侧边栏 / 会话列表 */",
@@ -68,8 +87,7 @@ export async function initEmbedSidebarFix(resolveSite) {
     ],
     kimi: [
       "/* AI批量搜索：隐藏 Kimi 侧边栏 / 会话列表 */",
-      ...DOMESTIC_CHAT_CSS,
-      "[class*='conversation-sidebar'], [class*='chat-history'], [class*='left-sidebar'], [class*='nav-sidebar'] { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; overflow: hidden !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
+      ...KIMI_CHAT_CSS,
     ],
     claude: [
       "/* AI批量搜索：隐藏 Claude 侧边栏 */",
@@ -135,12 +153,12 @@ function installEarlyDeepSeekSidebarCss() {
   style.id = STYLE_ID;
   style.textContent = [
     "/* Qshot: prevent DeepSeek mobile drawer from flashing in iframe */",
-    "html:not(.qshot-user-active) aside, html:not(.qshot-user-active) nav, html:not(.qshot-user-active) [role='navigation'] { display: none !important; visibility: hidden !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none !important; transform: translateX(-120%) !important; }",
-    "html:not(.qshot-user-active) [class*='sidebar'], html:not(.qshot-user-active) [class*='side-bar'], html:not(.qshot-user-active) [class*='sider'], html:not(.qshot-user-active) [class*='drawer'], html:not(.qshot-user-active) [class*='chat-list'], html:not(.qshot-user-active) [class*='conversation-list'], html:not(.qshot-user-active) [class*='history'] { display: none !important; visibility: hidden !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none !important; transform: translateX(-120%) !important; }",
-    "html:not(.qshot-user-active) [class*='mask'], html:not(.qshot-user-active) [class*='overlay'], html:not(.qshot-user-active) [class*='backdrop'] { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }",
+    `${DEEPSEEK_GUARD} aside, ${DEEPSEEK_GUARD} nav, ${DEEPSEEK_GUARD} [role='navigation'] { display: none !important; visibility: hidden !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none !important; transform: translateX(-120%) !important; }`,
+    `${DEEPSEEK_GUARD} ${DEEPSEEK_EARLY_SIDEBAR_SELECTORS} { display: none !important; visibility: hidden !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none !important; transform: translateX(-120%) !important; }`,
+    `${DEEPSEEK_GUARD} [class*='mask'], ${DEEPSEEK_GUARD} [class*='overlay'], ${DEEPSEEK_GUARD} [class*='backdrop'] { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }`,
     "main, [role='main'], [class*='chat-main'], [class*='main-content'] { width: 100% !important; max-width: 100% !important; margin-left: 0 !important; padding-left: 0 !important; transform: none !important; }",
-    "/* structural fallback: hide first non-input sibling in root layout regardless of class names */",
-    "html:not(.qshot-user-active) #root > div > div:first-child:not(:has(textarea)):not(:has([contenteditable='true'])):not(:last-child) { display: none !important; visibility: hidden !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none !important; transform: translateX(-120%) !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }",
+    "/* 仅双栏布局时隐藏左侧栏，避免对话页首屏未渲染输入框时误藏主内容 */",
+    `${DEEPSEEK_GUARD} #root > div > div:first-child:not(:has(textarea)):not(:has([contenteditable='true'])):not(:only-child):not(:last-child) { display: none !important; visibility: hidden !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; opacity: 0 !important; overflow: hidden !important; pointer-events: none !important; transform: translateX(-120%) !important; flex: none !important; flex-basis: 0 !important; padding: 0 !important; margin: 0 !important; }`,
   ].join("\n");
 
   (document.head || document.documentElement).appendChild(style);
@@ -209,6 +227,9 @@ function startDeepSeekSidebarSuppressor() {
 }
 
 function suppressDeepSeekSidebar() {
+  if (isDeepSeekHistoryRestorePaused()) {
+    return;
+  }
   const body = document.body;
   if (!body) return;
 
@@ -223,9 +244,11 @@ function suppressDeepSeekSidebar() {
     "[class*='mask']",
     "[class*='modal']",
     "[class*='overlay']",
-    "[class*='history']",
-    "[class*='conversation']",
+    "[class*='history-sidebar']",
+    "[class*='history-list']",
+    "[class*='chat-history']",
     "[class*='chat-list']",
+    "[class*='conversation-list']",
   ].join(",");
 
   document.querySelectorAll(selector).forEach((element) => {
@@ -275,7 +298,7 @@ function isDeepSeekSidebarLike(element) {
   const text = String(element.innerText || element.textContent || "").slice(0, 600);
   const looksLikeDeepSeekMenu =
     /deepseek|新对话|开启新对话|今天|昨天|历史|会话|chat/i.test(text) ||
-    /sidebar|side-bar|sider|drawer|history|conversation|chat-list/i.test(className);
+    /sidebar|side-bar|sider|drawer|history-list|history-sidebar|conversation-list|conversation-sidebar|chat-list/i.test(className);
 
   return looksLikeDeepSeekMenu &&
     rect.left <= Math.max(24, viewportWidth * 0.08) &&

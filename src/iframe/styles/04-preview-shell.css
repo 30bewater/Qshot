@@ -1,0 +1,20 @@
+/* 预览卡片外壳（shared/prompt-item.js 驱动，与 popup 同步） */
+.qshot-preview-shell {
+  position: fixed;
+  z-index: 2147483647;
+  perspective: 1200px;
+  perspective-origin: center center;
+  display: none;
+  pointer-events: none;
+}
+.qshot-preview-shell:not([hidden]) {
+  display: block;
+  pointer-events: auto;
+}
+.qshot-preview-card {
+  position: relative;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  will-change: transform, box-shadow;
+}

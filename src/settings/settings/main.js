@@ -8,6 +8,7 @@ import {
   CUSTOM_SITES_STORAGE_KEY,
   RANDOM_QUESTIONS_STORAGE_KEY,
   QUICK_ACCESS_SITES_KEY,
+  SELECTION_CONTEXT_GROUPS_STORAGE_KEY,
 } from "../../shared/storage-keys.js";
 import {
   state,
@@ -18,6 +19,7 @@ import {
 import { loadBuiltinSites } from "./utils.js";
 import {
   createNormalizedGroups,
+  createNormalizedSelectionContextGroups,
   createNormalizedPromptGroups,
   createNormalizedUiPrefs,
   createNormalizedCustomSites,
@@ -33,9 +35,16 @@ import {
   loadDefaultRandomQuestionsText,
 } from "./sections/random.js";
 import { renderOtherSection } from "./sections/other.js";
-import { renderMiscSection, applyDarkMode } from "./sections/misc.js";
+import { closeCtxPicker } from "./sections/selection-context-groups.js";
+import { renderMiscSection } from "./sections/misc.js";
+import { createAiSummaryProviderCard } from "./sections/misc-ai-summary.js";
+import { applyDarkModeToDoc } from "../../shared/theme.js";
+import { FEATURE_MEMORY } from "../../shared/features.js";
+import { renderMemorySection as renderMemorySectionImpl } from "./sections/memory.js";
 import { renderAboutSection } from "./sections/about.js";
 import { handleExport, handleImportFileChange } from "./import-export.js";
+
+const renderMemorySection = FEATURE_MEMORY ? renderMemorySectionImpl : () => {};
 
 export function initSettingsPage() {
   document.addEventListener("DOMContentLoaded", start);
@@ -48,8 +57,11 @@ function cacheElements() {
   state.dom.randomSection = document.getElementById("randomSection");
   state.dom.otherSection = document.getElementById("otherSection");
   state.dom.miscSection = document.getElementById("miscSection");
+  state.dom.aiSummarySection = document.getElementById("aiSummarySection");
+  state.dom.memorySection = document.getElementById("memorySection");
   state.dom.aboutSection = document.getElementById("aboutSection");
   state.dom.sectionEyebrow = document.getElementById("sectionEyebrow");
+  state.dom.sectionContentHeader = document.querySelector(".settings-content-header");
   state.dom.sectionLogoWrap = document.getElementById("sectionLogoWrap");
   state.dom.sectionTitleRow = document.getElementById("sectionTitleRow");
   state.dom.sectionTitle = document.getElementById("sectionTitle");
@@ -67,6 +79,7 @@ function registerRenderCallbacks() {
   state.renderRandomSection = renderRandomSection;
   state.renderOtherSection = renderOtherSection;
   state.renderMiscSection = renderMiscSection;
+  state.renderAiSummarySection = renderAiSummarySection;
   state.renderAboutSection = renderAboutSection;
 }
 
@@ -74,14 +87,17 @@ async function start() {
   cacheElements();
   registerRenderCallbacks();
 
-  const builtinSites = await loadBuiltinSites();
-  const stored = await chrome.storage.local.get([
-    GROUPS_STORAGE_KEY,
-    PROMPTS_STORAGE_KEY,
-    UI_PREFS_STORAGE_KEY,
-    CUSTOM_SITES_STORAGE_KEY,
-    RANDOM_QUESTIONS_STORAGE_KEY,
-    QUICK_ACCESS_SITES_KEY,
+  const [builtinSites, stored] = await Promise.all([
+    loadBuiltinSites(),
+    chrome.storage.local.get([
+      GROUPS_STORAGE_KEY,
+      PROMPTS_STORAGE_KEY,
+      UI_PREFS_STORAGE_KEY,
+      CUSTOM_SITES_STORAGE_KEY,
+      RANDOM_QUESTIONS_STORAGE_KEY,
+      QUICK_ACCESS_SITES_KEY,
+      SELECTION_CONTEXT_GROUPS_STORAGE_KEY,
+    ]),
   ]);
   state.customSites = createNormalizedCustomSites(stored[CUSTOM_SITES_STORAGE_KEY]);
   state.sites = mergeSites(builtinSites, state.customSites);
@@ -90,15 +106,21 @@ async function start() {
     : [];
   syncCustomCategoryIds();
   state.groups = createNormalizedGroups(stored[GROUPS_STORAGE_KEY]);
+  state.selectionContextGroups = createNormalizedSelectionContextGroups(
+    stored[SELECTION_CONTEXT_GROUPS_STORAGE_KEY]
+  );
   state.promptGroups = createNormalizedPromptGroups(stored[PROMPTS_STORAGE_KEY]);
   state.uiPrefs = createNormalizedUiPrefs(stored[UI_PREFS_STORAGE_KEY]);
-  applyDarkMode(state.uiPrefs.darkMode);
+  applyDarkModeToDoc(state.uiPrefs.darkMode);
   window.__QSHOT_I18N__?.setLocaleMode?.(state.uiPrefs.localeMode);
   applyDomI18n?.(document);
   const uiLang = (window.__QSHOT_I18N__?.getUiLanguage?.() || navigator.language || "").toLowerCase();
-  state.defaultRandomQuestionsText = await loadDefaultRandomQuestionsText(uiLang);
   const otherLang = uiLang.startsWith("zh") ? "en" : "zh";
-  const otherDefaultRandomQuestionsText = await loadDefaultRandomQuestionsText(otherLang);
+  const [defaultRandomQuestionsText, otherDefaultRandomQuestionsText] = await Promise.all([
+    loadDefaultRandomQuestionsText(uiLang),
+    loadDefaultRandomQuestionsText(otherLang),
+  ]);
+  state.defaultRandomQuestionsText = defaultRandomQuestionsText;
   const storedRaw = stored[RANDOM_QUESTIONS_STORAGE_KEY];
   // 如果存储的内容是旧版（以 # 注释开头的说明块），视为未自定义，替换为新的干净默认题库
   const isOldDefault = typeof storedRaw === "string" && storedRaw.trimStart().startsWith("#");
@@ -125,9 +147,13 @@ async function start() {
   }
 
   bindEvents();
-  const hashSection =
-    new URLSearchParams(location.search).get("section") ||
-    location.hash.replace("#", "");
+  const urlParams = new URLSearchParams(location.search);
+  const miscTab = urlParams.get("miscTab");
+  let hashSection = urlParams.get("section") || location.hash.replace("#", "");
+  // 旧链接兼容：section=misc&miscTab=ai → 直接跳转到 aiSummary
+  if (hashSection === "misc" && miscTab === "ai") {
+    hashSection = "aiSummary";
+  }
   if (hashSection && SECTION_META[hashSection]) {
     setActiveSection(hashSection);
   } else {
@@ -177,6 +203,11 @@ function handleDocumentClick(event) {
     renderGroupsSection();
     return;
   }
+  if (state.openCtxPickerGroupId && !event.target.closest(".inline-add-wrap")) {
+    closeCtxPicker();
+    renderOtherSection();
+    return;
+  }
 
   if (!event.target.closest(".group-mode-dropdown")) {
     document.querySelectorAll(".group-mode-dropdown").forEach((dropdown) => {
@@ -213,8 +244,19 @@ function setActiveSection(sectionKey) {
   state.dom.sectionSubtitle.hidden = !subtitle;
   state.dom.sectionLogoWrap.hidden = sectionKey !== "about";
   state.dom.sectionTitleRow.hidden = !title && sectionKey !== "prompts";
+  if (state.dom.sectionContentHeader) {
+    state.dom.sectionContentHeader.hidden =
+      !title && !subtitle && sectionKey !== "about" && sectionKey !== "prompts";
+  }
   updateSectionVisibility();
   renderCurrentSection();
+}
+
+function renderAiSummarySection() {
+  const { aiSummarySection } = state.dom;
+  if (!aiSummarySection) return;
+  aiSummarySection.innerHTML = "";
+  aiSummarySection.appendChild(createAiSummaryProviderCard());
 }
 
 function renderCurrentSection() {
@@ -239,6 +281,14 @@ function renderCurrentSection() {
     renderMiscSection();
     return;
   }
+  if (state.activeSection === "aiSummary") {
+    renderAiSummarySection();
+    return;
+  }
+  if (state.activeSection === "memory") {
+    renderMemorySection();
+    return;
+  }
   if (state.activeSection === "about") {
     renderAboutSection();
     return;
@@ -254,10 +304,12 @@ function updateSectionVisibility() {
   const showRandom = state.activeSection === "random";
   const showOther = state.activeSection === "other";
   const showMisc = state.activeSection === "misc";
+  const showAiSummary = state.activeSection === "aiSummary";
+  const showMemory = FEATURE_MEMORY && state.activeSection === "memory";
   const showAbout = state.activeSection === "about";
   if (dom.groupsSection) {
     dom.groupsSection.hidden = !showGroups;
-    dom.groupsSection.style.display = showGroups ? "flex" : "none";
+    dom.groupsSection.style.display = showGroups ? "" : "none";
   }
   if (dom.promptsSection) {
     dom.promptsSection.hidden = !showPrompts;
@@ -278,6 +330,14 @@ function updateSectionVisibility() {
   if (dom.miscSection) {
     dom.miscSection.hidden = !showMisc;
     dom.miscSection.style.display = showMisc ? "flex" : "none";
+  }
+  if (dom.aiSummarySection) {
+    dom.aiSummarySection.hidden = !showAiSummary;
+    dom.aiSummarySection.style.display = showAiSummary ? "flex" : "none";
+  }
+  if (dom.memorySection) {
+    dom.memorySection.hidden = !showMemory;
+    dom.memorySection.style.display = showMemory ? "flex" : "none";
   }
   if (dom.aboutSection) {
     dom.aboutSection.hidden = !showAbout;

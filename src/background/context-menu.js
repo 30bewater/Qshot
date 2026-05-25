@@ -1,20 +1,21 @@
-import { SEARCH_GROUPS_STORAGE_KEY, QUICK_ACCESS_SITES_KEY, UI_PREFS_STORAGE_KEY } from "../shared/storage-keys.js";
-import { runSearchGroup, openSiteTabAndSend } from "./tabs.js";
+import {
+  SEARCH_GROUPS_STORAGE_KEY,
+  QUICK_ACCESS_SITES_KEY,
+  UI_PREFS_STORAGE_KEY,
+  SELECTION_CONTEXT_GROUPS_STORAGE_KEY,
+} from "../shared/storage-keys.js";
+import { runSearchGroup, runSelectionContextGroup, openSiteTabAndSend } from "./tabs.js";
 import { loadEnabledSites } from "./sites.js";
 
 const ROOT_ID = "qshot-root";
 const GROUP_PREFIX = "qshot-group-";
+const CTX_GROUP_PREFIX = "qshot-ctx-";
 const SITE_PREFIX = "qshot-site-";
 let rebuildQueue = Promise.resolve();
 let rebuildGeneration = 0;
 
-// 在模块加载时注册点击监听（service worker 每次启动均执行一次）
 chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
 
-/**
- * 根据当前搜索组与快捷调用站点配置重建右键菜单。
- * 在安装/更新、以及相关 storage key 变动时调用。
- */
 export async function rebuildContextMenus() {
   const generation = ++rebuildGeneration;
   rebuildQueue = rebuildQueue
@@ -30,18 +31,18 @@ async function rebuildContextMenusNow(generation) {
   const uiPrefs = prefsResult[UI_PREFS_STORAGE_KEY] || {};
   if (uiPrefs.contextMenuEnabled === false) return;
 
-  const [groups, quickSiteIds, allSites] = await Promise.all([
+  const [groups, ctxGroups, quickSiteIds, allSites] = await Promise.all([
     loadSearchGroups(),
+    loadSelectionContextGroups(),
     loadQuickAccessSiteIds(),
     loadEnabledSites().catch(() => []),
   ]);
 
   const enabledGroups = groups.filter((g) => g.enabled !== false);
+  const enabledCtxGroups = ctxGroups.filter(isRunnableContextGroup);
   const quickSites = quickSiteIds
     .map((id) => allSites.find((s) => s.id === id))
     .filter(Boolean);
-
-  if (enabledGroups.length === 0 && quickSites.length === 0) return;
 
   if (generation !== rebuildGeneration) return;
 
@@ -51,22 +52,14 @@ async function rebuildContextMenusNow(generation) {
     contexts: ["selection"],
   });
 
-  if (enabledGroups.length > 0) {
-    for (const group of enabledGroups) {
-      if (generation !== rebuildGeneration) return;
-      const siteNames = (group.siteIds || [])
-        .map((id) => allSites.find((s) => s.id === id)?.name)
-        .filter(Boolean);
-      const preview = siteNames.length
-        ? "  (" + (siteNames.length > 5 ? siteNames.slice(0, 5).join(" \u00b7 ") + "..." : siteNames.join(" \u00b7 ")) + ")"
-        : "";
-      await createContextMenu({
-        id: GROUP_PREFIX + group.id,
-        parentId: ROOT_ID,
-        title: group.name + preview,
-        contexts: ["selection"],
-      });
-    }
+  for (const group of enabledGroups) {
+    if (generation !== rebuildGeneration) return;
+    await createContextMenu({
+      id: GROUP_PREFIX + group.id,
+      parentId: ROOT_ID,
+      title: group.name,
+      contexts: ["selection"],
+    });
   }
 
   if (quickSites.length > 0) {
@@ -88,19 +81,60 @@ async function rebuildContextMenusNow(generation) {
       });
     }
   }
+
+  if (enabledCtxGroups.length > 0) {
+    if (generation !== rebuildGeneration) return;
+    await createContextMenu({
+      id: "qshot-ctx-sep",
+      parentId: ROOT_ID,
+      type: "separator",
+      contexts: ["selection"],
+    });
+
+    for (const ctxGroup of enabledCtxGroups) {
+      if (generation !== rebuildGeneration) return;
+      await createContextMenu({
+        id: CTX_GROUP_PREFIX + ctxGroup.id,
+        parentId: ROOT_ID,
+        title: ctxGroup.name,
+        contexts: ["selection"],
+      });
+    }
+  }
+
+  if (generation !== rebuildGeneration) return;
+}
+
+function isRunnableContextGroup(ctxGroup) {
+  if (!ctxGroup || ctxGroup.enabled === false) return false;
+  if (ctxGroup.targetType === "group") return !!ctxGroup.refGroupId;
+  return Array.isArray(ctxGroup.siteIds) && ctxGroup.siteIds.length > 0;
 }
 
 async function handleContextMenuClick(info) {
-  const query = (info.selectionText || "").trim();
-  if (!query) return;
-
   const menuId = String(info.menuItemId);
+
+  const selection = (info.selectionText || "").trim();
+  if (!selection) return;
+
+  if (menuId.startsWith(CTX_GROUP_PREFIX)) {
+    const ctxId = menuId.slice(CTX_GROUP_PREFIX.length);
+    const [ctxGroups, searchGroups] = await Promise.all([
+      loadSelectionContextGroups(),
+      loadSearchGroups(),
+    ]);
+    const ctxGroup = ctxGroups.find((g) => g.id === ctxId);
+    if (ctxGroup) {
+      await runSelectionContextGroup(ctxGroup, selection, searchGroups).catch(() => {});
+    }
+    return;
+  }
 
   if (menuId.startsWith(GROUP_PREFIX)) {
     const groupId = menuId.slice(GROUP_PREFIX.length);
     const groups = await loadSearchGroups();
     const group = groups.find((g) => g.id === groupId);
-    if (group) await runSearchGroup(group, query).catch(() => {});
+    if (group) await runSearchGroup(group, selection).catch(() => {});
     return;
   }
 
@@ -108,7 +142,7 @@ async function handleContextMenuClick(info) {
     const siteId = menuId.slice(SITE_PREFIX.length);
     const allSites = await loadEnabledSites().catch(() => []);
     const site = allSites.find((s) => s.id === siteId);
-    if (site) await openSiteTabAndSend(site, query).catch(() => {});
+    if (site) await openSiteTabAndSend(site, selection).catch(() => {});
   }
 }
 
@@ -116,6 +150,13 @@ async function loadSearchGroups() {
   const result = await chrome.storage.local.get(SEARCH_GROUPS_STORAGE_KEY);
   return Array.isArray(result[SEARCH_GROUPS_STORAGE_KEY])
     ? result[SEARCH_GROUPS_STORAGE_KEY]
+    : [];
+}
+
+async function loadSelectionContextGroups() {
+  const result = await chrome.storage.local.get(SELECTION_CONTEXT_GROUPS_STORAGE_KEY);
+  return Array.isArray(result[SELECTION_CONTEXT_GROUPS_STORAGE_KEY])
+    ? result[SELECTION_CONTEXT_GROUPS_STORAGE_KEY]
     : [];
 }
 

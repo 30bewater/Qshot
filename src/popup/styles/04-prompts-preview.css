@@ -135,9 +135,20 @@ button.ppv-close:hover {
 }
 
 /* ── 统一预览卡片（shared/prompt-item.js 驱动）── */
-.qshot-preview-card {
+.qshot-preview-shell {
   position: fixed;
   z-index: 2147483647;
+  perspective: 1200px;
+  perspective-origin: center center;
+  display: none;
+  pointer-events: none;
+}
+.qshot-preview-shell:not([hidden]) {
+  display: block;
+  pointer-events: auto;
+}
+.qshot-preview-card {
+  position: relative;
   width: 340px;
   max-width: calc(100vw - 20px);
   max-height: 360px;
@@ -149,6 +160,10 @@ button.ppv-close:hover {
   flex-direction: column;
   overflow: hidden;
   font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", Arial, sans-serif;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  will-change: transform, box-shadow;
 }
 .qshot-preview-card[hidden] { display: none; }
 .qshot-preview-header {

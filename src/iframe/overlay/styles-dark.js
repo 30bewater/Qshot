@@ -84,11 +84,21 @@ export const OVERLAY_DARK_STYLES = `
   .panel.dark .history-meta {
     color: #71717a;
   }
+  .panel.dark .history-restore-btn,
   .panel.dark .history-delete-btn {
-    color: #71717a;
+    border-color: rgba(255, 255, 255, 0.14);
+    background: #27272a;
+    color: #f4f4f5;
+  }
+  .panel.dark .history-restore-btn:hover {
+    background: #f4f4f5;
+    border-color: #f4f4f5;
+    color: #18181b;
   }
   .panel.dark .history-delete-btn:hover {
-    color: #a1a1aa;
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
   }
   .panel.dark .settings-corner-btn {
     color: #71717a;

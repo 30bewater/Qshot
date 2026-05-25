@@ -1,0 +1,291 @@
+  border-radius: var(--r-md);
+  background: transparent;
+  color: #111;
+  text-align: left;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .12s;
+  box-shadow: none;
+}
+.left-tools-item:hover { background: #f5f5f5; transform: none; }
+
+.left-tools-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.left-tools-item-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+#aiSummaryBtn .left-tools-item-label { font-weight: 400; }
+
+/* ??????????? */
+.left-tools-panel .layout-menu-wrap { position: relative; }
+.left-tools-panel .layout-popover { left: calc(100% + 8px); right: auto; top: auto; bottom: 0; }
+
+/* ?????????????20px??? -2px? */
+.left-tools-panel #exportBtn svg {
+  width: 18px;
+  height: 18px;
+}
+.left-tools-panel #aiSummaryBtn .left-tools-item-icon svg {
+  fill: unset;
+  stroke: none;
+}
+
+/* ???????/???/??????????? 20px ?? */
+.composer-toolbar-row .composer-inline-icon:not(.composer-inline-icon-send) {
+  width: 30px;
+  height: 30px;
+}
+.composer-toolbar-row .composer-inline-actions {
+  gap: 0;
+}
+.composer-toolbar-row #newChatBtn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.composer-toolbar-row #promptAssistBtn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: none;
+}
+.composer-toolbar-row #fileUploadBtn svg,
+.composer-toolbar-row #fileUploadBtn svg path {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: none;
+}
+
+/* ?? ???? ?? */
+.layout-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  min-width: 220px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-lg);
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .12);
+  z-index: 30;
+}
+.layout-option-group + .layout-option-group { margin-top: 12px; }
+.layout-option-title { margin-bottom: 8px; font-size: var(--fs-sm); color: var(--text-muted); }
+.layout-option-row { display: flex; gap: 8px; flex-wrap: nowrap; }
+.layout-option-btn {
+  min-width: 46px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #ddd;
+  border-radius: var(--r-md);
+  background: #fff;
+  color: #111;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.layout-option-btn:hover:not(.is-active) { background: #f5f5f5; border-color: #aaa; }
+.layout-option-btn.is-active { background: #000; color: #fff; border-color: #000; }
+.layout-option-btn:focus-visible { outline: 2px dashed #000; outline-offset: 2px; }
+
+/* ?? ????????? */
+.composer-prompt-picker {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 360px;
+  height: 280px;
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  grid-template-rows: 280px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: var(--r-sm);
+  background: #fff;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, .12);
+  overflow: hidden;
+  z-index: 40;
+}
+.composer-prompt-picker[hidden] { display: none; }
+
+.popup-prompt-groups {
+  padding: 10px;
+  border-right: 1px solid rgba(0, 0, 0, .08);
+  background: #fbfbfb;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  height: 100%;
+}
+.popup-prompt-group-item {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: #111;
+  text-align: left;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.popup-prompt-group-item.is-active,
+.popup-prompt-group-item:hover { background: #111; color: #fff; }
+
+.popup-prompt-list {
+  height: 100%;
+  max-height: none;
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* compare ??prompt ?????? */
+.composer-prompt-picker .popup-prompt-list { gap: 0; padding: 6px 0; }
+.composer-prompt-picker .popup-prompt-item {
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, .07);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 8px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 38px;
+  background: #fff;
+  transform: none;
+  width: 100%;
+}
+.composer-prompt-picker .popup-prompt-item:hover { border-color: rgba(0, 0, 0, .07); box-shadow: none; transform: none; background: #f7f6f4; }
+
+.popup-prompt-item {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: var(--r-md);
+  background: #fff;
+  text-align: left;
+  font-size: var(--fs-md);
+  line-height: 1.4;
+  color: #111;
+  font-weight: 500;
+  cursor: pointer;
+}
+.popup-prompt-item:hover {
+  border-color: rgba(0, 0, 0, .18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .06);
+  transform: translateY(-1px);
+}
+.popup-prompt-picker-empty {
+  padding: 14px 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: #888;
+}
+
+.popup-prompt-icon-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #ccc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color .12s, background .12s;
+  flex-shrink: 0;
+}
+.popup-prompt-icon-btn:hover { color: #444; background: #edeae5; }
+.popup-prompt-edit-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 4px;
+  flex-shrink: 0;
+}
+.popup-prompt-item-label {
+  flex: 1;
+  padding: 0 4px 0 12px;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  line-height: 1.4;
+  color: #111;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.popup-prompt-preview-wrap { position: relative; padding: 0 0 0 4px; flex-shrink: 0; }
+
+/* ?? ???? ?? */
+.card-size-slider-wrap { padding: 6px 2px 0; }
+.card-size-slider {
+  --slider-fill: 50%;
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, #111 var(--slider-fill), #e0e0e0 var(--slider-fill));
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+  display: block;
+}
+.card-size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #111;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .22);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.card-size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
+}
+.card-size-slider::-moz-range-thumb { width: 16px; height: 16px; border: none; border-radius: 50%; background: #111; cursor: pointer; box-shadow: 0 2px 6px rgba(0, 0, 0, .22); }
+.card-size-slider-labels { display: flex; justify-content: space-between; margin-top: 7px; font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* ?? ?????? */
+@media (max-width: 1100px) {
+  .bottom-composer-bar { width: min(100%, calc(100vw - 48px)); }
+  .composer-input-shell { max-width: none; }
+}
+@media (max-width: 900px) {
+  .bottom-composer { left: 14px; right: 14px; bottom: 14px; }
+  .bottom-composer-bar { width: 100%; }
+  .composer-input-shell { gap: 8px; padding: 10px 14px; }
+  .composer-left-tools { gap: 10px; }
+  .composer-tool-icon-btn svg { width: 24px; height: 24px; }
+  .composer-prompt-picker { right: -10px; width: min(360px, calc(100vw - 32px)); }
+  #sendSelectedBtn svg { width: 20px; height: 20px; }
+}

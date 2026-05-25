@@ -31,7 +31,9 @@ textarea {
 }
 
 .settings-sidebar {
-  position: relative;
+  position: sticky;
+  top: 32px;
+  overflow: visible;
   padding: 10px 22px 10px 0;
 }
 
@@ -451,3 +453,4 @@ textarea {
   border-radius: var(--r-md);
   box-shadow: inset 0 0 0 1px #d8d8d8;
 }
+

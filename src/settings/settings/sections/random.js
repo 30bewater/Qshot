@@ -58,45 +58,46 @@ export function renderRandomSection() {
   const { randomSection } = state.dom;
   randomSection.innerHTML = "";
 
-  // 语言检测：非中文环境切换为英文
-  const isZh = (() => {
-    try { return (chrome?.i18n?.getUILanguage?.() || "").toLowerCase().startsWith("zh"); } catch (_) { return true; }
-  })();
+  const isZh = window.__QSHOT_I18N__?.isZhUi?.() ?? true;
 
-  // —— 顶部：显示骰子按钮开关 ——
-  const switchCard = document.createElement("section");
-  switchCard.className = "other-settings-card";
-  switchCard.innerHTML = `<div class="other-settings-list"></div>`;
-  const switchList = switchCard.querySelector(".other-settings-list");
-  switchList?.appendChild(
-    createOtherSettingToggle(
-      "showRandomButton",
-      msg("settings_random_showSwitchTitle", "显示随机骰子按钮"),
-      msg("settings_random_showSwitchDesc", "开启后，输入框下方会出现骰子按钮，点击即可从下方题库里随机抽取一个问题填入搜索框。")
-    )
-  );
-  // —— 副标题下方说明文字 ——
+  // —— 顶部：介绍文字（左）+ 显示骰子按钮开关（右）一体式卡片 ——
+  const initialRawForSwitch = typeof state.randomQuestionsText === "string" ? state.randomQuestionsText : state.defaultRandomQuestionsText;
+
+  const headerCard = document.createElement("section");
+  headerCard.className = "other-settings-card random-header-card";
+
   const introDiv = document.createElement("div");
   introDiv.className = "random-intro-text";
 
   const p1 = document.createElement("p");
   p1.className = "random-hint-para";
-  p1.textContent = isZh
-    ? "很多时候不是不想用 AI，而是不知道问什么。随手一点骰子，一个好问题出来了，思考就开始了。"
-    : "Often the problem isn't not wanting to use AI — it's not knowing what to ask. One tap of the dice, a great question surfaces. Thinking begins.";
+  p1.textContent = msg(
+    "settings_random_introP1",
+    "大部分人不是不想用 AI，而是不知道问什么，而只需随手一点骰子，一个好问题出来了。"
+  );
 
   const p2 = document.createElement("p");
   p2.className = "random-hint-para";
-  if (isZh) {
-    p2.innerHTML = "题库可以自己设置——因为最好的题库永远是关于你自己的。根据你的职业、兴趣或想探索的方向，填入你真正关心的问题，<br>让每一次随机都有价值。";
-  } else {
-    p2.textContent = "Build your own pool — because the best questions are always the ones most relevant to you. Fill it with topics tied to your role, interests, or goals, and every roll becomes worthwhile.";
-  }
+  p2.textContent = msg(
+    "settings_random_introP2",
+    "题库可以自己设置的，毕竟最好的题库是关于你自己的，可以根据你的职业、兴趣或想探索的方向来构建自己的随机问题库，让每一次随机都有价值。"
+  );
 
   introDiv.appendChild(p1);
   introDiv.appendChild(p2);
-  randomSection.appendChild(introDiv);
-  randomSection.appendChild(switchCard);
+
+  const switchWrap = document.createElement("div");
+  switchWrap.className = "random-switch-wrap";
+  switchWrap.appendChild(
+    createOtherSettingToggle(
+      "showRandomButton",
+      msg("settings_random_showSwitchTitle", "显示随机骰子按钮")
+    )
+  );
+
+  headerCard.appendChild(introDiv);
+  headerCard.appendChild(switchWrap);
+  randomSection.appendChild(headerCard);
 
   // —— 下方：问题库编辑区 ——
   const poolCard = document.createElement("section");
@@ -129,9 +130,8 @@ export function renderRandomSection() {
   };
 
   // 初始显示：把存储的原始文本转成带序号的格式
-  const initialRaw = typeof state.randomQuestionsText === "string" ? state.randomQuestionsText : state.defaultRandomQuestionsText;
-  textarea.value = rawToNumbered(initialRaw);
-  updateCount(initialRaw);
+  textarea.value = rawToNumbered(initialRawForSwitch);
+  updateCount(initialRawForSwitch);
 
   let saveTimer = null;
   let statusTimer = null;
@@ -249,11 +249,12 @@ One question per line`;
 
   const hintCard = document.createElement("section");
   hintCard.className = "other-settings-card random-hint-card";
-  const hint3Text = isZh
-    ? "你也可以让 AI 帮你一起完成，协同制定一套属于自己的专属题库。参考下方提示词直接发给任意 AI："
-    : "You can also let AI help you build it. Send the prompt below to any AI to get started:";
-  const copyLabel = isZh ? "复制" : "Copy";
-  const copyAriaLabel = isZh ? "复制提示词" : "Copy prompt";
+  const hint3Text = msg(
+    "settings_random_aiHelpHint",
+    "你也可以让 AI 帮你一起完成，协同制定一套属于自己的专属题库。参考下方提示词直接发给任意 AI："
+  );
+  const copyLabel = msg("common_copy", "复制");
+  const copyAriaLabel = msg("settings_random_copyPromptAria", "复制提示词");
 
   hintCard.innerHTML = `
     <p class="random-hint-para">${hint3Text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
@@ -287,7 +288,7 @@ One question per line`;
       document.execCommand("copy");
       document.body.removeChild(ta);
     }
-    copyLabelEl.textContent = isZh ? "已复制" : "Copied";
+    copyLabelEl.textContent = msg("common_copied", "已复制");
     copyBtn.classList.add("is-copied");
     if (copyResetTimer) clearTimeout(copyResetTimer);
     copyResetTimer = setTimeout(() => {

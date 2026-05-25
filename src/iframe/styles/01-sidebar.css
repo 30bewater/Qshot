@@ -1,0 +1,290 @@
+/* =====================================================================
+   侧边模式（is-sidebar-mode）全部覆盖规则
+   ===================================================================== */
+
+/* 1. 取消所有留白，让卡片全屏铺满 */
+.app-shell.is-sidebar-mode {
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 2. 隐藏不再需要的右侧站点导航面板 */
+.app-shell.is-sidebar-mode .site-nav-panel {
+  display: none;
+}
+
+/* 3. 卡片区域高度：撑满视口，底部留给底部条（~60px） */
+.app-shell.is-sidebar-mode .cards-panel {
+  height: calc(100vh - 70px);
+}
+
+/* 4. 隐藏卡片标题（height:0 保留 grid 占位，避免子项错位） */
+.app-shell.is-sidebar-mode .site-title {
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* 5. 卡片 grid：标题行 0，移除内边距让卡片体铺满，去掉边框阴影 */
+.app-shell.is-sidebar-mode .iframes-container[data-layout-rows="sidebar"] .iframe-card {
+  grid-template-rows: 0px minmax(0, 1fr);
+  padding: 0;
+}
+.app-shell.is-sidebar-mode .iframes-container[data-layout-rows="sidebar"] .iframe-card-body {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+.app-shell.is-sidebar-mode .iframes-container[data-layout-rows="sidebar"] {
+  padding: 0;
+  gap: 0;
+}
+
+/* 6. card-hover-actions → 固定底部中间，侧边模式下常显 */
+.app-shell.is-sidebar-mode .iframes-container[data-layout-rows="sidebar"] .iframe-card .card-hover-actions {
+  position: fixed;
+  bottom: 19px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  height: 40px;
+  align-items: center;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* 6b. 中间三个操作按钮 */
+.app-shell.is-sidebar-mode .iframes-container[data-layout-rows="sidebar"] .card-hover-btn {
+  width: 29px;
+  height: 29px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+}
+
+/* 6c. 左侧模型 chips */
+.app-shell.is-sidebar-mode .bottom-composer .card-nav-chip {
+  height: 28px;
+  padding: 0 13px;
+  font-size: 13px;
+}
+.app-shell.is-sidebar-mode .bottom-composer .card-nav-add-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  margin-left: 5px;
+  margin-bottom: 15px;
+}
+
+/* 卡片底边阴影：顶边紧贴卡片底部，向下渐隐进底部条区域 */
+.app-shell.is-sidebar-mode::after {
+  content: '';
+  position: fixed;
+  bottom: 36px;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), transparent);
+  pointer-events: none;
+  z-index: 19;
+}
+
+/* 7. 底部输入条：align-items: flex-end，输入框向上展开时不带动左侧 chips */
+.app-shell.is-sidebar-mode .bottom-composer {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  top: auto;
+  width: auto;
+  transform: none;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+
+/* 8. 左侧模型 chips：恢复改前定位；隐藏原生滚动条，底部 fixed 轨道单独滚动 */
+.app-shell.is-sidebar-mode .bottom-composer .card-nav-row {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 42px;
+  max-width: calc(50vw - 160px);
+  padding: 0;
+  pointer-events: auto;
+}
+.app-shell.is-sidebar-mode .bottom-composer .card-nav-strip {
+  height: 44px;
+  align-items: center;
+  position: relative;
+  top: -8px;
+  scrollbar-width: none;
+}
+.app-shell.is-sidebar-mode .bottom-composer .card-nav-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* 脱离 composer 文档流，落在按钮行下方空白区 */
+.app-shell.is-sidebar-mode .composer-prompt-picker,
+.app-shell:not(.is-sidebar-mode) .composer-prompt-picker {
+  pointer-events: auto;
+}
+
+.app-shell.is-sidebar-mode .h-scroll-strip {
+  position: fixed;
+  left: 16px;
+  bottom: 6px;
+  width: min(740px, calc(50vw - 160px));
+  max-width: calc(50vw - 160px);
+  margin: 0;
+  z-index: 21;
+  pointer-events: auto;
+}
+
+/* 9. 右侧输入区：折叠 315px → focus 展开 480px */
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row {
+  flex: none;
+  width: 315px;
+  margin-bottom: 7px;
+  padding: 0;
+  gap: 0;
+  justify-content: flex-end;
+  pointer-events: auto;
+  transition: width .22s cubic-bezier(.4, 0, .2, 1);
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) {
+  width: 480px;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-bar { width: 100%; }
+
+/* 10. 滚动按钮隐藏 */
+.app-shell.is-sidebar-mode .scroll-edge-btn,
+.app-shell.is-sidebar-mode .scroll-vert-group {
+  display: none;
+}
+
+/* 11. 输入框壳：折叠态极简 */
+.app-shell.is-sidebar-mode .bottom-composer .composer-input-shell {
+  flex-direction: row;
+  align-items: center;
+  height: 38px;
+  min-height: 38px;
+  gap: 0;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--r-lg);
+  max-width: none;
+  width: 100%;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: height .2s ease, padding .2s ease;
+}
+.app-shell.is-sidebar-mode .bottom-composer .composer-input-row {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-query-input {
+  min-height: 24px;
+  max-height: 24px;
+  height: 24px;
+  font-size: var(--fs-md);
+  resize: none;
+  overflow: hidden;
+  transition: max-height .2s ease;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:not(:has(#queryInput:focus)) .bottom-query-input {
+  height: 24px;
+  max-height: 24px;
+}
+.app-shell.is-sidebar-mode .bottom-composer .composer-toolbar-row {
+  flex: none;
+  min-height: 0;
+  gap: 0;
+  padding: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 折叠态：只保留发送按钮 */
+.app-shell.is-sidebar-mode .bottom-composer .left-tools-menu-wrap,
+.app-shell.is-sidebar-mode .bottom-composer #newChatBtn,
+.app-shell.is-sidebar-mode .bottom-composer .composer-prompt-wrap,
+.app-shell.is-sidebar-mode .bottom-composer #fileUploadBtn {
+  display: none;
+}
+
+/* 12. 展开态：点进输入框后完整展开 */
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .composer-inline-actions {
+  gap: 0px;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .left-tools-toggle-btn svg {
+  stroke-width: 1.8;
+  width: 24px;
+  height: 24px;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .composer-input-shell {
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  min-height: 0;
+  gap: 8px;
+  padding: 10px 18px 12px;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .bottom-query-input {
+  font-size: var(--fs-lg);
+  max-height: 162px;
+  min-height: 34px;
+  overflow-y: auto;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .composer-toolbar-row {
+  min-height: 40px;
+  justify-content: space-between;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .left-tools-menu-wrap {
+  display: block;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) .composer-prompt-wrap {
+  display: block;
+}
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) #newChatBtn,
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:has(#queryInput:focus) #fileUploadBtn {
+  display: inline-flex;
+}
+
+/* 13. 折叠态：4个快捷操作按钮悬浮在输入胶囊左侧 */
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row {
+  position: relative;
+}
+
+.app-shell.is-sidebar-mode .bottom-composer .bottom-composer-row:not(:has(#queryInput:focus)) .composer-collapsed-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  position: absolute;
+  left: -122px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+
+
+.iframes-container[data-layout-rows="sidebar"] {
+  display: block;
+  overflow: hidden;
+  height: 100%;
+  padding: 2px 6px 12px;
+}
+.iframes-container[data-layout-rows="sidebar"] .iframe-card {
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr) 42px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 4px;
+}
+.iframes-container[data-layout-rows="sidebar"] .iframe-card[hidden] { display: none; }

@@ -1,26 +1,42 @@
 {
-  "version": 1,
+  "version": 2,
   "searchGroups": [
     {
-      "id": "default-global-models",
-      "name": "Global Models",
       "enabled": true,
+      "id": "default-compare",
       "mode": "compare",
-      "siteIds": ["gemini", "chatgpt", "claude", "grok"]
+      "name": "Domestic Models",
+      "siteIds": [
+        "deepseek",
+        "doubao",
+        "kimi",
+        "qianwen"
+      ]
     },
     {
-      "id": "default-global-platforms",
-      "name": "Global Platforms",
       "enabled": true,
-      "mode": "tabs",
-      "siteIds": ["twitter", "youtube", "reddit", "tiktok"]
+      "id": "group_1776588656250",
+      "mode": "compare",
+      "name": "Mixed Search",
+      "siteIds": [
+        "chatgpt",
+        "gemini",
+        "deepseek",
+        "doubao",
+        "kimi"
+      ]
     },
     {
-      "id": "default-single-model",
-      "name": "Single Model",
       "enabled": true,
-      "mode": "tabs",
-      "siteIds": ["gemini"]
+      "id": "group_1776657819289",
+      "mode": "compare",
+      "name": "Global Models",
+      "siteIds": [
+        "chatgpt",
+        "gemini",
+        "claude",
+        "copilot"
+      ]
     }
   ],
   "promptGroups": [
@@ -29,24 +45,19 @@
       "name": "Tools",
       "prompts": [
         {
-          "id": "prompt-tools-1",
-          "title": "Turn a Need into a Prompt",
-          "content": "My need: [ ]\n\nRole: You are a top-tier prompt engineering expert.\n\n1. Based on the need I provide, directly generate the strongest structured prompt you can. It should be complete, clear, and ready for me to copy and use.\n\n2. After the optimized prompt, ask me at most 3 key questions that would help clarify the need and improve the next version."
-        },
-        {
-          "id": "prompt-tools-2",
+          "id": "prompt-tools-find-free",
           "title": "Find Free Tools",
-          "content": "My need is:\n\nYou are a researcher specialized in finding free and open-source tools. You know communities such as GitHub, Product Hunt, Reddit, Hacker News, and Indie Hackers. The use case is a personal creator workflow. Prioritize web apps, browser extensions, or ready-to-use tools. Prefer tools that have a free plan and do not require complex setup.\n\nRecommend 3 to 5 tools. For each one, include: tool name, direct URL, one-sentence core function, how free it is, and whether an account is required. At the end, tell me which one you would choose if I could only pick one, and why."
+          "content": "My need is: [Describe what kind of tool you are looking for]\n\nPlease act as a free and open-source tools researcher. Help me find tools that fit a personal creator workflow.\n\nFiltering criteria:\n1. Prioritize free, open-source, and sustainably maintained tools.\n2. Prioritize ready-to-use web apps, browser extensions, or desktop software.\n3. Prefer tools that work without a VPN and have an English interface or documentation.\n4. Reference communities such as GitHub, Product Hunt, Reddit, Hacker News, and Indie Hackers.\n5. Do not recommend obvious paid promotions, inaccessible tools, abandoned projects, or tools with heavy free-tier restrictions.\n6. If information may be outdated, remind me to verify before using.\n\nRecommend 3 to 5 tools. For each tool, use this format:\n\n- Tool name:\n- Direct URL:\n- Core function: one sentence\n- How free: Fully free / Free tier is enough / Free trial only / Open-source self-hosted\n- Requires VPN:\n- Best for:\n- Main downside:\n\nFinally, tell me: if I can only pick one, which would you recommend and why?"
         },
         {
-          "id": "prompt-tools-3",
+          "id": "prompt-tools-reduce-ai-tone",
           "title": "Reduce AI Tone",
-          "content": "Rewrite the content so it sounds more natural and more like a real person, with less obvious AI tone.\n\nRequirements:\n\nWrite in the first person, as if I am expressing my own thoughts. Natural phrases such as \"I think\", \"I tried\", \"honestly\", \"for me\", and \"the tricky part is\" are fine, but do not force them into every sentence.\n\nMake the rhythm feel human. Use varied sentence lengths. Do not make it too neat, too polished, too academic, or like a generic blog template.\n\nAvoid template connectors such as \"firstly\", \"secondly\", \"finally\", \"in conclusion\", \"therefore\", and \"moreover\". Use more natural transitions instead.\n\nMake indirect expressions more direct. For example, change \"conducted an analysis\" to \"analyzed\".\n\nKeep some personal attitude where appropriate, such as \"this matters\", \"this part is easy to miss\", or \"I do not fully agree\", but do not make it overly emotional.\n\nAvoid empty buzzwords. Prefer concrete actions and real observations.\n\nDo not add a motivational ending or force a grand conclusion."
+          "content": "Please rewrite the content below so it sounds more natural and more like a real person. Reduce the obvious AI tone.\n\nOriginal:\n[Paste your content here]\n\nRequirements:\n1. Write in the first person, as if I am expressing my own thoughts.\n2. Keep the tone natural. Phrases like \u201cI think,\u201d \u201chonestly,\u201d \u201cto me,\u201d or \u201cthe thing is\u201d are fine, but do not force them in.\n3. Vary the sentence length. Do not make it too polished or uniform.\n4. Do not write it like a report, essay, or blog template.\n5. Avoid template connectors like \u201cfirstly,\u201d \u201csecondly,\u201d \u201cfinally,\u201d \u201cin conclusion,\u201d \u201ctherefore,\u201d or \u201cmoreover.\u201d\n6. Make indirect expressions more direct. For example, change \u201cconducted an analysis\u201d to \u201canalyzed.\u201d\n7. Keep a light personal voice, but do not make it overly emotional.\n8. No motivational closing lines or forced grand conclusions.\n9. Preserve the original meaning and viewpoints. Do not change the substance.\n\nOutput format:\n**Rewritten Version**\n\nProvide the rewritten content directly.\n\n**What Changed**\n\nBriefly describe the main changes in no more than 3 points."
         },
         {
-          "id": "prompt-tools-4",
+          "id": "prompt-tools-distill-ai",
           "title": "Distill Multiple AI Answers",
-          "content": "You are an information distiller. I will provide a document containing the same question and answers from multiple AI models. Please output in the following structure.\n\n**Core Conclusion**\nGive the direct answer in 2 to 3 sentences. Make it actionable and information-dense.\n\n**Key Points**\nExtract the points that multiple AI answers agree on. Each point should be one actionable line.\n\n**Differences and Unique Signals**\nList contradictions and give your judgment. For information mentioned by only one AI, mark its reference value as high, medium, or low.\n\n**Next Directions**\nBased on the above, provide 3 directions or follow-up questions I can choose from for deeper exploration."
+          "content": "I will give you content that includes the same question answered by multiple AI models.\n\nOriginal content:\n[Paste the multiple AI answers here]\n\nPlease act as an information distiller and help me extract the most useful combined answer.\n\nRequirements:\n1. Do not simply merge the AI answers.\n2. Extract shared consensus first, then handle disagreements.\n3. Remove obvious errors, filler statements, and repetition.\n4. If different AI models contradict each other, identify the conflict and state your judgment.\n5. If one AI provides unique but valuable information, highlight it separately.\n6. The final result should be clear, actionable, and information-dense.\n\nOutput format:\n**Core Conclusion**\n\nAnswer the question directly in 2 to 3 sentences.\n\n**Key Points**\n\nExtract content that multiple AIs agree on and that is genuinely useful.\n\n**Disagreements and Judgment**\n\nList the conflicting points and explain which you lean toward and why.\n\n**Unique but Valuable Information**\n\nHighlight information only one AI mentioned, and rate its reference value: High / Medium / Low.\n\n**Final Recommendation**\n\nProvide the single best combined answer you would recommend.\n\n**Follow-up Directions**\n\nGive 3 questions I could explore further."
         }
       ]
     },
@@ -55,33 +66,165 @@
       "name": "Learning",
       "prompts": [
         {
-          "id": "prompt-learning-1",
-          "title": "Socratic Questions",
-          "content": "The problem I am facing is:\n\nPlease act as a Socratic guide. Do not give me a direct answer. Instead, help me think more deeply in two steps:\n\n1. **Clarifying Questions**\nAsk 2 to 3 questions that go straight to the core. Help me identify the real root of the problem and whether I am using a surface-level issue to hide deeper assumptions, fears, or tradeoffs.\n\n2. **Reveal Tensions**\nIdentify possible contradictions or untested assumptions in my statement. Present them as questions, such as: \"You say A, but you also seem to believe B. Are these two actually compatible?\" Skip this step if there is no obvious tension.\n\nIf I cannot answer everything at once, I can reply to just one question first."
+          "id": "prompt-learning-socratic",
+          "title": "Socratic Questioning",
+          "content": "The problem I am facing is: [Describe your problem here]\n\nPlease act as a Socratic guide. Do not give me a direct answer. Use questions to help me see the core of the issue.\n\nRequirements:\n1. First identify what might actually be troubling me.\n2. Ask 2 to 3 pointed questions that help me clarify my real motivation, hidden assumptions, or underlying fears.\n3. If there are contradictions in what I said, point them out as questions.\n4. Questions should be specific, not vague.\n5. Do not lecture or rush to give advice.\n6. After each question, briefly explain what it is trying to help me see.\n\nOutput format:\n**Where I Might Actually Be Stuck**\n\nSummarize in 1 to 2 sentences.\n\n**Key Questions**\n\n1. Question:\n   What this question helps you see:\n\n2. Question:\n   What this question helps you see:\n\n3. Question:\n   What this question helps you see:\n\n**Possible Contradictions**\n\nPoint them out if any exist; skip if none.\n\n**Which Question to Answer First**\n\nIdentify the single most important question to start with."
         },
         {
-          "id": "prompt-learning-2",
+          "id": "prompt-learning-video",
           "title": "Video Transcript Summary",
-          "content": "Please restructure this video transcript:\n\n1. Analyze the transcript and identify 3 to 5 core themes.\n2. Create a clear heading for each theme using Markdown headings.\n3. Preserve the original substance while reorganizing the paragraphs by theme.\n4. Highlight the following:\n   - Practical methods and steps as bullet lists\n   - Quotes or notable statements as blockquotes\n   - Key terms and important concepts in bold\n5. End each theme with one italicized sentence summarizing the section.\n\nThe goal is to improve readability and structure while keeping the original meaning and depth intact."
+          "content": "Please help me organize the video transcript below to make it more structured and easier to review and build on.\n\nTranscript:\n[Paste the transcript here]\n\nRequirements:\n1. Identify 3 to 5 core themes in the transcript.\n2. Reorganize the content by theme without changing the original meaning.\n3. Preserve important expressions, viewpoints, and details from the original.\n4. Highlight practical methods, steps, tools, and examples separately.\n5. Bold key terms and important concepts.\n6. Use blockquote format for notable quotes or references.\n7. If there are repetitions, verbal slip-ups, or speech-to-text errors, make minor corrections but do not substantially alter the content.\n8. Add a short summary sentence at the end of each theme.\n\nOutput format:\n**Theme 1: [Title]**\n\nOrganized content\n\n- Practical methods:\n- Key concepts:\n- Notable examples:\n\n*One-sentence summary:*\n\n**Theme 2: [Title]**\n\n(same structure)\n\nFinally, add:\n**Overall Summary**\n\nSummarize the transcript in 3 to 5 sentences.\n\n**Angles for Further Creation**\n\nGive 3 directions suitable for turning into an article, short video, or content idea."
         },
         {
-          "id": "prompt-learning-3",
+          "id": "prompt-learning-concept",
           "title": "Learn a Concept",
-          "content": "Explain the concept of [ ] in two versions:\n\n1. Simple version: Explain it in plain, vivid language without unnecessary jargon. Include everyday use cases.\n2. Professional version: Start from the formal definition, break down the core components, and present it in a structured way."
+          "content": "Explain the concept of [ ] in two versions:\n\n1. Simple version: Use plain, vivid language without unnecessary jargon. Include everyday use cases.\n2. Professional version: Start from the formal definition, break down the core components, and present it in a structured way."
         },
         {
-          "id": "prompt-learning-4",
-          "title": "Personal Journal Analysis",
-          "content": "Core Identity\nYou are my psychological analyst and behavioral insight expert. Your task is to analyze my thinking patterns from a professional perspective and guide deeper reflection.\n\nAnalysis Framework\n\n1. State Snapshot + Highlight Moment\nFormat:\nOne-sentence diagnosis: [Use a precise professional term to summarize my current state]\nHighlight capture: [If there are especially vivid or revealing sentences, quote them and briefly comment]\n\n2. Deep Analysis (Psychology / Behavior)\nUse psychological or behavioral concepts to interpret the mechanism behind my behavior.\nRequirements:\nUse professional terms where appropriate, such as cognitive dissonance, learned helplessness, self-efficacy, avoidance, or emotional regulation.\nConnect the analysis to recurring patterns and personality tendencies.\nBe direct and do not avoid the core issue.\n\n3. Strategic Suggestions\nProvide 2 to 3 concrete and actionable thinking angles or next steps.\nKeep them concise, direct, and executable.\n\n4. Deep Questions\nAsk 1 to 2 questions that expose blind spots or push me toward action.\n\nPrinciples\nDepth over comfort. Be sharp, but not cruel.\nUse professional language precisely.\nRecognize patterns across my behavior and writing.\nEnd with practical reflection or action."
+          "id": "prompt-learning-journal",
+          "title": "Journal Analysis",
+          "content": "Core Identity\nYou are my psychological analyst and behavioral insight expert. Your task is to analyze my thinking patterns from a professional perspective and guide deeper self-reflection.\n\nAnalysis Framework\n1. State Snapshot + Highlight Moment\nFormat:\n\nOne-sentence diagnosis: [Use a precise professional term to summarize my current state]\nHighlight capture: [If there are especially vivid or revealing sentences in my writing, quote them and briefly comment]\n\n2. Deep Analysis (Psychology / Behavior)\nInterpret the mechanism behind my behavior using psychological or behavioral concepts.\nRequirements:\nUse professional terms where relevant, such as cognitive dissonance, learned helplessness, self-efficacy, avoidance behavior, or emotional regulation.\nConnect the analysis to recurring patterns and personality tendencies.\nBe direct and do not avoid the core issue.\n\n3. Strategic Suggestions\nProvide 2 to 3 concrete and actionable thinking angles or next steps.\nKeep them concise, direct, and executable.\n\n4. Deep Questions\nAsk 1 to 2 questions that expose blind spots or push me toward action.\n\nPrinciples\nDepth over comfort. Be sharp, but not cruel.\nUse professional language precisely.\nRecognize patterns across my behavior and writing.\nEnd with practical reflection or action.\nSpeaking Style\nDirect and incisive, but not cold.\nUse phrases like \u201cYour X behavior is essentially...\u201d where appropriate.\nUse professional terminology and writing concepts to strengthen your points."
+        }
+      ]
+    },
+    {
+      "id": "prompt-group-meta",
+      "name": "Meta Prompts",
+      "prompts": [
+        {
+          "id": "prompt-meta-optimize",
+          "title": "Optimize a Prompt",
+          "content": "Please generate a clearer, more stable, ready-to-copy high-quality prompt based on the original prompt I provide.\n\nAfter giving the first optimized version, ask me at most 3 key questions to help me clarify my needs and iterate toward a version that better fits my use case.\n\nRequirements:\n1. First identify my real goal and clarify what this prompt actually needs to accomplish.\n2. Preserve my original intent. Do not change the direction of the task.\n3. Fill in any missing context, input format, output format, constraints, and success criteria. If information is lacking, fill in with reasonable assumptions but clearly label them.\n4. Remove filler, repetition, and vague expressions. Fix obvious logic issues.\n5. If the task is complex, break it into clear steps.\n6. The optimized prompt should be clear, concise, and copyable. Do not make it too long.\n\nOutput format:\n- Issues with the original prompt\n- Optimization rationale\n- Optimized ready-to-copy prompt\n\nOriginal prompt / task description: [Paste here]"
+        },
+        {
+          "id": "prompt-meta-need-to-prompt",
+          "title": "Turn a Need into a Prompt",
+          "content": "Please take my vague idea or initial need and break it down into a clearer, more actionable task description.\n\nRequirements:\n1. First identify what I actually want to achieve.\n2. Preserve my original intent. Do not change the direction on your own.\n3. Break the vague description into: goal, use case, target audience, core content, constraints, and output format.\n4. If information is lacking, fill in with reasonable assumptions but clearly label them.\n5. If the task is complex, break it into clear steps and tell me what the first step should be.\n6. No filler. Be specific, direct, and actionable.\n7. Finally, ask me at most 3 key questions to help clarify the need.\n\nOutput format:\n- My real goal\n- What is unclear in the current need\n- Reasonable assumptions\n- Broken-down task description\n- Actionable steps\n- The 3 most important questions\n\nVague idea / initial need: [Paste here]"
+        },
+        {
+          "id": "prompt-meta-task-to-prompt",
+          "title": "Turn a Task into a Plan",
+          "content": "Please take my goal description or raw task and generate a clearer, more stable, ready-to-execute task breakdown.\n\nAfter giving the first version, ask me at most 3 key questions to help me clarify the requirements and iterate toward a version that better fits the actual execution context.\n\nRequirements:\n1. First identify my real goal (is it about delivery, learning, decision-making, or resource coordination) and recognize the success criteria behind it.\n2. Preserve my original intent. Do not change the direction of the task.\n3. Break the task into logically sequential key phases. For each phase, note: input conditions, deliverables, acceptance criteria, estimated time, and required resources.\n4. Identify potential blockers and risks, and provide contingency plans or fallback options. If information is lacking, use reasonable assumptions but label them clearly.\n5. Remove vague encouragements and advice that cannot be acted on.\n6. The plan should be clear, concise, and ready to paste into a project management tool. Do not make it too long.\n\nOutput format:\n- Issues with the original goal description\n- Optimization rationale\n- Optimized ready-to-copy task breakdown (includes: project overview, phase breakdown, each phase's input / output / acceptance / time / dependencies, risks and contingencies, required resources)\n- 3 clarifying questions\n\nOriginal goal description / task: [Paste here]"
+        }
+      ]
+    },
+    {
+      "id": "prompt-group-mental-models",
+      "name": "Mental Models",
+      "prompts": [
+        {
+          "id": "prompt-mental-first-principles",
+          "title": "First Principles",
+          "content": "You are a clear-thinking, results-oriented thinking coach.\n\nPlease analyze the following problem using first principles. Do not give me a conventional answer. Reconstruct the solution from fundamental facts.\n\nProblem: [Your problem]\n\nOutput structure:\n1. Surface Question \u2014 What does this seem to be asking on the surface?\n2. Underlying Facts \u2014 What is confirmed fact? What is only assumption? (distinguish clearly)\n3. Unchangeable Constraints \u2014 What real-world conditions must be accepted?\n4. Redesignable Elements \u2014 What is just convention and does not have to be this way?\n5. From-Scratch Solution \u2014 If redesigning from zero, what is the most rational approach?\n6. Minimum Action \u2014 What is the first step right now? (Something that can start within 25 minutes)\n\nStyle: Concise, direct, no filler."
+        },
+        {
+          "id": "prompt-mental-pareto",
+          "title": "80/20 Rule",
+          "content": "You are a clear-thinking, results-oriented thinking coach.\n\nPlease use the 80/20 rule to help me find the highest-value actions and cut the low-value noise.\n\nGoal: [Your goal]\n\nOutput structure:\n1. The vital 20% \u2014 What few actions produce most of the results?\n2. The low-value 80% \u2014 What looks busy but produces little?\n3. What to eliminate \u2014 What can be dropped with no real loss?\n4. What to delegate or automate \u2014 What is not worth handling yourself?\n5. Priority ranking \u2014 The next 5 most important things to do, ranked by importance\n6. Today\u2019s minimum action \u2014 If you could only do one thing today, what is it?\n\nStyle: Conclusion first, use lists, no filler explanations."
+        },
+        {
+          "id": "prompt-mental-second-order",
+          "title": "Second-Order Thinking",
+          "content": "You are a clear-thinking, results-oriented thinking coach.\n\nPlease use second-order thinking to analyze what I am about to do and help me see the chain of consequences.\n\nAction / Choice: [What you are about to do]\n\nOutput structure:\n1. First-order results \u2014 What are the immediate benefits and costs?\n2. Second-order results \u2014 A while later, what chain reactions might this trigger?\n3. Third-order effects \u2014 Long term, will this change my capabilities, resources, relationships, or opportunities?\n4. Underestimated costs \u2014 What costs am I probably overlooking?\n5. Underestimated gains \u2014 What long-term value am I probably missing?\n6. Final judgment \u2014 Short-term gain but long-term loss, or short-term pain but long-term gain? Give a clear conclusion.\n\nStyle: Give direct judgments. No hedging."
+        },
+        {
+          "id": "prompt-mental-opportunity-cost",
+          "title": "Opportunity Cost",
+          "content": "You are a clear-thinking, results-oriented thinking coach.\n\nPlease use the opportunity cost lens to analyze this decision and help me see what I am actually giving up.\n\nI am considering: [The choice you are weighing]\n\nOutput structure:\n1. What am I giving up by choosing this? (List the alternatives being abandoned)\n2. Among the abandoned options, which is most valuable?\n3. True cost \u2014 Not just money, but also time, attention, energy, and opportunity\n4. Best alternative \u2014 If I do not do this, what is the best substitute?\n5. Final recommendation \u2014 Do it / Skip it / Delay / Downscale (give a clear option with reasoning)\n\nStyle: Practical. Do not help me rationalize. Just tell me the best move."
+        },
+        {
+          "id": "prompt-mental-pdca",
+          "title": "PDCA Cycle",
+          "content": "You are a clear-thinking, results-oriented thinking coach.\n\nPlease use the PDCA model to help me design an executable action loop.\n\nGoal: [Your goal]\n\nOutput structure:\n1. Plan \u2014 What needs to be achieved? What are the measurable success criteria?\n2. Do \u2014 How to execute the first round? What are the specific steps?\n3. Check \u2014 After execution, what metrics to check? How to judge success or failure?\n4. Act \u2014 If results are poor, how to adjust? If results are good, how to scale?\n5. 7-Day Execution Plan \u2014 Give me a plan I can start today, with one specific task per day.\n\nStyle: Steps should be clear and directly executable. No vague descriptions."
+        },
+        {
+          "id": "prompt-mental-inversion",
+          "title": "Inversion Thinking",
+          "content": "You are a clear-thinking, results-oriented thinking coach.\n\nPlease use inversion thinking to map out failure paths, then derive a more reliable approach.\n\nGoal: [Your goal]\n\nOutput structure:\n1. Most likely failure causes \u2014 If this fails, what is the highest-probability reason?\n2. My current high-risk behaviors \u2014 Which of my current actions are increasing the chance of failure?\n3. Overlooked risks \u2014 What risks might I not have noticed yet?\n4. Ways to deliberately sabotage \u2014 If I wanted this to fail, what would I do?\n5. Behavior blocklist \u2014 Actions to avoid, derived from the above\n6. Reliable action plan \u2014 Based on all of the above, provide a safer execution path.\n\nStyle: Do not reassure me. Point out the blind spots directly."
         }
       ]
     }
   ],
-  "customSites": [],
+  "selectionContextGroups": [
+    {
+      "id": "ctx_1779331397454",
+      "name": "Translate",
+      "enabled": true,
+      "prompt": "Please translate/rewrite the content below into 3 versions:\n\n1. Literal version: stay close to the original wording\n2. Super colloquial version: explain it like talking to a friend, no translationese\n3. Deep expression version + semantic analysis: make it more thoughtful, and briefly analyze keywords, tone, implied meaning, and translation challenges\n\n###",
+      "targetType": "sites",
+      "refGroupId": null,
+      "mode": "tabs",
+      "siteIds": [
+        "deepseek"
+      ]
+    }
+  ],
+  "customSites": [
+    {
+      "id": "custom_1776658836588_in6l5",
+      "name": "30aitool",
+      "url": "https://www.30aitool.com/?s={query}",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": true,
+      "matchPatterns": [
+        "30aitool.com"
+      ],
+      "isCustom": true,
+      "customType": "url"
+    }
+  ],
+  "quickAccessSites": [
+    "deepseek",
+    "doubao",
+    "chatgpt",
+    "gemini"
+  ],
+  "aiSummarySettings": {
+    "provider": "deepseek",
+    "apiKeys": {
+      "custom": "",
+      "deepseek": "",
+      "kimi": "",
+      "openrouter": "",
+      "siliconflow": "",
+      "zhipu": ""
+    },
+    "models": {
+      "custom": "",
+      "deepseek": "deepseek-v4-pro",
+      "kimi": "moonshot-v1-128k-vision-preview",
+      "openrouter": "deepseek/deepseek-v4-flash",
+      "siliconflow": "deepseek-ai/DeepSeek-V4-Flash",
+      "zhipu": "glm-4.5"
+    },
+    "customBaseUrls": {
+      "custom": ""
+    },
+    "promptGroups": [
+      {
+        "id": "pg_default",
+        "name": "Cross Analysis",
+        "prompt": "You are a multi-AI answer comparison assistant. The user asked the same question to multiple AIs. Do not answer the question again. Compare their answers.\n\nOutput these 3 sections:\n\n## 1. Shared Views\n\nSummarize the core points that multiple AIs agree on or express similarly.\n\n## 2. Different Views\n\nShow the main differences in a table:\n\n| AI Model | Core View |\n|---|---|\n| Auto-detected model name | Summarize its main view in one or two sentences |\n\nNote: focus on meaningful differences only. If differences are minor, say so directly.\n\n## 3. Overall Judgment\n\nGive a balanced, complete conclusion based on all answers.\n\nRequirements:\n- Be direct and concise.\n- Do not force artificial differences.\n- Do not repeat the original answers verbatim.\n- Focus on agreement, disagreement, and how to understand the result."
+      },
+      {
+        "id": "pg_mpj6xbys_p2mf",
+        "name": "Answer Fusion",
+        "prompt": "You are a multi-AI answer fusion assistant.\n\nThe user asked the same question to multiple AIs. Do not compare them one by one. Synthesize their answers into one clearer, more complete, and more useful final answer.\n\nOutput these 3 sections:\n\n## 1. Final Answer\n\nGive the best fused answer directly. It should be clear, logical, and ready to use.\n\n## 2. Fusion Basis\n\nBriefly explain which key points you mainly absorbed.\n\n## 3. Caveats\n\nPoint out what remains uncertain, missing, or needs further verification.\n\nRequirements:\n- Do not restate each AI answer separately.\n- Do not simply concatenate the originals.\n- Remove repetition, filler, and low-value content.\n- If AIs conflict, choose the more reasonable view and briefly explain why."
+      },
+      {
+        "id": "pg_mpj710eh_ohq7",
+        "name": "Critical Review",
+        "prompt": "You are a multi-AI answer review assistant.\n\nThe user asked the same question to multiple AIs. Do not answer the question again. Review the quality of these answers and identify reliable content, possible problems, and missing angles.\n\nOutput these 3 sections:\n\n## 1. What Looks Reliable\n\nSummarize views that seem sound, logical, and worth referencing.\n\n## 2. What May Be Problematic\n\nPoint out possible errors, vagueness, oversimplification, logical jumps, or claims that need verification.\n\n## 3. What Was Missing\n\nAdd important angles the AIs did not explain clearly enough.\n\nRequirements:\n- Do not criticize for its own sake.\n- Do not restate each AI answer separately.\n- If truth cannot be judged, say verification is needed.\n- Focus on what is reliable, risky, and incomplete."
+      }
+    ],
+    "prompt": "You are a multi-AI answer comparison assistant. The user asked the same question to multiple AIs. Do not answer the question again. Compare their answers.\n\nOutput these 3 sections:\n\n## 1. Shared Views\n\nSummarize the core points that multiple AIs agree on or express similarly.\n\n## 2. Different Views\n\nShow the main differences in a table:\n\n| AI Model | Core View |\n|---|---|\n| Auto-detected model name | Summarize its main view in one or two sentences |\n\nNote: focus on meaningful differences only. If differences are minor, say so directly.\n\n## 3. Overall Judgment\n\nGive a balanced, complete conclusion based on all answers.\n\nRequirements:\n- Be direct and concise.\n- Do not force artificial differences.\n- Do not repeat the original answers verbatim.\n- Focus on agreement, disagreement, and how to understand the result."
+  },
   "uiPrefs": {
     "showHistory": false,
     "showRandomButton": true,
     "showPromptButton": true,
+    "showAiPagePromptLauncher": true,
     "prewarmEnabled": true,
     "overlayShortcutEnabled": true,
     "contextMenuEnabled": true,

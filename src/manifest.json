@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
   "icons": {
@@ -14,7 +14,9 @@
     "activeTab",
     "storage",
     "tabs",
+    "windows",
     "alarms",
+    "downloads",
     "declarativeNetRequest",
     "contextMenus"
   ],
@@ -22,7 +24,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https: http:; img-src 'self' chrome-extension: data: blob:;"
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src https: http:; img-src 'self' chrome-extension: data: blob:; connect-src https:;"
   },
   "offline_enabled": true,
   "background": {
@@ -49,6 +51,50 @@
   "content_scripts": [
     {
       "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://chat.deepseek.com/*",
+        "https://deepseek.com/*",
+        "https://www.doubao.com/*",
+        "https://doubao.com/*",
+        "https://kimi.moonshot.cn/*",
+        "https://kimi.com/*",
+        "https://www.kimi.com/*",
+        "https://yuanbao.tencent.com/*",
+        "https://qianwen.com/*",
+        "https://www.qianwen.com/*",
+        "https://tongyi.aliyun.com/*",
+        "https://qwen.ai/*",
+        "https://www.qwen.ai/*",
+        "https://chat.qwen.ai/*",
+        "https://gemini.google.com/*",
+        "https://claude.ai/*",
+        "https://grok.com/*",
+        "https://chatglm.cn/*",
+        "https://dots.ai/*",
+        "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://chat.z.ai/*",
+        "https://z.ai/*",
+        "https://monica.im/*",
+        "https://www.monica.im/*",
+        "https://poe.com/*",
+        "https://www.poe.com/*",
+        "https://m365.cloud.microsoft/*",
+        "https://aistudio.xiaomimimo.com/*",
+        "https://xiaomimimo.com/*",
+        "https://zhida.zhihu.com/*",
+        "https://stepfun.com/*",
+        "https://www.stepfun.com/*"
+      ],
+      "js": [
+        "memory/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
         "<all_urls>"
       ],
       "exclude_matches": [
@@ -62,6 +108,23 @@
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "https://chrome.google.com/webstore/*",
+        "https://chromewebstore.google.com/*",
+        "https://microsoftedge.microsoft.com/addons/*"
+      ],
+      "js": [
+        "iframe/iframe-anti-detect.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_origin_as_fallback": true,
+      "world": "MAIN"
     },
     {
       "matches": [

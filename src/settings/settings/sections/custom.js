@@ -7,10 +7,18 @@ import {
   convertUrlToTemplate,
 } from "../store.js";
 
+// ── Tab 顶部切换 ────────────────────────────────────────────
+
 export function renderCustomSection() {
   const { customSection } = state.dom;
   customSection.innerHTML = "";
+  renderSearchTab(customSection);
+}
 
+// ── 搜索 Tab（原有 URL 模板逻辑）──────────────────────────
+
+function renderSearchTab(container) {
+  // URL converter 工具卡
   const converter = document.createElement("section");
   converter.className = "custom-search-card";
   converter.innerHTML = `
@@ -31,26 +39,19 @@ export function renderCustomSection() {
 
   if (converterInput instanceof HTMLInputElement) {
     converterInput.value = state.customFormState.converterInput || "";
-    converterInput.addEventListener("input", (event) => {
-      state.customFormState.converterInput = event.target.value;
+    converterInput.addEventListener("input", (e) => {
+      state.customFormState.converterInput = e.target.value;
       state.customFormState.converterError = "";
       if (converterMsg) {
         converterMsg.textContent = "";
-        converterMsg.classList.remove("is-error");
-        converterMsg.classList.remove("is-success");
+        converterMsg.classList.remove("is-error", "is-success");
       }
     });
-    converterInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        handleConvertClick();
-      }
+    converterInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); handleConvertClick(); }
     });
   }
-
-  if (converterBtn) {
-    converterBtn.addEventListener("click", handleConvertClick);
-  }
+  converterBtn?.addEventListener("click", handleConvertClick);
 
   if (state.customFormState.converterError && converterMsg) {
     converterMsg.textContent = state.customFormState.converterError;
@@ -69,19 +70,27 @@ export function renderCustomSection() {
       return;
     }
     state.customFormState.url = result.url;
-    if (!state.customFormState.name && result.name) {
-      state.customFormState.name = result.name;
-    }
+    if (!state.customFormState.name && result.name) state.customFormState.name = result.name;
     state.customFormState.formError = "";
     state.customFormState.converterError = "";
     renderCustomSection();
   }
 
-  customSection.appendChild(converter);
+  const layout = document.createElement("div");
+  layout.className = "custom-search-layout";
 
+  const leftCol = document.createElement("div");
+  leftCol.className = "custom-search-col-left";
+
+  const rightCol = document.createElement("div");
+  rightCol.className = "custom-search-col-right";
+
+  leftCol.appendChild(converter);
+
+  // 手动添加 / 编辑表单
   const form = document.createElement("section");
   form.className = "custom-search-card";
-  const isEditing = state.customFormState.mode === "edit";
+  const isEditing = state.customFormState.mode === "edit" && state.customFormState.customType !== "ai";
   form.innerHTML = `
     <div class="custom-search-card-head">
       <strong>${isEditing ? msg("settings_custom_editTitle", "编辑自定义站点") : msg("settings_custom_addTitle", "手动添加")}</strong>
@@ -110,43 +119,37 @@ export function renderCustomSection() {
 
   if (nameInput instanceof HTMLInputElement) {
     nameInput.value = state.customFormState.name || "";
-    nameInput.addEventListener("input", (event) => {
-      state.customFormState.name = event.target.value;
-    });
+    nameInput.addEventListener("input", (e) => { state.customFormState.name = e.target.value; });
   }
   if (urlInput instanceof HTMLInputElement) {
     urlInput.value = state.customFormState.url || "";
-    urlInput.addEventListener("input", (event) => {
-      state.customFormState.url = event.target.value;
-    });
+    urlInput.addEventListener("input", (e) => { state.customFormState.url = e.target.value; });
   }
   if (state.customFormState.formError && formMsg) {
     formMsg.textContent = state.customFormState.formError;
     formMsg.classList.add("is-error");
   }
-  if (submitBtn) {
-    submitBtn.addEventListener("click", handleCustomFormSubmit);
-  }
-  if (cancelBtn) {
-    cancelBtn.addEventListener("click", () => {
-      state.customFormState = createBlankCustomFormState();
-      renderCustomSection();
-    });
-  }
+  submitBtn?.addEventListener("click", handleSearchFormSubmit);
+  cancelBtn?.addEventListener("click", () => {
+    state.customFormState = createBlankCustomFormState();
+    renderCustomSection();
+  });
 
-  customSection.appendChild(form);
+  leftCol.appendChild(form);
 
+  // 已添加的 URL 搜索站点列表
+  const urlSites = state.customSites.filter((s) => s.customType !== "ai");
   const listCard = document.createElement("section");
   listCard.className = "custom-search-card custom-sites-list-card";
-  const header = document.createElement("div");
-  header.className = "custom-search-card-head";
-  header.innerHTML = `
+  const listHead = document.createElement("div");
+  listHead.className = "custom-search-card-head";
+  listHead.innerHTML = `
     <strong>${msg("settings_custom_listTitle", "已添加的自定义站点")}</strong>
-    <span>${msg("settings_custom_listCountPrefix", "当前共 ")}${state.customSites.length}${msg("settings_custom_listCountSuffix", " 个自定义站点。")}</span>
+    <span>${msg("settings_custom_listCountPrefix", "当前共 ")}${urlSites.length}${msg("settings_custom_listCountSuffix", " 个自定义站点。")}</span>
   `;
-  listCard.appendChild(header);
+  listCard.appendChild(listHead);
 
-  if (!state.customSites.length) {
+  if (!urlSites.length) {
     const empty = document.createElement("div");
     empty.className = "site-selection-empty";
     empty.textContent = msg("settings_custom_listEmpty", "还没有自定义站点，上方添加后会在这里显示。");
@@ -154,16 +157,17 @@ export function renderCustomSection() {
   } else {
     const list = document.createElement("div");
     list.className = "custom-sites-list";
-    state.customSites.forEach((site) => {
-      list.appendChild(createCustomSiteRow(site));
-    });
+    urlSites.forEach((site) => list.appendChild(createUrlSiteRow(site)));
     listCard.appendChild(list);
   }
+  rightCol.appendChild(listCard);
 
-  customSection.appendChild(listCard);
+  layout.appendChild(leftCol);
+  layout.appendChild(rightCol);
+  container.appendChild(layout);
 }
 
-function createCustomSiteRow(site) {
+function createUrlSiteRow(site) {
   const row = document.createElement("article");
   row.className = "custom-site-row";
   row.innerHTML = `
@@ -177,15 +181,15 @@ function createCustomSiteRow(site) {
     </div>
   `;
 
-  const editBtn = row.querySelector(".custom-site-edit-btn");
-  const deleteBtn = row.querySelector(".custom-site-delete-btn");
-
-  editBtn?.addEventListener("click", () => {
+  row.querySelector(".custom-site-edit-btn")?.addEventListener("click", () => {
     state.customFormState = {
       mode: "edit",
       editingId: site.id,
+      customType: "url",
       name: site.name,
       url: site.url,
+      inputSelector: "",
+      submitSelector: "",
       converterInput: "",
       converterError: "",
       formError: ""
@@ -194,7 +198,7 @@ function createCustomSiteRow(site) {
     state.dom.customSection.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  deleteBtn?.addEventListener("click", async () => {
+  row.querySelector(".custom-site-delete-btn")?.addEventListener("click", async () => {
     const confirmed = window.confirm(
       msg("settings_custom_deleteConfirmPrefix", "是否要删除自定义站点「") +
         site.name +
@@ -217,65 +221,45 @@ function createCustomSiteRow(site) {
   return row;
 }
 
-async function handleCustomFormSubmit() {
+async function handleSearchFormSubmit() {
   const name = String(state.customFormState.name || "").trim();
   const url = String(state.customFormState.url || "").trim();
 
-  if (!name) {
-    state.customFormState.formError = msg("settings_custom_errorNameRequired", "请输入站点名称。");
+  const setError = (msg_) => {
+    state.customFormState.formError = msg_;
     renderCustomSection();
-    return;
-  }
-  if (!url) {
-    state.customFormState.formError = msg("settings_custom_errorUrlRequired", "请输入 URL 链接。");
-    renderCustomSection();
-    return;
-  }
-  if (!/^https?:\/\//i.test(url)) {
-    state.customFormState.formError = msg("settings_custom_errorUrlProtocol", "URL 必须以 http:// 或 https:// 开头。");
-    renderCustomSection();
-    return;
-  }
-  if (!url.includes("{query}")) {
-    state.customFormState.formError = msg("settings_custom_errorMissingQuery", "URL 中必须包含 {query} 作为搜索词占位符。");
-    renderCustomSection();
-    return;
-  }
-  try {
-    new URL(url.replace("{query}", "ai"));
-  } catch (_error) {
-    state.customFormState.formError = msg("settings_custom_errorUrlInvalid", "URL 格式不合法，请检查后重试。");
-    renderCustomSection();
-    return;
+  };
+
+  if (!name) return setError(msg("settings_custom_errorNameRequired", "请输入站点名称。"));
+  if (!url) return setError(msg("settings_custom_errorUrlRequired", "请输入 URL 链接。"));
+  if (!/^https?:\/\//i.test(url)) return setError(msg("settings_custom_errorUrlProtocol", "URL 必须以 http:// 或 https:// 开头。"));
+  if (!url.includes("{query}")) return setError(msg("settings_custom_errorMissingQuery", "URL 中必须包含 {query} 作为搜索词占位符。"));
+  try { new URL(url.replace("{query}", "ai")); } catch (_) {
+    return setError(msg("settings_custom_errorUrlInvalid", "URL 格式不合法，请检查后重试。"));
   }
 
   if (state.customFormState.mode === "edit" && state.customFormState.editingId) {
     state.customSites = state.customSites.map((site) =>
       site.id === state.customFormState.editingId
-        ? {
-            ...site,
-            name,
-            url,
-            supportUrlQuery: true,
-            matchPatterns: deriveMatchPatterns(url)
-          }
+        ? { ...site, name, url, supportUrlQuery: true, matchPatterns: deriveMatchPatterns(url) }
         : site
     );
   } else {
-    const newSite = {
+    state.customSites = [...state.customSites, {
       id: createCustomSiteId(),
-      name,
-      url,
+      name, url,
       enabled: true,
       supportIframe: true,
       supportUrlQuery: true,
       matchPatterns: deriveMatchPatterns(url),
-      isCustom: true
-    };
-    state.customSites = [...state.customSites, newSite];
+      isCustom: true,
+      customType: "url"
+    }];
   }
 
   state.customFormState = createBlankCustomFormState();
   await persistAll();
   renderCustomSection();
 }
+
+

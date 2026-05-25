@@ -1,0 +1,319 @@
+/* 搜索组页面布局：两列网格 + 拖拽克隆 + 自定义搜索 sub-tabs */
+
+/* ── 自定义搜索 sub-tabs ── */
+.custom-tab-bar {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e8e8e8;
+  border-radius: var(--r-lg);
+  background: #f5f5f5;
+}
+
+.custom-tab-btn {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: calc(var(--r-lg) - 4px);
+  background: transparent;
+  color: #555;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+  white-space: nowrap;
+}
+
+.custom-tab-btn:hover:not(.is-active) {
+  background: #ebebeb;
+  color: #111;
+}
+
+.custom-tab-btn.is-active {
+  background: #ffffff;
+  color: #000000;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ── misc-tab-bar（快捷键设置三 tab）滑块动效 ── */
+.misc-tab-bar {
+  position: relative;
+}
+
+.tab-glider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: calc(var(--r-lg) - 4px);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.misc-tab-bar .custom-tab-btn {
+  position: relative;
+  z-index: 2;
+}
+
+.misc-tab-bar .custom-tab-btn.is-active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.custom-builtin-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-builtin-group-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.custom-builtin-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.custom-builtin-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #e4e4e4;
+  border-radius: 999px;
+  background: #f9f9f9;
+  font-size: var(--fs-sm);
+  color: #333;
+  line-height: 1;
+}
+
+/* ── 搜索组列表：两列网格 ── */
+#groupsSection:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 36px;
+}
+
+#groupsSection .settings-add-card,
+#groupsSection .settings-empty-state {
+  grid-column: 1 / -1;
+}
+
+#groupsSection .settings-group-card {
+  grid-template-columns: 1fr;
+  grid-template-rows: 112px minmax(0, 1fr);
+}
+
+#groupsSection .settings-group-meta {
+  border-right: none;
+  border-bottom: 1px dashed #dcdcdc;
+  min-height: 112px;
+  padding: 20px 18px;
+}
+
+#groupsSection .settings-group-card > .group-delete-corner-btn {
+  top: calc(var(--group-control-overhang) * -1);
+  right: calc(var(--group-control-overhang) * -1);
+}
+
+#groupsSection .settings-group-sites {
+  padding: 16px 20px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+#groupsSection .site-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+#groupsSection .site-chip-list .selected-chip {
+  width: auto;
+  min-width: 0;
+  gap: 3px;
+  padding: 0 4px 0 8px;
+  overflow: hidden;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+#groupsSection .site-chip-list .site-chip-label {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 9ch;
+}
+
+#groupsSection .site-chip-list .chip-remove-btn {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+#groupsSection .settings-group-sites > .inline-add-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0;
+  padding-top: 0;
+  transform: none;
+}
+
+#groupsSection .inline-add-btn {
+  min-width: 70px;
+  min-height: 19px;
+  height: 19px;
+  padding: 0 16px;
+  border: 1px solid #d8d8d8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+#groupsSection .inline-add-btn.is-active {
+  background: #111111;
+  color: #ffffff;
+  border-color: #111111;
+}
+
+#groupsSection .hover-picker-panel {
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  width: 100%;
+  transform: none;
+  z-index: 12;
+  animation: groups-picker-slide-down 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+#groupsSection .hover-picker-panel.is-stable {
+  animation: none;
+}
+
+/* ── 拖拽克隆卡片 ── */
+.settings-group-card.is-group-drag-clone {
+  grid-template-columns: 1fr;
+  grid-template-rows: 112px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.settings-group-card.is-group-drag-clone .settings-group-meta {
+  border-right: none;
+  border-bottom: 1px dashed #dcdcdc;
+  min-height: 112px;
+  padding: 20px 18px;
+}
+
+.settings-group-card.is-group-drag-clone .settings-group-sites {
+  padding: 16px 20px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.settings-group-card.is-group-drag-clone .site-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-group-card.is-group-drag-clone .selected-chip {
+  width: auto;
+  min-width: 0;
+  gap: 3px;
+  padding: 0 4px 0 8px;
+  overflow: hidden;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.settings-group-card.is-group-drag-clone .site-chip-label {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 9ch;
+}
+
+.settings-group-card.is-group-drag-clone .chip-remove-btn {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.settings-group-card.is-group-drag-clone .settings-group-sites > .inline-add-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0;
+  padding-top: 0;
+  transform: none;
+}
+
+.settings-group-card.is-group-drag-clone .inline-add-btn {
+  min-width: 64px;
+  min-height: 16px;
+  height: 16px;
+  padding: 0 14px;
+  border: 1px solid #d8d8d8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+}
+
+@keyframes groups-picker-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

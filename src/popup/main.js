@@ -32,26 +32,7 @@ const { applyDomI18n } = window.__QSHOT_I18N__ || {};
 document.addEventListener("DOMContentLoaded", start);
 chrome.storage.onChanged.addListener(handleStorageChange);
 
-let _darkModeMediaListener = null;
-
-function applyDarkModeToDoc(mode) {
-  const mq = window.matchMedia("(prefers-color-scheme: dark)");
-  if (_darkModeMediaListener) {
-    mq.removeEventListener("change", _darkModeMediaListener);
-    _darkModeMediaListener = null;
-  }
-  if (mode === "dark") {
-    document.documentElement.dataset.theme = "dark";
-  } else if (mode === "light") {
-    document.documentElement.dataset.theme = "";
-  } else {
-    document.documentElement.dataset.theme = mq.matches ? "dark" : "";
-    _darkModeMediaListener = (e) => {
-      document.documentElement.dataset.theme = e.matches ? "dark" : "";
-    };
-    mq.addEventListener("change", _darkModeMediaListener);
-  }
-}
+import { applyDarkModeToDoc } from "../shared/theme.js";
 
 async function start() {
   const dom = state.dom;
@@ -72,13 +53,12 @@ async function start() {
   state.syncComposerLayout = syncComposerLayout;
   state.updatePromptPickerLayoutState = updatePromptPickerLayoutState;
 
-  applyDomI18n?.(document);
   await chrome.runtime.sendMessage({ type: "ENSURE_INITIAL_STATE_DEFAULTS" }).catch(() => null);
+  await refreshUiPrefs();
   await refreshAllSites();
   await Promise.all([
     refreshGroups(),
     refreshPromptGroups(),
-    refreshUiPrefs(),
     refreshHistory(),
   ]);
 
@@ -347,6 +327,8 @@ async function refreshHistory() {
 }
 
 function applyUiPrefs() {
+  window.__QSHOT_I18N__?.setLocaleMode?.(state.uiPrefs.localeMode);
+  applyDomI18n?.(document);
   applyDarkModeToDoc(state.uiPrefs.darkMode);
   const { historySection, randomPromptBtn, promptEntryBtn, composerActionsRow } = state.dom;
 

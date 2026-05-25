@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mock inject page</title>
+</head>
+<body>
+  <textarea id="input" aria-label="prompt"></textarea>
+  <button id="send" type="submit" aria-label="Send">Send</button>
+
+  <script>
+    const MSG = { SEARCH: "QSHOT_SEARCH", RESULT: "QSHOT_RESULT" };
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      if (!event.data || event.data.type !== MSG.SEARCH) return;
+
+      const input = document.getElementById("input");
+      const sendBtn = document.getElementById("send");
+      input.value = event.data.query || "";
+      sendBtn.click();
+
+      window.parent.postMessage({
+        type: MSG.RESULT,
+        siteId: "fixture-chatgpt",
+        requestId: event.data.requestId,
+        ok: true,
+        handlerId: "primary",
+        message: "fixture inject handled query",
+      }, "*");
+    });
+  </script>
+</body>
+</html>

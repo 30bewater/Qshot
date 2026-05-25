@@ -184,19 +184,19 @@ npm run build
 
 ## 打包发布
 
-上传 Chrome Web Store / Edge Add-ons：
+上传 Chrome Web Store / Microsoft Edge Add-ons：
 
 ```bash
-# 生产构建（minify、无 sourcemap）
-NODE_ENV=production npm run build
-
-# 打包 dist/ 的"内容"为 zip（注意：不是 dist 文件夹本身）
-cd dist
-zip -r ../qshot-$(node -p "require('../package.json').version").zip .
-cd ..
+# 推荐：一键构建 + 校验 + 打 zip（禁止手搓 Compress-Archive）
+npm run pack:store
+# 输出：release/qshot-{version}-store.zip
 ```
 
+等价于 `NODE_ENV=production npm run build:store` + 校验 dist/zip 必含 **`config/rules.json`**（Edge 必验；由 `build.mjs` 的 `generateRules()` 生成，不在 src/）。
+
 zip 根目录必须直接看到 `manifest.json`（不是 `dist/manifest.json`）。
+
+仅重新打包已有 dist（跳过构建）：`node scripts/pack-store.mjs --skip-build`
 
 ## 代码约束
 

@@ -1,29 +1,89 @@
-import {
-  normalizeShortcut,
-  formatShortcut,
-  isShortcutValid,
-} from "../../../shared/shortcut.js";
+import { createShortcutsPageHint, createShortcutRecorderRow } from "./other-shortcuts.js";
 import { QUICK_ACCESS_SITES_KEY } from "../../../shared/storage-keys.js";
-import { state, msg, SITE_CATEGORIES, AI_SITE_GROUPS, SOCIAL_SITE_GROUPS, PICKER_CLOSE_DELAY_MS } from "../state.js";
+import {
+  state,
+  msg,
+  SITE_CATEGORIES,
+  getSiteCategoryLabel,
+  AI_SITE_GROUPS,
+  SOCIAL_SITE_GROUPS,
+  PICKER_CLOSE_DELAY_MS
+} from "../state.js";
 import { escapeHtml } from "../utils.js";
 import {
   persistAll,
-  createNormalizedGroups,
-  createNormalizedCustomSites,
-  mergeSites,
   getCategorySites,
 } from "../store.js";
 import { attachChipDragGeneric } from "../drag.js";
+import { renderSelectionContextGroupsSection } from "./selection-context-groups.js";
+import { renderSelectionBubbleSection } from "./selection-bubble.js";
+import { renderStretchSwitchMarkup } from "./stretch-switch.js";
 
 async function persistQuickAccessSites() {
   await chrome.storage.local.set({ [QUICK_ACCESS_SITES_KEY]: state.quickAccessSiteIds });
 }
 
+const MISC_TAB_KEYS = ["global", "rightclick", "bubble"];
+let prevOtherTabKey = null;
+
 export function renderOtherSection() {
   const { otherSection } = state.dom;
   otherSection.innerHTML = "";
 
-  otherSection.appendChild(createShortcutCard());
+  if (!state.activeOtherTab) state.activeOtherTab = "global";
+
+  const tabBar = document.createElement("div");
+  tabBar.className = "custom-tab-bar misc-tab-bar";
+  [
+    { key: "global", label: msg("settings_other_tabGlobal", "全局搜索") },
+    { key: "rightclick", label: msg("settings_other_tabRightClick", "右键提示词") },
+    { key: "bubble", label: msg("settings_other_tabBubble", "划词气泡") },
+  ].forEach(({ key, label }) => {
+    const btn = document.createElement("button");
+    btn.className = "custom-tab-btn" + (state.activeOtherTab === key ? " is-active" : "");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      state.activeOtherTab = key;
+      renderOtherSection();
+    });
+    tabBar.appendChild(btn);
+  });
+
+  const glider = document.createElement("div");
+  glider.className = "tab-glider";
+  tabBar.appendChild(glider);
+  otherSection.appendChild(tabBar);
+
+  // ── 滑块动效：从上次位置弹性滑到当前位置 ──
+  const fromKey = prevOtherTabKey ?? state.activeOtherTab;
+  prevOtherTabKey = state.activeOtherTab;
+  const currentIdx = MISC_TAB_KEYS.indexOf(state.activeOtherTab);
+  const fromIdx = MISC_TAB_KEYS.indexOf(fromKey);
+
+  requestAnimationFrame(() => {
+    const buttons = tabBar.querySelectorAll(".custom-tab-btn");
+    const fromBtn = buttons[fromIdx < 0 ? currentIdx : fromIdx];
+    const toBtn = buttons[currentIdx];
+    if (!fromBtn || !toBtn) return;
+    glider.style.transition = "none";
+    glider.style.width = fromBtn.offsetWidth + "px";
+    glider.style.transform = `translateX(${fromBtn.offsetLeft}px)`;
+    requestAnimationFrame(() => {
+      glider.style.transition =
+        "transform 0.28s cubic-bezier(0.34, 1.08, 0.64, 1), width 0.22s ease";
+      glider.style.width = toBtn.offsetWidth + "px";
+      glider.style.transform = `translateX(${toBtn.offsetLeft}px)`;
+    });
+  });
+
+  if (state.activeOtherTab === "rightclick") {
+    otherSection.appendChild(renderSelectionContextGroupsSection());
+  } else if (state.activeOtherTab === "bubble") {
+    otherSection.appendChild(renderSelectionBubbleSection());
+  } else {
+    otherSection.appendChild(createShortcutCard());
+  }
 }
 
 
@@ -137,143 +197,134 @@ function createQuickPicker(renderFn) {
   panel.addEventListener("mouseenter", clearQuickPickerTimer);
   panel.addEventListener("mouseleave", () => scheduleQuickPickerClose(renderFn));
 
-  Object.entries(SITE_CATEGORIES).forEach(([key, category]) => {
-    const row = document.createElement("div");
-    row.className = "hover-picker-row";
-    const isActive = state.quickPickerCategoryKey === key;
-    if (isActive) row.classList.add("is-active");
+  const activeKey = state.quickPickerCategoryKey || Object.keys(SITE_CATEGORIES)[0];
 
-    const entry = document.createElement("button");
-    entry.className = "hover-picker-entry";
-    entry.type = "button";
-    entry.innerHTML = `<span>${escapeHtml(category.label)}</span><span class="hover-picker-arrow">›</span>`;
-    entry.addEventListener("mouseenter", () => {
-      clearQuickPickerTimer();
-      setQuickPickerCategory(key, renderFn);
-    });
-    entry.addEventListener("click", (e) => {
+  const tabBar = document.createElement("div");
+  tabBar.className = "hover-picker-tab-bar";
+  Object.entries(SITE_CATEGORIES).forEach(([key]) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "hover-picker-tab" + (activeKey === key ? " is-active" : "");
+    btn.textContent = getSiteCategoryLabel(key);
+    btn.addEventListener("click", (e) => {
       e.stopPropagation();
       clearQuickPickerTimer();
       setQuickPickerCategory(key, renderFn);
     });
-    row.appendChild(entry);
-
-    const submenu = document.createElement("div");
-    submenu.className = `hover-picker-submenu${isActive ? " is-open" : ""}`;
-    submenu.addEventListener("mouseenter", clearQuickPickerTimer);
-    submenu.addEventListener("mouseleave", () => scheduleQuickPickerClose(renderFn));
-
-    const categorySites = getCategorySites(key);
-
-    if (key === "custom") {
-      if (!categorySites.length) {
-        const empty = document.createElement("div");
-        empty.className = "hover-picker-empty";
-        empty.innerHTML = msg("settings_groups_customEmpty", `还没有自定义站点<br/><span class="hover-picker-empty-hint">前往左侧「自定义搜索」添加</span>`);
-        submenu.appendChild(empty);
-      } else {
-        categorySites.forEach((site) => submenu.appendChild(createQuickPickerOption(site, renderFn, MAX)));
-      }
-    } else if (key === "ai") {
-      submenu.classList.add("hover-picker-submenu--ai");
-      const columnsWrap = document.createElement("div");
-      columnsWrap.className = "hover-picker-ai-columns";
-      AI_SITE_GROUPS.forEach((grp) => {
-        const groupSites = grp.siteIds.map((id) => categorySites.find((s) => s.id === id)).filter(Boolean);
-        if (!groupSites.length) return;
-        const col = document.createElement("div");
-        col.className = "hover-picker-ai-col";
-        const colTitle = document.createElement("div");
-        colTitle.className = "hover-picker-site-group-title";
-        colTitle.textContent = msg(grp.labelKey, grp.label);
-        col.appendChild(colTitle);
-        groupSites.forEach((site) => col.appendChild(createQuickPickerOption(site, renderFn, MAX)));
-        columnsWrap.appendChild(col);
-      });
-      submenu.appendChild(columnsWrap);
-    } else {
-      submenu.classList.add("hover-picker-submenu--ai");
-      const columnsWrap = document.createElement("div");
-      columnsWrap.className = "hover-picker-ai-columns";
-      SOCIAL_SITE_GROUPS.forEach((grp) => {
-        const groupSites = grp.siteIds.map((id) => categorySites.find((s) => s.id === id)).filter(Boolean);
-        if (!groupSites.length) return;
-        const col = document.createElement("div");
-        col.className = "hover-picker-ai-col";
-        const colTitle = document.createElement("div");
-        colTitle.className = "hover-picker-site-group-title";
-        colTitle.textContent = msg(grp.labelKey, grp.label);
-        col.appendChild(colTitle);
-        groupSites.forEach((site) => col.appendChild(createQuickPickerOption(site, renderFn, MAX)));
-        columnsWrap.appendChild(col);
-      });
-      submenu.appendChild(columnsWrap);
-    }
-
-    row.appendChild(submenu);
-    panel.appendChild(row);
+    tabBar.appendChild(btn);
   });
+  panel.appendChild(tabBar);
 
+  const content = document.createElement("div");
+  content.className = "hover-picker-tab-content";
+  const categorySites = getCategorySites(activeKey);
+
+  if (activeKey === "custom") {
+    if (!categorySites.length) {
+      const empty = document.createElement("div");
+      empty.className = "hover-picker-empty";
+      empty.innerHTML = msg("settings_groups_customEmpty", `还没有自定义站点<br/><span class="hover-picker-empty-hint">前往左侧「自定义搜索」添加</span>`);
+      content.appendChild(empty);
+    } else {
+      const optionRow = document.createElement("div");
+      optionRow.className = "hover-picker-option-row";
+      categorySites.forEach((site) => optionRow.appendChild(createQuickPickerOption(site, renderFn, MAX)));
+      content.appendChild(optionRow);
+    }
+  } else if (activeKey === "ai") {
+    const columnsWrap = document.createElement("div");
+    columnsWrap.className = "hover-picker-ai-columns";
+    AI_SITE_GROUPS.forEach((grp) => {
+      const groupSites = grp.siteIds.map((id) => categorySites.find((s) => s.id === id)).filter(Boolean);
+      if (!groupSites.length) return;
+      const col = document.createElement("div");
+      col.className = "hover-picker-ai-col";
+      const colTitle = document.createElement("div");
+      colTitle.className = "hover-picker-site-group-title";
+      colTitle.textContent = msg(grp.labelKey, grp.label);
+      col.appendChild(colTitle);
+      const optionRow = document.createElement("div");
+      optionRow.className = "hover-picker-option-row";
+      groupSites.forEach((site) => optionRow.appendChild(createQuickPickerOption(site, renderFn, MAX)));
+      col.appendChild(optionRow);
+      columnsWrap.appendChild(col);
+    });
+    content.appendChild(columnsWrap);
+  } else {
+    const columnsWrap = document.createElement("div");
+    columnsWrap.className = "hover-picker-ai-columns";
+    SOCIAL_SITE_GROUPS.forEach((grp) => {
+      const groupSites = grp.siteIds.map((id) => categorySites.find((s) => s.id === id)).filter(Boolean);
+      if (!groupSites.length) return;
+      const col = document.createElement("div");
+      col.className = "hover-picker-ai-col";
+      const colTitle = document.createElement("div");
+      colTitle.className = "hover-picker-site-group-title";
+      colTitle.textContent = msg(grp.labelKey, grp.label);
+      col.appendChild(colTitle);
+      const optionRow = document.createElement("div");
+      optionRow.className = "hover-picker-option-row";
+      groupSites.forEach((site) => optionRow.appendChild(createQuickPickerOption(site, renderFn, MAX)));
+      col.appendChild(optionRow);
+      columnsWrap.appendChild(col);
+    });
+    content.appendChild(columnsWrap);
+  }
+
+  panel.appendChild(content);
   return panel;
 }
 
 function createQuickPickerOption(site, renderFn, max) {
-  const label = document.createElement("label");
-  label.className = "hover-picker-option";
-  const isChecked = state.quickAccessSiteIds.includes(site.id);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  const isSelected = state.quickAccessSiteIds.includes(site.id);
   const atMax = state.quickAccessSiteIds.length >= max;
-  const disabled = !isChecked && atMax;
-  label.innerHTML = `
-    <span class="hover-picker-option-text">${escapeHtml(site.name)}</span>
-    <input type="checkbox" ${isChecked ? "checked" : ""} ${disabled ? "disabled" : ""} />
-  `;
-  if (disabled) label.style.opacity = "0.45";
-  const checkbox = label.querySelector("input");
-  checkbox.addEventListener("click", (e) => e.stopPropagation());
-  checkbox.addEventListener("change", async () => {
+  const disabled = !isSelected && atMax;
+  const label = site.name || site.id;
+  const hasCjk = /[\u3400-\u9fff]/.test(label);
+  btn.className = `hover-picker-option${isSelected ? " is-selected" : ""}${hasCjk ? " is-cjk-label" : ""}`;
+  btn.innerHTML = `<span class="hover-picker-option-label">${escapeHtml(label)}</span>`;
+  if (disabled) {
+    btn.disabled = true;
+    btn.style.opacity = "0.4";
+  }
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
     clearQuickPickerTimer();
-    if (checkbox.checked) {
-      if (state.quickAccessSiteIds.length < max) {
-        state.quickAccessSiteIds = [...state.quickAccessSiteIds, site.id];
-      }
-    } else {
+    if (isSelected) {
       state.quickAccessSiteIds = state.quickAccessSiteIds.filter((id) => id !== site.id);
+    } else if (state.quickAccessSiteIds.length < max) {
+      state.quickAccessSiteIds = [...state.quickAccessSiteIds, site.id];
     }
     await persistQuickAccessSites();
     renderFn();
   });
-  return label;
+  return btn;
 }
+
+export { renderStretchSwitchMarkup } from "./stretch-switch.js";
 
 export function createOtherSettingToggle(key, title, desc, tip, options = {}) {
   const row = document.createElement("article");
   row.className = "other-setting-row" + (tip ? " other-setting-row--with-tip" : "");
+  if (!desc) row.classList.add("other-setting-row--compact");
 
   const isOn = getOtherSettingValue(key, options.defaultValue !== false);
   row.innerHTML = `
     <div class="other-setting-row-main">
       <div class="other-setting-copy">
         <div class="other-setting-title">${escapeHtml(title)}</div>
-        <div class="other-setting-desc">${escapeHtml(desc)}</div>
+        ${desc ? `<div class="other-setting-desc">${escapeHtml(desc)}</div>` : ""}
       </div>
-      <button class="other-setting-switch ${isOn ? "is-on" : "is-off"}" type="button" aria-pressed="${isOn ? "true" : "false"}">
-        <span class="other-setting-switch-thumb"></span>
-      </button>
+      ${renderStretchSwitchMarkup(isOn)}
     </div>
     ${tip ? `<div class="other-setting-desc shortcut-tip">${escapeHtml(tip)}</div>` : ""}
   `;
 
-  const toggle = row.querySelector(".other-setting-switch");
-  toggle?.addEventListener("click", async () => {
-    state.uiPrefs[key] = !getOtherSettingValue(key, options.defaultValue !== false);
+  row.querySelector(".other-setting-switch--stretch-input")?.addEventListener("change", async (event) => {
+    state.uiPrefs[key] = event.target.checked;
     await persistAll();
-    if (state.activeSection === "random") {
-      state.renderRandomSection();
-    } else if (state.activeSection === "misc") {
-      state.renderMiscSection();
-    } else {
-      renderOtherSection();
-    }
   });
 
   return row;
@@ -297,7 +348,6 @@ function createShortcutCard() {
     </div>
     <div class="other-settings-list"></div>
   `;
-  card.insertBefore(createQuickSitesCard(), card.querySelector(".other-settings-intro").nextSibling);
 
   const list = card.querySelector(".other-settings-list");
   if (list) {
@@ -313,228 +363,7 @@ function createShortcutCard() {
     list.appendChild(createShortcutsPageHint());
   }
 
-  return card;
-}
-
-// ── 搜索配置 导入 / 导出 ──────────────────────────────────────────────────────
-
-export function createSearchConfigIoCard() {
-  const card = document.createElement("section");
-  card.className = "other-settings-card";
-  card.innerHTML = `
-    <div class="other-settings-intro">
-      <strong>${msg("settings_other_searchConfigIoTitle", "导入 / 导出搜索配置")}</strong>
-      <span>${msg("settings_other_searchConfigIoDesc", "导出当前的搜索组与自定义搜索站点，分享给他人后可一键导入还原。不含提示词设置。")}</span>
-    </div>
-    <div class="search-config-io-row">
-      <button type="button" class="search-config-io-btn search-config-export-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        ${msg("settings_other_exportConfig", "导出配置")}
-      </button>
-      <button type="button" class="search-config-io-btn search-config-import-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="17"/></svg>
-        ${msg("settings_other_importConfig", "导入配置")}
-      </button>
-      <span class="search-config-io-hint" aria-live="polite"></span>
-    </div>
-  `;
-
-  card.querySelector(".search-config-export-btn").addEventListener("click", exportSearchConfig);
-  card.querySelector(".search-config-import-btn").addEventListener("click", () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json,application/json";
-    input.addEventListener("change", handleSearchConfigImportFile);
-    input.click();
-  });
+  card.appendChild(createQuickSitesCard());
 
   return card;
-}
-
-function exportSearchConfig() {
-  const payload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    searchGroups: state.groups,
-    customSites: state.customSites
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `Qshot搜索配置-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function handleSearchConfigImportFile(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-
-  let payload;
-  try {
-    const text = await file.text();
-    payload = JSON.parse(text);
-  } catch (_) {
-    alert(msg("settings_other_importParseError", "无法解析文件，请确认是否为从本插件导出的 JSON 配置文件。"));
-    return;
-  }
-
-  if (!payload || typeof payload !== "object" || payload.version !== 1) {
-    alert(msg("settings_other_importInvalidFormat", "文件格式不正确，请使用本插件导出的搜索配置文件。"));
-    return;
-  }
-
-  const importedGroups = Array.isArray(payload.searchGroups) ? payload.searchGroups : [];
-  const importedCustomSites = Array.isArray(payload.customSites) ? payload.customSites : [];
-
-  if (!importedGroups.length && !importedCustomSites.length) {
-    alert(msg("settings_other_importEmpty", "文件中没有可导入的搜索组或自定义站点。"));
-    return;
-  }
-
-  const groupCount = importedGroups.length;
-  const siteCount = importedCustomSites.length;
-  const desc = [
-    groupCount ? `${groupCount} 个搜索组` : "",
-    siteCount ? `${siteCount} 个自定义站点` : ""
-  ].filter(Boolean).join("、");
-
-  const confirmed = confirm([
-    msg("settings_other_importConfirmLine1Prefix", "即将导入 ") + desc + msg("settings_other_importConfirmLine1Suffix", "。"),
-    "",
-    msg("settings_other_importConfirmLine2Prefix", "导入后将完全覆盖当前的搜索组配置") + (siteCount ? msg("settings_other_importConfirmLine2Sites", "和自定义站点") : "") + msg("settings_other_importConfirmLine2Suffix", "，此操作不可撤销。"),
-    "",
-    msg("settings_other_importConfirmLine3", "确认继续？")
-  ].join("\n"));
-  if (!confirmed) return;
-
-  if (importedCustomSites.length) {
-    state.customSites = createNormalizedCustomSites(importedCustomSites);
-    const builtinSites = state.sites.filter((site) => !site.isCustom);
-    state.sites = mergeSites(builtinSites, state.customSites);
-  }
-  if (importedGroups.length) {
-    state.groups = createNormalizedGroups(importedGroups);
-  }
-
-  await persistAll();
-  if (state.activeSection === "misc") {
-    state.renderMiscSection();
-  } else {
-    renderOtherSection();
-  }
-
-  if (state.activeSection === "groups") {
-    state.renderGroupsSection();
-  }
-  if (state.activeSection === "custom") {
-    state.renderCustomSection();
-  }
-}
-
-function createShortcutsPageHint() {
-  const row = document.createElement("div");
-  row.className = "shortcut-page-hint";
-  row.innerHTML = `${msg("settings_other_shortcutsHintPrefix", "也可前往浏览器的")}<button type="button" class="shortcut-page-link">${msg("settings_other_shortcutsHintLink", "扩展键盘快捷方式")}</button>${msg("settings_other_shortcutsHintSuffix", "，将「激活扩展」改为快捷激活顶部弹窗（任意页面均可唤起）。")}`;
-
-  const btn = row.querySelector(".shortcut-page-link");
-  btn?.addEventListener("click", () => {
-    const isEdge = /Edg\//.test(navigator.userAgent);
-    const url = isEdge ? "edge://extensions/shortcuts" : "chrome://extensions/shortcuts";
-    chrome.tabs.create({ url }).catch(() => {});
-  });
-
-  return row;
-}
-
-function createShortcutRecorderRow() {
-  const row = document.createElement("article");
-  row.className = "other-setting-row other-setting-row--with-tip shortcut-row";
-  row.innerHTML = `
-    <div class="other-setting-row-main">
-      <div class="other-setting-copy">
-        <div class="other-setting-title">${msg("settings_other_customShortcutTitle", "自定义快捷键")}</div>
-        <div class="other-setting-desc">${msg("settings_other_customShortcutDesc", "点击右侧按钮后按下组合键即可录制。必须至少包含一个修饰键（Ctrl / Alt / Shift / Win）。")}</div>
-      </div>
-      <div class="shortcut-recorder">
-        <button type="button" class="shortcut-display" aria-label="${msg("settings_other_recordShortcutAria", "录制快捷键")}"></button>
-        <button type="button" class="shortcut-reset" title="${msg("settings_other_resetShortcutTitle", "恢复默认 Alt + Q")}">${msg("settings_other_resetShortcut", "恢复默认")}</button>
-      </div>
-    </div>
-    <div class="other-setting-desc shortcut-tip">${msg("settings_other_shortcutRefreshTip", "提示：修改快捷键后，需要刷新当前网页才会生效。")}</div>
-  `;
-
-  const display = row.querySelector(".shortcut-display");
-  const resetBtn = row.querySelector(".shortcut-reset");
-  let isRecording = false;
-
-  function renderDisplay() {
-    if (!(display instanceof HTMLButtonElement)) return;
-    if (isRecording) {
-      display.textContent = msg("settings_other_recording", "按下组合键…");
-      display.classList.add("is-recording");
-    } else {
-      display.textContent = formatShortcut(state.uiPrefs.overlayShortcut);
-      display.classList.remove("is-recording");
-    }
-  }
-
-  function stopRecording() {
-    if (!isRecording) return;
-    isRecording = false;
-    document.removeEventListener("keydown", onKeyDown, true);
-    renderDisplay();
-  }
-
-  async function onKeyDown(event) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (event.key === "Escape") {
-      stopRecording();
-      return;
-    }
-
-    const rawKey = event.key;
-    if (rawKey === "Control" || rawKey === "Shift" || rawKey === "Alt" || rawKey === "Meta") {
-      return;
-    }
-
-    const candidate = {
-      ctrlKey: !!event.ctrlKey,
-      shiftKey: !!event.shiftKey,
-      altKey: !!event.altKey,
-      metaKey: !!event.metaKey,
-      key: rawKey.length === 1 ? rawKey.toUpperCase() : rawKey
-    };
-
-    if (!isShortcutValid(candidate)) {
-      display.textContent = msg("settings_other_recordInvalid", "必须包含修饰键，请重试");
-      return;
-    }
-
-    state.uiPrefs.overlayShortcut = candidate;
-    await persistAll();
-    stopRecording();
-  }
-
-  display?.addEventListener("click", () => {
-    if (isRecording) {
-      stopRecording();
-      return;
-    }
-    isRecording = true;
-    renderDisplay();
-    document.addEventListener("keydown", onKeyDown, true);
-  });
-
-  resetBtn?.addEventListener("click", async () => {
-    state.uiPrefs.overlayShortcut = normalizeShortcut(null);
-    await persistAll();
-    renderDisplay();
-  });
-
-  renderDisplay();
-  return row;
 }

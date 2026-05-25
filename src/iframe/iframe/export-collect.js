@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import { createRequestId } from "./utils.js";
+import { MSG } from "../../shared/compare-protocol.js";
 
 const EXTRACT_TIMEOUT_MS = 2500;
 
@@ -101,7 +102,7 @@ export function requestIframeContent(iframe, site) {
       // 从而把导出 / 剪贴板 / 摘要里的内容替换成攻击者写的字符串。
       // 加 event.source 白名单后，即便攻击者抢先回消息，也会因 source 不匹配被丢弃。
       if (event.source !== expectedWindow) return;
-      if (!event.data || event.data.type !== "QSHOT_EXTRACT_RESULT" || event.data.requestId !== requestId) {
+      if (!event.data || event.data.type !== MSG.EXTRACT_RESULT || event.data.requestId !== requestId) {
         return;
       }
 
@@ -120,7 +121,7 @@ export function requestIframeContent(iframe, site) {
       // 使用 "*" 避免 targetOrigin 过期导致消息被静默丢弃；回包仍用 event.source + requestId 校验。
       const targetOrigin = "*";
       iframe.contentWindow.postMessage({
-        type: "QSHOT_EXTRACT",
+        type: MSG.EXTRACT,
         requestId,
         site,
         // 传入最近一次搜索词，inject.js 可在 turns 完全为空时用作 user turn 回退标签

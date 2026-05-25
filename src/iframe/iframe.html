@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Qshot - 子弹搜索</title>
+    <title data-i18n="iframe_pageTitle">Qshot - 子弹搜索</title>
     <link rel="stylesheet" href="iframe.css" />
   </head>
   <body>
@@ -13,30 +13,35 @@
       </section>
 
       <aside id="siteNavPanel" class="site-nav-panel" hidden>
-        <div class="site-nav-header">AI 模型</div>
+        <div class="site-nav-header" data-i18n="iframe_siteNavTitle">AI 模型</div>
         <div id="siteNavList" class="site-nav-list"></div>
       </aside>
 
       <aside id="historyPanel" class="history-panel">
         <div class="history-panel-header">
-          <h3>搜索记录</h3>
+          <h3 data-i18n="iframe_historyTitle">搜索记录</h3>
           <div class="history-header-actions">
-            <button id="clearHistoryBtn" class="history-clear-btn" type="button">清空</button>
-            <button id="closeHistoryPanelBtn" class="history-close-btn" type="button" aria-label="关闭"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            <button id="clearHistoryBtn" class="history-clear-btn" type="button" data-i18n="iframe_historyClear">清空</button>
+            <button id="closeHistoryPanelBtn" class="history-close-btn" type="button" data-i18n-attr="aria-label:iframe_close"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
+        </div>
+        <div id="historyFilterBar" class="history-filter-bar" role="tablist" aria-label="搜索记录筛选">
+          <button id="historyFilterAllBtn" class="history-filter-btn is-active" type="button" role="tab" aria-selected="true" data-history-filter="all" data-i18n="iframe_historyFilterAll">全部</button>
+          <button id="historyFilterTodayBtn" class="history-filter-btn" type="button" role="tab" aria-selected="false" data-history-filter="today" data-i18n="iframe_historyFilterToday">今天</button>
+          <button id="historyFilterYesterdayBtn" class="history-filter-btn" type="button" role="tab" aria-selected="false" data-history-filter="yesterday" data-i18n="iframe_historyFilterYesterday">昨天</button>
         </div>
         <div id="historyList" class="history-list"></div>
       </aside>
 
       <section class="bottom-composer">
-        <span id="globalStatus" class="global-status visually-hidden">正在加载站点配置...</span>
+        <span id="globalStatus" class="global-status visually-hidden" data-i18n="iframe_loadingStatus">正在加载站点配置...</span>
 
         <div id="cardNavRow" class="card-nav-row">
           <div id="cardNavStrip" class="card-nav-strip"></div>
           <div class="add-site-menu-wrap">
-            <button id="addSiteBtn" class="card-nav-add-btn composer-tooltip-btn" type="button" aria-label="临时添加卡片" data-tooltip="添加卡片" aria-expanded="false">+</button>
+            <button id="addSiteBtn" class="card-nav-add-btn composer-tooltip-btn" type="button" data-tooltip="添加卡片" data-i18n-attr="aria-label:iframe_addSiteAria;data-tooltip:iframe_addSiteTooltip" aria-expanded="false">+</button>
             <div id="addSitePopover" class="add-site-popover" hidden>
-              <button id="closeAddSitePopoverBtn" class="add-site-close-btn" type="button" aria-label="关闭">
+              <button id="closeAddSitePopoverBtn" class="add-site-close-btn" type="button" data-i18n-attr="aria-label:iframe_close">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
@@ -48,66 +53,103 @@
           </div>
         </div>
 
+        <div id="hScrollStrip" class="h-scroll-strip" hidden>
+          <div id="hScrollThumb" class="h-scroll-thumb"></div>
+        </div>
+
         <div class="bottom-composer-row">
         <div class="bottom-composer-bar">
           <div class="composer-input-shell">
             <div class="composer-input-row">
+              <div class="composer-collapsed-actions" data-i18n-attr="aria-label:iframe_quickActionsAria" aria-label="快捷功能">
+                <button id="quickExportBtn" class="composer-collapsed-action composer-tooltip-btn" type="button" data-tooltip="导出文档" data-i18n-attr="aria-label:iframe_exportDoc;data-tooltip:iframe_exportDoc"></button>
+                <button id="quickHistoryBtn" class="composer-collapsed-action composer-tooltip-btn" type="button" data-tooltip="历史记录" data-i18n-attr="aria-label:iframe_history;data-tooltip:iframe_history"></button>
+                <button id="quickAiSummaryBtn" class="composer-collapsed-action composer-tooltip-btn" type="button" data-tooltip="AI总结" data-i18n-attr="aria-label:iframe_aiSummaryTooltip;data-tooltip:iframe_aiSummaryTooltip"></button>
+                <button id="quickLayoutBtn" class="composer-collapsed-action composer-tooltip-btn" type="button" data-tooltip="布局调整" data-i18n-attr="aria-label:iframe_layoutAdjust;data-tooltip:iframe_layoutAdjust"></button>
+              </div>
               <textarea
                 id="queryInput"
                 class="bottom-query-input"
-                placeholder="在这里输入问题，然后发送到当前选中的 AI 卡片"
-                rows="2"
+                placeholder="Qshot 一下"
+                data-i18n-attr="placeholder:iframe_queryPlaceholder"
+                rows="1"
               ></textarea>
             </div>
 
             <div class="composer-toolbar-row">
-              <div class="composer-left-tools">
-                <button id="historyToggleBtn" class="composer-tool-btn composer-tool-icon-btn composer-tooltip-btn" type="button" aria-label="历史搜索" data-tooltip="历史记录">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-                      <path d="M12 8v4l2 2"></path>
-                      <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
-                    </g>
+              <div class="left-tools-menu-wrap">
+                <button id="leftToolsToggleBtn" class="composer-tool-btn composer-tool-icon-btn left-tools-toggle-btn" type="button" data-i18n-attr="aria-label:iframe_toolsAria" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
                 </button>
-                <button id="exportBtn" class="composer-tool-btn composer-tool-icon-btn composer-tooltip-btn" type="button" aria-label="导出文档" data-tooltip="导出为文档">
-                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                    <path d="M750.952139 1023.999132H195.742046A156.152839 156.152839 0 0 1 39.589207 859.171136V173.833678A173.503154 173.503154 0 0 1 74.289838 52.38147 182.178312 182.178312 0 0 1 213.092361 0.330524h485.808831l34.700631 17.350315 164.827996 190.853469a43.375789 43.375789 0 0 1 17.350316 34.700631v52.050946a52.050946 52.050946 0 0 1-43.375789 43.375789 43.375789 43.375789 0 0 1-43.375788-43.375789V260.585255L681.550877 87.082101H213.092361a86.751577 86.751577 0 0 0-69.401262 26.025473A104.101892 104.101892 0 0 0 126.340784 173.833678v685.337458c0 78.076419 60.726104 78.076419 69.401262 78.076419h555.210093a86.751577 86.751577 0 0 0 86.751577-69.401261 43.375789 43.375789 0 0 1 52.050946-26.025473c26.025473 0 34.700631 26.025473 34.700631 52.050946a190.853469 190.853469 0 0 1-173.503154 130.127365z" fill="currentColor"></path>
-                    <path d="M933.13045 624.941878H438.646461a43.375789 43.375789 0 0 1-43.375788-43.375788 43.375789 43.375789 0 0 1 43.375788-43.375789h399.057255l-78.07642-78.076419c-8.675158-17.350315-8.675158-52.050946 8.675158-60.726104a43.375789 43.375789 0 0 1 60.726104 0l138.802523 156.152839a26.025473 26.025473 0 0 1 8.675158 43.375788 43.375789 43.375789 0 0 1-43.375789 26.025473z" fill="currentColor"></path>
-                    <path d="M785.652769 763.744401h-34.70063a34.700631 34.700631 0 0 1 8.675157-69.401261L907.104977 555.540617a43.375789 43.375789 0 0 1 60.726104 60.726103L811.678242 755.069244z" fill="currentColor"></path>
-                  </svg>
-                </button>
-                <div class="layout-menu-wrap">
-                  <button id="layoutToggleBtn" class="composer-tool-btn composer-tool-icon-btn composer-tooltip-btn" type="button" aria-label="布局设置" data-tooltip="布局调整">
-                      <svg viewBox="0 0 1024 1024" stroke="currentColor" stroke-width="26" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M169 169v686h686V169H169z m640 46v146H215V215h594zM215 407h145.8v402H215V407z m191.8 402V407H809v402H406.8z" fill="currentColor"></path>
-                    </svg>
+                <div id="leftToolsPanel" class="left-tools-panel" hidden>
+                  <button id="exportBtn" class="left-tools-item" type="button" data-i18n-attr="aria-label:iframe_exportDoc">
+                    <span class="left-tools-item-icon">
+                      <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                        <path d="M750.952139 1023.999132H195.742046A156.152839 156.152839 0 0 1 39.589207 859.171136V173.833678A173.503154 173.503154 0 0 1 74.289838 52.38147 182.178312 182.178312 0 0 1 213.092361 0.330524h485.808831l34.700631 17.350315 164.827996 190.853469a43.375789 43.375789 0 0 1 17.350316 34.700631v52.050946a52.050946 52.050946 0 0 1-43.375789 43.375789 43.375789 43.375789 0 0 1-43.375788-43.375789V260.585255L681.550877 87.082101H213.092361a86.751577 86.751577 0 0 0-69.401262 26.025473A104.101892 104.101892 0 0 0 126.340784 173.833678v685.337458c0 78.076419 60.726104 78.076419 69.401262 78.076419h555.210093a86.751577 86.751577 0 0 0 86.751577-69.401261 43.375789 43.375789 0 0 1 52.050946-26.025473c26.025473 0 34.700631 26.025473 34.700631 52.050946a190.853469 190.853469 0 0 1-173.503154 130.127365z" fill="currentColor"></path>
+                        <path d="M933.13045 624.941878H438.646461a43.375789 43.375789 0 0 1-43.375788-43.375788 43.375789 43.375789 0 0 1 43.375788-43.375789h399.057255l-78.07642-78.076419c-8.675158-17.350315-8.675158-52.050946 8.675158-60.726104a43.375789 43.375789 0 0 1 60.726104 0l138.802523 156.152839a26.025473 26.025473 0 0 1 8.675158 43.375788 43.375789 43.375789 0 0 1-43.375789 26.025473z" fill="currentColor"></path>
+                        <path d="M785.652769 763.744401h-34.70063a34.700631 34.700631 0 0 1 8.675157-69.401261L907.104977 555.540617a43.375789 43.375789 0 0 1 60.726104 60.726103L811.678242 755.069244z" fill="currentColor"></path>
+                      </svg>
+                    </span>
+                    <span class="left-tools-item-label" data-i18n="iframe_exportDoc">导出文档</span>
                   </button>
-                  <div id="layoutPopover" class="layout-popover" hidden>
-                    <div class="layout-option-group">
-                      <div class="layout-option-title">呈现形式</div>
-                      <div class="layout-option-row">
-                        <button class="layout-option-btn" type="button" data-layout-rows="1">1排</button>
-                        <button class="layout-option-btn" type="button" data-layout-rows="2">2排</button>
-                        <button class="layout-option-btn" type="button" data-layout-rows="3">3排</button>
-                        <button class="layout-option-btn" type="button" data-layout-mode="sidebar">侧边</button>
+                  <button id="historyToggleBtn" class="left-tools-item" type="button" data-i18n-attr="aria-label:iframe_historySearchAria">
+                    <span class="left-tools-item-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                          <path d="M12 8v4l2 2"></path>
+                          <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
+                        </g>
+                      </svg>
+                    </span>
+                    <span class="left-tools-item-label" data-i18n="iframe_history">历史记录</span>
+                  </button>
+                  <button id="aiSummaryBtn" class="left-tools-item" type="button" data-i18n-attr="aria-label:iframe_aiSummaryTooltip">
+                    <span class="left-tools-item-icon">
+                      <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M700.562286 387.657143q-47.469714-16.091429-63.780572-63.341714l-69.485714-201.728q-17.554286-51.273143-56.685714-51.2-39.058286 0.073143-56.466286 51.419428l-67.876571 200.045714q-16.091429 47.323429-63.488 63.414858L124.342857 453.778286q-51.2 17.481143-51.419428 56.539428-0.146286 39.131429 50.980571 56.905143l197.412571 68.754286q47.469714 16.530286 63.780572 64l68.900571 200.265143q17.627429 51.2 56.685715 51.2 39.058286-0.146286 56.393142-51.565715l67.291429-199.314285q15.945143-47.396571 63.268571-63.634286l201.654858-69.046857q51.346286-17.554286 51.2-56.612572 0-39.058286-51.419429-56.466285L700.562286 387.657143zM567.588571 348.16q27.940571 81.188571 109.421715 108.836571l161.133714 54.491429-164.352 56.32q-81.408 27.794286-108.909714 109.348571l-54.637715 162.084572-56.100571-163.035429Q426.276571 595.090286 345.234286 566.857143l-161.206857-56.100572 162.377142-55.222857q81.408-27.721143 109.129143-109.202285l55.369143-163.108572 56.758857 164.864z" fill="currentColor"/>
+                        <path d="M883.638857 111.542857c-3.510857-10.093714-9.142857-10.093714-12.580571 0l-19.382857 57.197714a44.617143 44.617143 0 0 1-24.649143 24.649143l-56.758857 19.309715c-10.093714 3.437714-10.093714 9.142857 0 12.653714l56.32 19.602286c10.166857 3.510857 21.211429 14.628571 24.722285 24.868571l19.675429 57.124571c3.510857 10.093714 9.142857 10.093714 12.507428 0l19.236572-57.051428a44.617143 44.617143 0 0 1 24.576-24.649143l57.636571-19.748571c10.093714-3.437714 10.093714-9.069714 0-12.507429l-56.685714-19.163429a44.836571 44.836571 0 0 1-24.795429-24.649142l-19.821714-57.636572z" fill="currentColor"/>
+                      </svg>
+                    </span>
+                    <span class="left-tools-item-label" data-i18n="iframe_aiSummaryMenuLabel">AI总结下</span>
+                  </button>
+                  <div class="layout-menu-wrap">
+                    <button id="layoutToggleBtn" class="left-tools-item" type="button" data-i18n-attr="aria-label:iframe_layoutSettings">
+                      <span class="left-tools-item-icon">
+                        <svg viewBox="0 0 1024 1024" stroke="currentColor" stroke-width="26" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M169 169v686h686V169H169z m640 46v146H215V215h594zM215 407h145.8v402H215V407z m191.8 402V407H809v402H406.8z" fill="currentColor"></path>
+                        </svg>
+                      </span>
+                      <span class="left-tools-item-label" data-i18n="iframe_layoutAdjust">布局调整</span>
+                    </button>
+                    <div id="layoutPopover" class="layout-popover" hidden>
+                      <div class="layout-option-group">
+                        <div class="layout-option-title" data-i18n="iframe_layoutDisplayTitle">呈现形式</div>
+                        <div class="layout-option-row">
+                          <button class="layout-option-btn" type="button" data-layout-rows="1" data-i18n="iframe_layoutRows1">1排</button>
+                          <button class="layout-option-btn" type="button" data-layout-rows="2" data-i18n="iframe_layoutRows2">2排</button>
+                          <button class="layout-option-btn" type="button" data-layout-rows="3" data-i18n="iframe_layoutRows3">3排</button>
+                          <button class="layout-option-btn" type="button" data-layout-mode="sidebar" data-i18n="iframe_layoutFullscreen">全屏</button>
+                        </div>
                       </div>
-                    </div>
-                    <div id="cardSizeGroup" class="layout-option-group">
-                      <div class="layout-option-title">宽度</div>
-                      <div class="layout-option-row">
-                        <button class="layout-option-btn" type="button" data-card-size="small">小</button>
-                        <button class="layout-option-btn" type="button" data-card-size="medium">中</button>
-                        <button class="layout-option-btn" type="button" data-card-size="large">大</button>
+                      <div id="cardSizeGroup" class="layout-option-group">
+                        <div class="layout-option-title" data-i18n="iframe_layoutWidthTitle">宽度</div>
+                        <div class="card-size-slider-wrap">
+                          <input id="cardSizeSlider" type="range" min="1" max="5" step="1" value="3" class="card-size-slider">
+                          <div class="card-size-slider-labels">
+                            <span data-i18n="iframe_layoutNarrow">窄</span>
+                            <span data-i18n="iframe_layoutWide">宽</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-
               </div>
 
               <div class="composer-inline-actions">
-                <button id="newChatBtn" class="composer-inline-icon composer-tooltip-btn" type="button" aria-label="新建对话" data-tooltip="新建对话">
+                <button id="newChatBtn" class="composer-inline-icon composer-tooltip-btn" type="button" data-tooltip="新建对话" data-i18n-attr="aria-label:iframe_newChat;data-tooltip:iframe_newChat">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -115,7 +157,7 @@
                 </button>
 
                 <div class="composer-prompt-wrap">
-                  <button id="promptAssistBtn" class="composer-inline-icon" type="button" aria-label="提示词" aria-expanded="false">
+                  <button id="promptAssistBtn" class="composer-inline-icon" type="button" data-i18n-attr="aria-label:iframe_promptAssist" aria-expanded="false">
                     <svg viewBox="0 0 1024 1024" aria-hidden="true">
                       <path d="M855.071605 339.499431l-10.216418 26.934193c-7.430122 19.718401-31.077915 19.718401-38.508037 0l-10.144975-26.934193c-18.146645-48.010021-50.724873-86.303727-91.447658-107.165224l-31.435132-16.146227c-16.860662-8.716105-16.860662-37.150611 0-45.866717l29.649045-15.217461c41.722994-21.433045 75.015657-61.084178 92.805084-110.737399l10.430749-29.148941c7.287235-20.289949 31.506576-20.289949 38.793811 0l10.430749 29.148941c17.860871 49.653221 51.08209 89.304354 92.876528 110.737399l29.577602 15.217461c16.932105 8.716105 16.932105 37.150611 0 45.866717l-31.363689 16.074783c-40.722785 20.932941-73.372457 59.226647-91.447659 107.236668zM413.265106 95.234163h164.891559v95.305606H413.265106c-136.671383 0-247.480225 127.883835-247.480225 285.773932 0 171.89302 101.592633 284.130732 329.926005 403.87001v-118.096078h82.445779c136.671383 0 247.480225-127.955278 247.480225-285.773932h82.44578c0 210.401057-147.673679 381.008095-329.926005 381.008095v166.677646C371.970773 928.765279 83.339102 785.878313 83.339102 476.313701 83.339102 265.769757 231.012781 95.234163 413.265106 95.234163z"></path>
                     </svg>
@@ -123,14 +165,14 @@
                   <div id="promptPicker" class="composer-prompt-picker" hidden></div>
                 </div>
 
-                <button id="fileUploadBtn" class="composer-inline-icon composer-tooltip-btn" type="button" aria-label="上传文件" data-tooltip="附加文件">
+                <button id="fileUploadBtn" class="composer-inline-icon composer-tooltip-btn" type="button" data-tooltip="附加文件" data-i18n-attr="aria-label:iframe_uploadFile;data-tooltip:iframe_uploadFileTooltip">
                   <svg viewBox="0 0 1024 1024" aria-hidden="true">
                     <path d="M924.672 126.976q36.864 36.864 54.784 82.432t17.92 93.696-17.92 93.696-54.784 82.432l-392.192 389.12q-36.864 36.864-90.624 61.44t-113.664 28.672-122.368-16.384-115.712-73.728q-52.224-52.224-72.704-113.152t-16.384-121.344 28.16-113.664 60.928-90.112l348.16-345.088q9.216-9.216 27.136-4.608t27.136 13.824q8.192 9.216 13.312 27.136t-4.096 27.136l-347.136 344.064q-27.648 27.648-46.08 64.512t-21.504 78.848 12.288 84.992 55.296 82.944q35.84 35.84 79.36 50.688t86.528 12.288 81.92-18.944 66.56-44.032l391.168-388.096q27.648-27.648 39.424-57.344t11.264-58.88-13.824-56.832-36.864-51.2q-44.032-43.008-98.816-40.448t-110.08 57.856l-353.28 351.232q-23.552 23.552-23.04 52.224t18.944 47.104q22.528 22.528 51.712 18.432t47.616-22.528l320.512-318.464q9.216-9.216 27.136-4.608t27.136 13.824 14.336 27.136-4.096 27.136l-321.536 318.464q-36.864 36.864-70.656 51.2t-63.488 12.8-55.296-15.872-47.104-34.816q-17.408-16.384-31.232-41.984t-15.872-56.32 10.752-65.536 49.664-70.656q18.432-18.432 32.768-33.792 12.288-13.312 23.04-23.552t11.776-11.264l285.696-284.672q36.864-36.864 80.384-57.856t88.576-24.064 88.576 12.288 80.384 52.224z"></path>
                   </svg>
                 </button>
                 <input type="file" id="fileUploadInput" multiple accept="image/*,.pdf,.txt,.md,.doc,.docx,.csv,.json,.xml" hidden>
 
-                <button id="sendSelectedBtn" class="composer-inline-icon composer-inline-icon-send is-empty" type="button" aria-label="发送">
+                <button id="sendSelectedBtn" class="composer-inline-icon composer-inline-icon-send is-empty" type="button" data-i18n-attr="aria-label:iframe_send">
                   <svg viewBox="0 0 1024 1024" aria-hidden="true">
                     <path d="M554.666667 268.8v601.6h-85.333334V268.8L337.066667 401.066667 277.333333 341.333333 512 106.666667 746.666667 341.333333l-59.733334 59.733334L554.666667 268.8z" fill="currentColor"/>
                   </svg>
@@ -141,6 +183,12 @@
         </div>
 
         </div>
+        <button id="settingsBtn" class="bottom-settings-entry composer-tooltip-btn" type="button" data-tooltip="打开设置" data-i18n-attr="aria-label:iframe_openSettings;data-tooltip:iframe_openSettings">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </section>
     </div>
 

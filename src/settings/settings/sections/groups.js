@@ -1,10 +1,12 @@
-import {
+﻿import {
   state,
   msg,
   SITE_CATEGORIES,
+  getSiteCategoryLabel,
   AI_SITE_GROUPS,
   SOCIAL_SITE_GROUPS,
   GROUP_MODE_OPTIONS,
+  getGroupModeLabel,
   PICKER_CLOSE_DELAY_MS,
 } from "../state.js";
 import { escapeHtml, getGroupById } from "../utils.js";
@@ -88,7 +90,7 @@ function createGroupCard(group, index) {
             <span class="group-mode-trigger-arrow" aria-hidden="true"></span>
           </button>
           <div class="group-mode-menu" data-field="mode-menu" hidden>
-            ${GROUP_MODE_OPTIONS.map((option) => `<button class="group-mode-option${group.mode === option.value ? " is-active" : ""}" type="button" data-mode-value="${option.value}">${escapeHtml(option.label)}</button>`).join("")}
+            ${GROUP_MODE_OPTIONS.map((option) => `<button class="group-mode-option${group.mode === option.value ? " is-active" : ""}" type="button" data-mode-value="${option.value}">${escapeHtml(getGroupModeLabel(option))}</button>`).join("")}
           </div>
         </div>
       </label>
@@ -104,9 +106,9 @@ function createGroupCard(group, index) {
   const selectedSites = group.siteIds.map((siteId) => state.sites.find((site) => site.id === siteId)).filter(Boolean);
   selectedSites.forEach((site) => chipsWrap.appendChild(createSelectedChip(group, site)));
 
-  chipsWrap.appendChild(createInlineAdd(group));
   attachChipDrag(chipsWrap, group);
   rightPanel.appendChild(chipsWrap);
+  rightPanel.appendChild(createInlineAdd(group));
   card.appendChild(leftPanel);
   card.appendChild(rightPanel);
 
@@ -201,7 +203,7 @@ function createInlineAdd(group) {
 
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "inline-add-btn";
+  button.className = `inline-add-btn${state.openPickerGroupId === group.id ? " is-active" : ""}`;
   button.textContent = msg("common_add", "新增");
   button.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -227,124 +229,102 @@ function createInlineAdd(group) {
 
 function createHoverPicker(group) {
   const panel = document.createElement("div");
-  panel.className = "hover-picker-panel is-open";
+  panel.className = `hover-picker-panel is-open${state.suppressPickerAnimation ? " is-stable" : ""}`;
+  state.suppressPickerAnimation = false;
   panel.addEventListener("click", (event) => event.stopPropagation());
   panel.addEventListener("mouseenter", clearPickerCloseTimer);
   panel.addEventListener("mouseleave", schedulePickerClose);
 
-  Object.entries(SITE_CATEGORIES).forEach(([key, category]) => {
-    const row = document.createElement("div");
-    row.className = "hover-picker-row";
-    const isActive = state.activePickerCategoryKey === key;
-    if (isActive) {
-      row.classList.add("is-active");
-    }
+  const activeKey = state.activePickerCategoryKey || Object.keys(SITE_CATEGORIES)[0];
 
-    const entry = document.createElement("button");
-    entry.className = "hover-picker-entry";
-    entry.type = "button";
-    entry.innerHTML = `<span>${escapeHtml(category.label)}</span><span class="hover-picker-arrow">›</span>`;
-    entry.addEventListener("mouseenter", () => {
-      clearPickerCloseTimer();
-      setActivePickerCategory(key);
-    });
-    entry.addEventListener("click", (event) => {
+  // Tab bar
+  const tabBar = document.createElement("div");
+  tabBar.className = "hover-picker-tab-bar";
+  Object.entries(SITE_CATEGORIES).forEach(([key, category]) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "hover-picker-tab" + (activeKey === key ? " is-active" : "");
+    btn.textContent = getSiteCategoryLabel(key);
+    btn.addEventListener("click", (event) => {
       event.stopPropagation();
       clearPickerCloseTimer();
       setActivePickerCategory(key);
     });
-    row.appendChild(entry);
-
-    const submenu = document.createElement("div");
-    submenu.className = `hover-picker-submenu${isActive ? " is-open" : ""}`;
-    submenu.addEventListener("mouseenter", clearPickerCloseTimer);
-    submenu.addEventListener("mouseleave", schedulePickerClose);
-    const categorySites = getCategorySites(key);
-
-    if (key === "custom") {
-      if (!categorySites.length) {
-        const empty = document.createElement("div");
-        empty.className = "hover-picker-empty";
-        empty.innerHTML = msg(
-          "settings_groups_customEmpty",
-          `还没有自定义站点<br/><span class="hover-picker-empty-hint">前往左侧「自定义搜索」添加</span>`
-        );
-        submenu.appendChild(empty);
-      } else {
-        categorySites.forEach((site) => {
-          submenu.appendChild(createPickerSiteOption(group, site, key));
-        });
-      }
-    } else if (key === "ai") {
-      submenu.classList.add("hover-picker-submenu--ai");
-
-      const columnsWrap = document.createElement("div");
-      columnsWrap.className = "hover-picker-ai-columns";
-
-      AI_SITE_GROUPS.forEach((marketGroup) => {
-        const groupSites = marketGroup.siteIds
-          .map((siteId) => categorySites.find((site) => site.id === siteId))
-          .filter(Boolean);
-        if (!groupSites.length) return;
-
-        const col = document.createElement("div");
-        col.className = "hover-picker-ai-col";
-
-        const colTitle = document.createElement("div");
-        colTitle.className = "hover-picker-site-group-title";
-        colTitle.textContent = msg(marketGroup.labelKey, marketGroup.label);
-        col.appendChild(colTitle);
-
-        groupSites.forEach((site) => {
-          col.appendChild(createPickerSiteOption(group, site, key));
-        });
-        columnsWrap.appendChild(col);
-      });
-      submenu.appendChild(columnsWrap);
-
-    } else if (key === "other") {
-      submenu.classList.add("hover-picker-submenu--ai");
-      const tip = document.createElement("div");
-      tip.className = "hover-picker-tip";
-      tip.textContent = msg(
-        "settings_groups_otherTip",
-        "社媒平台更推荐使用“新开标签”模式；卡片呈现的预览与打开体验可能不稳定。"
-      );
-      submenu.appendChild(tip);
-
-      const columnsWrap = document.createElement("div");
-      columnsWrap.className = "hover-picker-ai-columns";
-
-      SOCIAL_SITE_GROUPS.forEach((marketGroup) => {
-        const groupSites = marketGroup.siteIds
-          .map((siteId) => categorySites.find((site) => site.id === siteId))
-          .filter(Boolean);
-        if (!groupSites.length) return;
-
-        const col = document.createElement("div");
-        col.className = "hover-picker-ai-col";
-
-        const colTitle = document.createElement("div");
-        colTitle.className = "hover-picker-site-group-title";
-        colTitle.textContent = msg(marketGroup.labelKey, marketGroup.label);
-        col.appendChild(colTitle);
-
-        groupSites.forEach((site) => {
-          col.appendChild(createPickerSiteOption(group, site, key));
-        });
-        columnsWrap.appendChild(col);
-      });
-      submenu.appendChild(columnsWrap);
-    } else {
-      categorySites.forEach((site) => {
-        submenu.appendChild(createPickerSiteOption(group, site, key));
-      });
-    }
-
-    row.appendChild(submenu);
-    panel.appendChild(row);
+    tabBar.appendChild(btn);
   });
+  panel.appendChild(tabBar);
 
+  // Content
+  const content = document.createElement("div");
+  content.className = "hover-picker-tab-content";
+  const categorySites = getCategorySites(activeKey);
+
+  if (activeKey === "custom") {
+    if (!categorySites.length) {
+      const empty = document.createElement("div");
+      empty.className = "hover-picker-empty";
+      empty.innerHTML = msg(
+        "settings_groups_customEmpty",
+        `还没有自定义站点<br/><span class="hover-picker-empty-hint">前往左侧「自定义搜索」添加</span>`
+      );
+      content.appendChild(empty);
+    } else {
+      const optionRow = document.createElement("div");
+      optionRow.className = "hover-picker-option-row";
+      categorySites.forEach((site) => optionRow.appendChild(createPickerSiteOption(group, site, activeKey)));
+      content.appendChild(optionRow);
+    }
+  } else if (activeKey === "ai") {
+    const columnsWrap = document.createElement("div");
+    columnsWrap.className = "hover-picker-ai-columns";
+    AI_SITE_GROUPS.forEach((marketGroup) => {
+      const groupSites = marketGroup.siteIds
+        .map((siteId) => categorySites.find((site) => site.id === siteId))
+        .filter(Boolean);
+      if (!groupSites.length) return;
+      const col = document.createElement("div");
+      col.className = "hover-picker-ai-col";
+      const colTitle = document.createElement("div");
+      colTitle.className = "hover-picker-site-group-title";
+      colTitle.textContent = msg(marketGroup.labelKey, marketGroup.label);
+      col.appendChild(colTitle);
+      const optionRow = document.createElement("div");
+      optionRow.className = "hover-picker-option-row";
+      groupSites.forEach((site) => optionRow.appendChild(createPickerSiteOption(group, site, activeKey)));
+      col.appendChild(optionRow);
+      columnsWrap.appendChild(col);
+    });
+    content.appendChild(columnsWrap);
+  } else if (activeKey === "other") {
+    const tip = document.createElement("div");
+    tip.className = "hover-picker-tip";
+    tip.textContent = msg("settings_groups_otherTip", "社媒平台更推荐使用“新开标签”模式；卡片呼现的预览与打开体验可能不稳定。");
+    content.appendChild(tip);
+    const columnsWrap = document.createElement("div");
+    columnsWrap.className = "hover-picker-ai-columns";
+    SOCIAL_SITE_GROUPS.forEach((marketGroup) => {
+      const groupSites = marketGroup.siteIds
+        .map((siteId) => categorySites.find((site) => site.id === siteId))
+        .filter(Boolean);
+      if (!groupSites.length) return;
+      const col = document.createElement("div");
+      col.className = "hover-picker-ai-col";
+      const colTitle = document.createElement("div");
+      colTitle.className = "hover-picker-site-group-title";
+      colTitle.textContent = msg(marketGroup.labelKey, marketGroup.label);
+      col.appendChild(colTitle);
+      const optionRow = document.createElement("div");
+      optionRow.className = "hover-picker-option-row";
+      groupSites.forEach((site) => optionRow.appendChild(createPickerSiteOption(group, site, activeKey)));
+      col.appendChild(optionRow);
+      columnsWrap.appendChild(col);
+    });
+    content.appendChild(columnsWrap);
+  } else {
+    categorySites.forEach((site) => content.appendChild(createPickerSiteOption(group, site, activeKey)));
+  }
+
+  panel.appendChild(content);
   return panel;
 }
 
@@ -378,30 +358,46 @@ export function closePicker() {
 }
 
 function createPickerSiteOption(group, site, categoryKey) {
-  const label = document.createElement("label");
-  label.className = "hover-picker-option";
-  const checked = group.siteIds.includes(site.id);
-  label.innerHTML = `
-    <span class="hover-picker-option-text">${escapeHtml(site.name)}</span>
-    <input type="checkbox" ${checked ? "checked" : ""} />
-  `;
-  const checkbox = label.querySelector("input");
-  checkbox.addEventListener("click", (event) => event.stopPropagation());
-  checkbox.addEventListener("change", async () => {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  const selected = group.siteIds.includes(site.id);
+  const externalOnly = site.supportIframe === false;
+  const label = site.name || site.id;
+  const hasCjk = /[\u3400-\u9fff]/.test(label);
+  btn.className = `hover-picker-option${selected ? " is-selected" : ""}${externalOnly ? " is-external-only" : ""}${hasCjk ? " is-cjk-label" : ""}`;
+
+  if (externalOnly) {
+    const tip = msg(
+      "settings_groups_pickerExternalOnlyTip",
+      "该模型不支持卡片形式呈现，仅支持新开标签打开。"
+    );
+    btn.setAttribute("aria-label", `${label}（${tip}）`);
+    btn.setAttribute("data-tip", tip);
+    btn.innerHTML = `
+      <span class="hover-picker-option-label">${escapeHtml(label)}</span>
+      <span class="hover-picker-option-external" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </span>
+    `;
+  } else {
+    btn.innerHTML = `<span class="hover-picker-option-label">${escapeHtml(label)}</span>`;
+  }
+
+  btn.addEventListener("click", async (event) => {
+    event.stopPropagation();
     const currentGroup = getGroupById(group.id);
-    if (!currentGroup) {
-      return;
-    }
-    if (checkbox.checked) {
-      currentGroup.siteIds = [...currentGroup.siteIds, site.id];
-    } else {
+    if (!currentGroup) return;
+    if (selected) {
       currentGroup.siteIds = currentGroup.siteIds.filter((id) => id !== site.id);
+    } else {
+      currentGroup.siteIds = [...currentGroup.siteIds, site.id];
     }
     await persistAll();
     state.openPickerGroupId = currentGroup.id;
     state.activePickerCategoryKey = categoryKey;
+    state.suppressPickerAnimation = true;
     clearPickerCloseTimer();
     renderGroupsSection();
   });
-  return label;
+  return btn;
 }

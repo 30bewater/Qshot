@@ -255,6 +255,45 @@ export function runGroup(group) {
   window.close();
 }
 
+function openPopupHistoryRestorePage(entryId) {
+  if (!entryId) return;
+  const url = new URL(chrome.runtime.getURL("iframe/iframe.html"));
+  url.searchParams.set("restoreHistoryId", entryId);
+  chrome.tabs.create({ url: url.toString() }).catch(() => {});
+  window.close();
+}
+
+function buildPopupHistoryActionButtons(entry, { onDelete }) {
+  const actionButtons = document.createElement("div");
+  actionButtons.className = "popup-history-action-buttons";
+
+  const restoreBtn = document.createElement("button");
+  restoreBtn.type = "button";
+  restoreBtn.className = "popup-history-restore-btn";
+  restoreBtn.textContent = msg("popup_historyRestore", "复原");
+  restoreBtn.setAttribute("aria-label", msg("popup_restoreHistoryEntry", "新开页面复原这次搜索会话"));
+  restoreBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPopupHistoryRestorePage(entry?.id);
+  });
+  actionButtons.appendChild(restoreBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "popup-history-delete-btn";
+  deleteBtn.textContent = msg("popup_historyDelete", "删除");
+  deleteBtn.setAttribute("aria-label", msg("popup_deleteHistoryEntry", "删除这条记录"));
+  deleteBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    await onDelete();
+  });
+  actionButtons.appendChild(deleteBtn);
+
+  return actionButtons;
+}
+
 // ── History ─────────────────────────────────────────────────────────────
 export function renderHistory(history) {
   const { historyList, queryInput } = state.dom;
@@ -270,32 +309,39 @@ export function renderHistory(history) {
   }
 
   history.forEach((entry) => {
-    const item = document.createElement("button");
-    item.type = "button";
+    const item = document.createElement("div");
     item.className = "popup-history-item";
     const query = String(entry.query || "").replace(/\s+/g, " ").trim();
     const dateText = formatHistoryDate(entry.createdAt);
-    item.innerHTML = `
-      <div class="popup-history-line">
-        <div class="popup-history-query">${escapeHtml(query)}</div>
-        <div class="popup-history-meta">${escapeHtml(dateText)}</div>
-      </div>
-      <button class="popup-history-delete-btn" type="button" aria-label="${msg("popup_deleteHistoryEntry", "删除这条记录")}">×</button>
-    `;
-    const deleteBtn = item.querySelector(".popup-history-delete-btn");
-    if (deleteBtn) {
-      deleteBtn.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        await removeHistoryEntry(entry);
-      });
-    }
-    item.addEventListener("click", () => {
+
+    const line = document.createElement("div");
+    line.className = "popup-history-line";
+
+    const queryEl = document.createElement("div");
+    queryEl.className = "popup-history-query";
+    queryEl.textContent = query;
+    queryEl.addEventListener("click", () => {
       if (queryInput) {
         queryInput.value = entry.query || "";
         queryInput.focus();
       }
     });
+
+    const metaSlot = document.createElement("div");
+    metaSlot.className = "popup-history-meta-slot";
+
+    const meta = document.createElement("div");
+    meta.className = "popup-history-meta";
+    meta.textContent = dateText;
+
+    metaSlot.appendChild(meta);
+    metaSlot.appendChild(buildPopupHistoryActionButtons(entry, {
+      onDelete: () => removeHistoryEntry(entry),
+    }));
+
+    line.appendChild(queryEl);
+    line.appendChild(metaSlot);
+    item.appendChild(line);
     historyList.appendChild(item);
   });
 }

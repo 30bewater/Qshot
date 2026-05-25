@@ -1,5 +1,20 @@
 import { state, elements, STORAGE_KEYS } from "./state.js";
 import { createRequestId, setQueryInputValue } from "./utils.js";
+import {
+  attachHistoryFilterRefresh,
+  bindHistoryFilterEvents,
+  getFilteredHistory,
+  getHistoryEmptyMessage,
+  updateHistoryFilterUi,
+} from "./history-filter.js";
+import {
+  normalizeHistorySiteUrl,
+  shouldKeepStoredHistoryUrl,
+} from "./history-url-normalize.js";
+
+export { bindHistoryFilterEvents } from "./history-filter.js";
+
+attachHistoryFilterRefresh(() => renderHistoryList());
 
 export async function savePreferences() {
   await chrome.storage.local.set({
@@ -33,7 +48,7 @@ export async function saveSearchHistory(query, sites) {
       return {
         id: site.id,
         name: site.name,
-        url: ref?.currentUrl || site.url
+        url: normalizeHistorySiteUrl(site.id, ref?.currentUrl || site.url) || site.url
       };
     }),
     createdAt: new Date().toISOString()
@@ -64,7 +79,10 @@ export async function refreshHistoryEntryUrls(entryId, sites) {
       return;
     }
     const ref = state.cardRefs.get(site.id);
-    latestUrlsBySiteId.set(site.id, String(ref?.currentUrl || site.url || ""));
+    latestUrlsBySiteId.set(
+      site.id,
+      normalizeHistorySiteUrl(site.id, String(ref?.currentUrl || site.url || ""))
+    );
   });
 
   const { changed } = await mutateStoredHistory((latestHistory) => {
@@ -76,13 +94,17 @@ export async function refreshHistoryEntryUrls(entryId, sites) {
 
       const updatedSites = entry.sites.map((site) => {
         const nextUrl = latestUrlsBySiteId.get(site?.id);
-        if (!nextUrl || site.url === nextUrl) {
+        if (!nextUrl) {
+          return site;
+        }
+        const homeUrl = state.allSites?.find((s) => s.id === site?.id)?.url || "";
+        if (site.url === nextUrl || shouldKeepStoredHistoryUrl(site.url, nextUrl, homeUrl, site?.id)) {
           return site;
         }
         hasChanged = true;
         return {
           ...site,
-          url: nextUrl
+          url: normalizeHistorySiteUrl(site?.id, nextUrl) || nextUrl
         };
       });
 
@@ -97,21 +119,38 @@ export async function refreshHistoryEntryUrls(entryId, sites) {
   renderHistoryList();
 }
 
+export function scheduleHistoryUrlRefresh(entryId, sites) {
+  if (!entryId || !Array.isArray(sites) || sites.length === 0) {
+    return;
+  }
+  // SPA 对话 URL 可能在发送完成后数秒～数十秒才稳定；多轮采样避免落回首页。
+  [3000, 8000, 15000, 30000, 45000, 60000].forEach((delayMs) => {
+    window.setTimeout(() => {
+      if (state.currentHistoryEntryId !== entryId) {
+        return;
+      }
+      refreshHistoryEntryUrls(entryId, sites).catch(() => {});
+    }, delayMs);
+  });
+}
+
 export function renderHistoryList() {
   if (!elements.historyList) {
     return;
   }
 
+  updateHistoryFilterUi();
   elements.historyList.innerHTML = "";
-  if (state.searchHistory.length === 0) {
+  const filteredHistory = getFilteredHistory();
+  if (filteredHistory.length === 0) {
     const empty = document.createElement("div");
     empty.className = "history-item-meta";
-    empty.textContent = "暂无搜索记录";
+    empty.textContent = getHistoryEmptyMessage();
     elements.historyList.appendChild(empty);
     return;
   }
 
-  state.searchHistory.forEach((entry) => {
+  filteredHistory.forEach((entry) => {
     const normalizedSites = normalizeHistorySites(entry.sites);
 
     const item = document.createElement("div");
@@ -256,7 +295,7 @@ export function applyHistoryRestoreFromUrl() {
 function buildRestoredSite(historySite, siteById) {
   const id = String(historySite?.id || "").trim();
   const name = String(historySite?.name || "").trim() || "未命名站点";
-  const url = normalizeRestoredUrl(historySite?.url);
+  const url = normalizeRestoredUrl(historySite?.url, id);
   const baseSite = siteById.get(id);
 
   if (baseSite) {
@@ -283,15 +322,8 @@ function buildRestoredSite(historySite, siteById) {
   };
 }
 
-function normalizeRestoredUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  try {
-    const parsed = new URL(raw);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : "";
-  } catch (_error) {
-    return "";
-  }
+function normalizeRestoredUrl(value, siteId = "") {
+  return normalizeHistorySiteUrl(siteId, value);
 }
 
 function normalizeHistorySites(sites) {
@@ -388,10 +420,15 @@ export async function updateLatestHistoryUrl(siteId, url) {
           return site;
         }
 
+        const homeUrl = state.allSites?.find((s) => s.id === siteId)?.url || "";
+        if (shouldKeepStoredHistoryUrl(site.url, url, homeUrl, siteId)) {
+          return site;
+        }
+
         hasChanged = true;
         return {
           ...site,
-          url
+          url: normalizeHistorySiteUrl(siteId, url) || url
         };
       });
 

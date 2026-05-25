@@ -1,11 +1,15 @@
 import { EXTENSION_ORIGIN } from "./constants.js";
-import { executeSiteHandler } from "./executor.js";
+import { runSearchHandlerChain } from "./search-handler-run.js";
+import { HANDLER_ERROR_CODE } from "../../shared/handler-fallback.js";
 import { handleExtractRequest } from "./extractor.js";
 import { initEmbedSidebarFix } from "./sidebar-fix.js";
 import { deliverFilesToInput, extractInputSelectorsFromHandler } from "./file-paste.js";
 import { diagnosticLog } from "../../shared/diagnostics.js";
 import { findBuiltinSiteForHost } from "../../shared/site-registry.js";
 import { initSelectionToolbar } from "./selection-toolbar.js";
+import { initInputPromptLauncher } from "./input-prompt-launcher.js";
+import { handleHistoryRestoreNavigate } from "./history-restore-navigate.js";
+import { MSG } from "../../shared/compare-protocol.js";
 
 const requestResults = new Map();
 const requestsInProgress = new Set();
@@ -33,26 +37,25 @@ async function handleSearchRequest(message) {
     };
   }
 
-  try {
-    diagnosticLog("inject.search", "handler-start", {
-      site,
-      hostname: window.location.hostname,
-      query,
-    });
+  diagnosticLog("inject.search", "handler-start", {
+    site,
+    hostname: window.location.hostname,
+    query,
+  });
 
-    await executeSiteHandler(query, site.searchHandler);
+  const result = await runSearchHandlerChain(query, site);
+  if (result.ok) {
     scheduleUrlReports(site);
-    diagnosticLog("inject.search", "handler-success", { site });
-    return {
-      ok: true,
-      siteId: site.id,
-      message: "已在当前卡片中尝试写入查询并触发发送",
-      currentUrl: window.location.href
-    };
-  } catch (error) {
-    diagnosticLog("inject.search", "handler-error", { site, error: error.message });
-    return { ok: false, siteId: site.id, error: error.message };
+    diagnosticLog("inject.search", "handler-success", { site, handlerId: result.handlerId });
+  } else {
+    diagnosticLog("inject.search", "handler-error", {
+      site,
+      error: result.error,
+      errorCode: result.errorCode,
+      handlerAttempts: result.handlerAttempts,
+    });
   }
+  return result;
 }
 
 // 独立的文件分发流程：用户一旦在父页选定文件就立刻执行，和 query/submit 完全解耦。
@@ -116,12 +119,14 @@ function notifyParentFrame(result) {
     diagnosticLog("inject.message", "notify-parent", result);
     window.parent.postMessage(
       {
-        type: result.type || "QSHOT_RESULT",
+        type: result.type || MSG.RESULT,
         siteId: result.siteId,
         requestId: result.requestId,
         ok: result.ok,
         message: result.message,
         error: result.error,
+        errorCode: result.errorCode,
+        handlerId: result.handlerId,
         currentUrl: result.currentUrl,
       },
       targetOrigin
@@ -177,7 +182,7 @@ function reportCurrentUrl(site) {
   try {
     diagnosticLog("inject.url", "report", { site, currentUrl });
     window.parent.postMessage(
-      { type: "QSHOT_URL_UPDATE", siteId: site.id, currentUrl },
+      { type: MSG.URL_UPDATE, siteId: site.id, currentUrl },
       targetOrigin
     );
   } catch (_error) {
@@ -188,7 +193,7 @@ function reportCurrentUrl(site) {
 
 function scheduleUrlReports(site) {
   reportCurrentUrl(site);
-  [800, 2000, 5000, 10000].forEach((delayMs) => {
+  [800, 2000, 5000, 10000, 20000, 30000].forEach((delayMs) => {
     window.setTimeout(() => reportCurrentUrl(site), delayMs);
   });
 }
@@ -224,12 +229,25 @@ function installWindowMessageListener() {
 
     if (!event.data) return;
 
-    if (event.data.type === "QSHOT_EXTRACT") {
+    if (event.data.type === MSG.EXTRACT) {
       handleExtractRequest(event.data);
       return;
     }
 
-    if (event.data.type === "QSHOT_PASTE_FILES") {
+    if (event.data.type === MSG.NAVIGATE) {
+      handleHistoryRestoreNavigate(event.data, () => {
+        resolveSite()
+          .then((site) => {
+            if (site) {
+              scheduleUrlReports(site);
+            }
+          })
+          .catch(() => {});
+      });
+      return;
+    }
+
+    if (event.data.type === MSG.PASTE_FILES) {
       const requestId = event.data.requestId;
       diagnosticLog("inject.message", "paste-files-received", {
         site: event.data.site,
@@ -238,21 +256,21 @@ function installWindowMessageListener() {
       });
       handleFilesPasteRequest(event.data)
         .then((result) => {
-          notifyParentFrame({ ...result, requestId, type: "QSHOT_PASTE_RESULT" });
+          notifyParentFrame({ ...result, requestId, type: MSG.PASTE_RESULT });
         })
         .catch((error) => {
           notifyParentFrame({
             ok: false,
             siteId: event.data.site?.id,
             requestId,
-            type: "QSHOT_PASTE_RESULT",
+            type: MSG.PASTE_RESULT,
             error: error.message,
           });
         });
       return;
     }
 
-    if (event.data.type !== "QSHOT_SEARCH") return;
+    if (event.data.type !== MSG.SEARCH) return;
 
     const requestId = event.data.requestId;
     diagnosticLog("inject.message", "search-received", {
@@ -274,25 +292,29 @@ function installWindowMessageListener() {
 
     handleSearchRequest(event.data)
       .then((result) => {
+        if (requestId) {
+          requestsInProgress.delete(requestId);
+        }
         const finalResult = { ...result, requestId };
-        if (requestId) {
-          storeRequestResult(requestId, finalResult);
-          requestsInProgress.delete(requestId);
+        if (result.ok) {
+          if (requestId) storeRequestResult(requestId, finalResult);
+          notifyParentFrame(finalResult);
+          return;
         }
-        notifyParentFrame(finalResult);
+        // 主规则 + 备选规则都跑完仍失败：立刻回包，compare 可切 new_tab 等外层兜底，避免盲等重试
+        if (
+          result.errorCode === HANDLER_ERROR_CODE.HANDLERS_EXHAUSTED
+          || result.errorCode === HANDLER_ERROR_CODE.FATAL
+        ) {
+          notifyParentFrame(finalResult);
+        }
+        // NOT_READY（页面未就绪/未找到输入框）：仍静默，由 compare 超时重试
       })
-      .catch((error) => {
-        const finalResult = {
-          ok: false,
-          siteId: event.data.site?.id,
-          requestId,
-          error: error.message,
-        };
+      .catch((_error) => {
+        // 执行异常也静默，不通知父帧，让重试机制兜底
         if (requestId) {
-          storeRequestResult(requestId, finalResult);
           requestsInProgress.delete(requestId);
         }
-        notifyParentFrame(finalResult);
       });
   });
 }
@@ -338,4 +360,5 @@ export function initInjectScript() {
     initEmbedSidebarFix(resolveSite);
   }
   initSelectionToolbar();
+  initInputPromptLauncher();
 }

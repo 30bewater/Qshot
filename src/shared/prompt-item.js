@@ -9,8 +9,7 @@
  *   - 鼠标移到眼睛上 → 锚定在眼睛附近弹出预览卡片（离开延迟隐藏）。
  *   - 预览卡片顶部左侧为「复制 / 编辑」两个按钮，右侧为关闭按钮。
  */
-(function initPromptItemUI() {
-  'use strict';
+import { attachElementTilt } from "./element-tilt.js";
 
   // ── SVG 图标 ───────────────────────────────────────────────────────────────
   const _EYE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -19,9 +18,20 @@
   // ── 预览卡片 CSS（供 shadow DOM 上下文 overlay.js 引用）────────────────────
   // popup.css / iframe.css 也复制了同一套样式，用于各自的非 shadow DOM 场景。
   const PREVIEW_CSS = `
-.qshot-preview-card {
+.qshot-preview-shell {
   position: fixed;
   z-index: 2147483647;
+  perspective: 1200px;
+  perspective-origin: center center;
+  display: none;
+  pointer-events: none;
+}
+.qshot-preview-shell:not([hidden]) {
+  display: block;
+  pointer-events: auto;
+}
+.qshot-preview-card {
+  position: relative;
   width: 340px;
   max-width: calc(100vw - 20px);
   max-height: 360px;
@@ -33,6 +43,10 @@
   flex-direction: column;
   overflow: hidden;
   font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", Arial, sans-serif;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  will-change: transform, box-shadow;
 }
 .qshot-preview-card[hidden] { display: none; }
 .qshot-preview-header {
@@ -130,10 +144,15 @@
    *   传入 null 则挂到 document.body（popup / iframe 场景）。
    */
   function createPreviewManager(shadowRoot) {
+    let cardShell = null;
     let cardEl = null;
+    /** @type {ReturnType<attachElementTilt> | null} */
+    let cardTilt = null;
     let hideTimer = null;
     let currentOnEdit = null;
+    let currentOnSaveEdit = null;
     let currentPrompt = null;
+    let isEditMode = false;
 
     function getHost() {
       return shadowRoot || document.body;
@@ -153,7 +172,11 @@
 
     function ensureCard() {
       const host = getHost();
-      if (!cardEl || !host.contains(cardEl)) {
+      if (!cardShell || !host.contains(cardShell)) {
+        cardShell = document.createElement('div');
+        cardShell.className = 'qshot-preview-shell';
+        cardShell.hidden = true;
+
         cardEl = document.createElement('div');
         cardEl.className = 'qshot-preview-card';
         cardEl.hidden = true;
@@ -161,7 +184,10 @@
           cancelHide();
         });
         cardEl.addEventListener('mouseleave', () => scheduleHide());
-        host.appendChild(cardEl);
+
+        cardShell.appendChild(cardEl);
+        host.appendChild(cardShell);
+        cardTilt = attachElementTilt(cardEl, () => cardShell && !cardShell.hidden);
       }
       return cardEl;
     }
@@ -171,6 +197,66 @@
         clearTimeout(hideTimer);
         hideTimer = null;
       }
+    }
+
+    function switchToEditMode(card) {
+      isEditMode = true;
+      cardTilt?.disable();
+      // 锁定当前高度，避免切换后卡片缩小
+      const currentH = card.offsetHeight;
+      if (currentH > 0) card.style.height = `${currentH}px`;
+      card.innerHTML = '';
+
+      const header = document.createElement('div');
+      header.className = 'qshot-preview-header';
+      const lbl = document.createElement('span');
+      lbl.style.cssText = 'flex:1;font-size:13px;color:#888;font-weight:500';
+      lbl.textContent = '编辑提示词';
+      const doneBtn = document.createElement('button');
+      doneBtn.type = 'button';
+      doneBtn.className = 'qshot-preview-btn qshot-preview-btn--copy';
+      doneBtn.textContent = '完成';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'qshot-preview-close-btn';
+      closeBtn.setAttribute('aria-label', '取消');
+      closeBtn.innerHTML = _CLOSE;
+      closeBtn.addEventListener('click', (ev) => { ev.stopPropagation(); hide(); });
+      header.appendChild(lbl);
+      header.appendChild(doneBtn);
+      header.appendChild(closeBtn);
+
+      const form = document.createElement('div');
+      form.style.cssText = 'display:flex;flex-direction:column;flex:1;padding:8px 14px 12px;gap:8px;overflow:hidden';
+      const baseStyle = 'width:100%;padding:6px 10px;border:1px solid #dcdcdc;border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;transition:border-color 140ms ease';
+      const titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.style.cssText = `${baseStyle};color:#111;flex-shrink:0`;
+      titleInput.value = currentPrompt?.title || '';
+      titleInput.placeholder = '提示词名称';
+      const ta = document.createElement('textarea');
+      ta.style.cssText = `${baseStyle};resize:none;flex:1;min-height:80px;line-height:1.6;color:#444`;
+      ta.value = currentPrompt?.content || '';
+      ta.placeholder = '提示词内容';
+      [titleInput, ta].forEach((el) => {
+        el.addEventListener('focus', () => { el.style.borderColor = '#999'; });
+        el.addEventListener('blur', () => { el.style.borderColor = '#dcdcdc'; });
+      });
+      form.appendChild(titleInput);
+      form.appendChild(ta);
+      card.appendChild(header);
+      card.appendChild(form);
+
+      doneBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const p = currentPrompt;
+        const saveCb = currentOnSaveEdit;
+        const newTitle = titleInput.value.trim() || (p?.title || '');
+        const newContent = ta.value;
+        hide();
+        if (saveCb && p) saveCb(p, newTitle, newContent);
+      });
+      requestAnimationFrame(() => { titleInput.focus(); titleInput.select(); });
     }
 
     /**
@@ -184,6 +270,7 @@
       card.innerHTML = '';
       currentPrompt = prompt;
       currentOnEdit = (opts && typeof opts.onEdit === 'function') ? opts.onEdit : null;
+      currentOnSaveEdit = (opts && typeof opts.onSaveEdit === 'function') ? opts.onSaveEdit : null;
 
       // Header：左侧 复制 + 编辑，右侧 关闭
       const header = document.createElement('div');
@@ -224,10 +311,14 @@
       editBtn.textContent = '编辑';
       editBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        const cb = currentOnEdit;
-        const p = currentPrompt;
-        hide();
-        if (cb) cb(p);
+        if (currentOnSaveEdit) {
+          switchToEditMode(card);
+        } else {
+          const cb = currentOnEdit;
+          const p = currentPrompt;
+          hide();
+          if (cb) cb(p);
+        }
       });
 
       actions.appendChild(copyBtn);
@@ -258,6 +349,8 @@
       card.appendChild(titleRow);
       card.appendChild(body);
       card.hidden = false;
+      if (cardShell) cardShell.hidden = false;
+      cardTilt?.enable();
 
       // 定位：优先在锚点下方，空间不足则翻转到上方
       requestAnimationFrame(() => {
@@ -272,26 +365,36 @@
         if (top < 8) top = 8;
         if (left + cardW > vw - 8) left = vw - cardW - 8;
         if (left < 8) left = 8;
-        card.style.top = `${top}px`;
-        card.style.left = `${left}px`;
+        if (cardShell) {
+          cardShell.style.top = `${top}px`;
+          cardShell.style.left = `${left}px`;
+        }
       });
     }
 
     function hide() {
+      isEditMode = false;
       cancelHide();
+      cardTilt?.disable();
+      if (cardEl) cardEl.style.height = '';
+      if (cardShell) cardShell.hidden = true;
       if (cardEl) cardEl.hidden = true;
       currentOnEdit = null;
+      currentOnSaveEdit = null;
       currentPrompt = null;
     }
 
     function scheduleHide() {
+      if (isEditMode) return;
       cancelHide();
       hideTimer = setTimeout(() => hide(), 260);
     }
 
     function destroy() {
       hide();
-      if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+      cardTilt = null;
+      if (cardShell && cardShell.parentNode) cardShell.parentNode.removeChild(cardShell);
+      cardShell = null;
       cardEl = null;
     }
 
@@ -316,6 +419,7 @@
   function createItem(prompt, {
     onFill,
     onEdit,
+    onSaveEdit,
     previewManager,
     itemClass    = 'popup-prompt-item',
     labelClass   = 'popup-prompt-item-label',
@@ -328,7 +432,16 @@
     const label = document.createElement('span');
     label.className = labelClass;
     label.textContent = prompt.title || '未命名提示词';
-    label.addEventListener('click', () => onFill && onFill(prompt));
+    // mousedown preventDefault：避免对比页折叠输入条在点击时先失焦，导致填入后看不见
+    label.addEventListener('mousedown', (e) => {
+      if (onFill) e.preventDefault();
+    });
+    label.addEventListener('click', (e) => {
+      if (!onFill) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onFill(prompt);
+    });
 
     const icons = document.createElement('div');
     icons.className = iconsClass;
@@ -350,7 +463,7 @@
         previewManager.cancelHide?.();
         showTimer = setTimeout(() => {
           showTimer = null;
-          previewManager.show(eyeBtn, prompt, { onEdit });
+          previewManager.show(eyeBtn, prompt, { onEdit, onSaveEdit });
         }, 200);
       };
       const hidePreview = () => {
@@ -367,7 +480,7 @@
         e.stopPropagation();
         cancelShow();
         previewManager.cancelHide?.();
-        previewManager.show(eyeBtn, prompt, { onEdit });
+        previewManager.show(eyeBtn, prompt, { onEdit, onSaveEdit });
       });
     }
 
@@ -378,4 +491,3 @@
   }
 
   window.PromptItemUI = { createItem, createPreviewManager, PREVIEW_CSS };
-})();

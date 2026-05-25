@@ -1,12 +1,51 @@
-import { UI_PREFS_STORAGE_KEY, SEARCH_GROUPS_STORAGE_KEY, QUICK_ACCESS_SITES_KEY } from "../shared/storage-keys.js";
+import {
+  UI_PREFS_STORAGE_KEY,
+  SEARCH_GROUPS_STORAGE_KEY,
+  QUICK_ACCESS_SITES_KEY,
+  SELECTION_CONTEXT_GROUPS_STORAGE_KEY,
+} from "../shared/storage-keys.js";
 import { ensureInitialStateDefaults } from "./initial-state.js";
 import { syncCommandShortcut } from "./shortcut-sync.js";
-import { openComparePage, runSearchGroup, openSiteTabAndSend } from "./tabs.js";
+import { openComparePage, runSearchGroup, runSelectionContextGroup, openSiteTabAndSend } from "./tabs.js";
+import { loadEnabledSites } from "./sites.js";
 import { warmupAiSites } from "./warmup.js";
 import { rebuildContextMenus } from "./context-menu.js";
 import { setupKeepaliveAlarm } from "./keepalive.js";
 
 const SETTINGS_PAGE_URL = chrome.runtime.getURL("settings/settings.html");
+const POPUP_PAGE_URL = chrome.runtime.getURL("popup/popup.html");
+
+/**
+ * 受限页无法注入浮层时，唤起与工具栏一致的「搜索弹窗」UI。
+ * chrome.action.openPopup 在 Chromium 127+ 才对普通安装可用；更早版本或部分环境会失败，
+ * 需用独立 popup 窗口 / 新标签兜底（否则快捷键看起来「没反应」）。
+ */
+async function openExtensionComposerUi(windowId) {
+  if (typeof chrome.action?.openPopup === "function") {
+    try {
+      const opts = typeof windowId === "number" ? { windowId } : undefined;
+      await chrome.action.openPopup(opts);
+      return;
+    } catch (_e) {
+      /* 继续兜底 */
+    }
+  }
+  try {
+    await chrome.windows.create({
+      url: POPUP_PAGE_URL,
+      type: "popup",
+      width: 440,
+      height: 680,
+      focused: true,
+    });
+  } catch (_e) {
+    try {
+      await chrome.tabs.create({ url: POPUP_PAGE_URL, active: true });
+    } catch (_e2) {
+      /* 无法拉起任何 UI */
+    }
+  }
+}
 
 setupKeepaliveAlarm();
 
@@ -30,14 +69,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
   }
 
-  if (changes[SEARCH_GROUPS_STORAGE_KEY] || changes[QUICK_ACCESS_SITES_KEY]) {
+  if (
+    changes[SEARCH_GROUPS_STORAGE_KEY] ||
+    changes[QUICK_ACCESS_SITES_KEY] ||
+    changes[SELECTION_CONTEXT_GROUPS_STORAGE_KEY]
+  ) {
     rebuildContextMenus().catch(() => {});
   }
 });
 
 // 当用户在任意页面触发 manifest command 时：
 // - 普通网页 → 向内容脚本发消息切换浮层
-// - 浏览器内置页面（chrome://、edge:// 等）→ 打开扩展弹窗
+// - 受限页（chrome://、扩展自有页等）→ 打开工具栏弹窗；失败则用独立窗口/标签打开同款 popup
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "toggle-overlay") return;
 
@@ -54,11 +97,7 @@ chrome.commands.onCommand.addListener(async (command) => {
     /^https?:\/\/(chrome\.google\.com\/webstore|microsoftedge\.microsoft\.com\/addons)/.test(url);
 
   if (isRestricted) {
-    try {
-      await chrome.action.openPopup();
-    } catch (_e) {
-      /* 部分情况下无法打开弹窗，忽略 */
-    }
+    await openExtensionComposerUi(tab.windowId).catch(() => {});
   } else {
     chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SEARCH_OVERLAY" }).catch(() => {});
   }
@@ -95,9 +134,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "RUN_CTX_GROUP") {
+    chrome.storage.local.get(SEARCH_GROUPS_STORAGE_KEY)
+      .then((stored) => {
+        const searchGroups = Array.isArray(stored[SEARCH_GROUPS_STORAGE_KEY])
+          ? stored[SEARCH_GROUPS_STORAGE_KEY] : [];
+        return runSelectionContextGroup(message.ctxGroup, message.query, searchGroups);
+      })
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "OPEN_SETTINGS_PAGE") {
-    const section = message.section ? `?section=${message.section}` : "";
-    chrome.tabs.create({ url: SETTINGS_PAGE_URL + section })
+    const params = new URLSearchParams();
+    if (message.section) params.set("section", message.section);
+    if (message.miscTab) params.set("miscTab", message.miscTab);
+    const query = params.toString();
+    const url = SETTINGS_PAGE_URL + (query ? `?${query}` : "");
+    chrome.tabs.create({ url })
       .then((tab) => sendResponse({ ok: true, tabId: tab.id }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -114,6 +169,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     openSiteTabAndSend(message.site, message.query)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "GET_QUICK_ACCESS_SITES") {
+    Promise.all([
+      chrome.storage.local.get(QUICK_ACCESS_SITES_KEY),
+      loadEnabledSites().catch(() => []),
+    ]).then(([stored, allSites]) => {
+      const ids = Array.isArray(stored[QUICK_ACCESS_SITES_KEY]) ? stored[QUICK_ACCESS_SITES_KEY] : [];
+      const sites = ids.map((id) => allSites.find((s) => s.id === id)).filter(Boolean);
+      sendResponse({ sites });
+    }).catch(() => sendResponse({ sites: [] }));
     return true;
   }
 

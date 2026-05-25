@@ -1,0 +1,98 @@
+﻿/* 鈹€鈹€ Custom search 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .custom-search-card {
+  border-color: #3f3f46;
+  background: #27272a;
+}
+
+html[data-theme="dark"] .custom-search-card-head strong {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .custom-search-card-head span {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .custom-search-card-head code {
+  background: #3f3f46;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .custom-converter-input,
+html[data-theme="dark"] .custom-form-input {
+  border-color: #3f3f46;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .custom-converter-input:focus,
+html[data-theme="dark"] .custom-form-input:focus {
+  border-color: #71717a;
+}
+
+html[data-theme="dark"] .custom-converter-btn,
+html[data-theme="dark"] .custom-form-submit-btn {
+  border-color: #f4f4f5;
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+html[data-theme="dark"] .custom-converter-btn:hover,
+html[data-theme="dark"] .custom-form-submit-btn:hover {
+  background: #d4d4d8;
+}
+
+html[data-theme="dark"] .custom-form-cancel-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .custom-form-cancel-btn:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .custom-site-row {
+  border-color: #3f3f46;
+  background: #2a2a2e;
+}
+
+html[data-theme="dark"] .custom-site-name {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .custom-site-url {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .custom-site-edit-btn {
+  border-color: #3f3f46;
+  background: #3f3f46;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .custom-site-edit-btn:hover {
+  background: #52525b;
+  border-color: #71717a;
+}
+
+html[data-theme="dark"] .custom-site-delete-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #71717a;
+}
+
+html[data-theme="dark"] .custom-site-delete-btn:hover {
+  background: #3d1515;
+  color: #ef4444;
+  border-color: #7f1d1d;
+}
+
+html[data-theme="dark"] .custom-field .field-label {
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .custom-converter-msg,
+html[data-theme="dark"] .custom-form-msg {
+  color: #71717a;
+}

@@ -337,12 +337,9 @@ const BASE = `
     font-size: 12px;
   }
   .history-item {
-    position: relative;
     border: 1px solid rgba(0, 0, 0, 0.1);
     background: #ffffff;
     padding: 9px 12px;
-    padding-right: 24px;
-    cursor: pointer;
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
   }
   .history-line {
@@ -360,36 +357,68 @@ const BASE = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .history-meta-slot {
+    position: relative;
+    flex: none;
+    min-width: 72px;
+    height: 18px;
   }
   .history-meta {
-    flex: none;
     font-size: 10px;
-    line-height: 1.5;
+    line-height: 18px;
     color: #8d8d8d;
     text-align: right;
     white-space: nowrap;
+    transition: filter 0.15s ease, opacity 0.15s ease;
   }
-  .history-delete-btn {
+  .history-action-buttons {
     position: absolute;
-    top: 6px;
-    right: 8px;
-    border: none;
-    background: transparent;
-    padding: 0;
-    width: 14px;
-    height: 14px;
-    font-size: 14px;
-    line-height: 1;
-    color: #a3a3a3;
-    cursor: pointer;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
     opacity: 0;
-    transform: translateY(-1px);
-    transition: opacity 0.15s ease, color 0.15s ease;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
   }
-  .history-item:hover .history-delete-btn,
-  .history-item:focus-within .history-delete-btn {
+  .history-item:hover .history-meta,
+  .history-item:focus-within .history-meta {
+    filter: blur(3px);
+    opacity: 0.35;
+  }
+  .history-item:hover .history-action-buttons,
+  .history-item:focus-within .history-action-buttons {
     opacity: 1;
+    pointer-events: auto;
   }
-  .history-delete-btn:hover { color: #6b6b6b; }
+  .history-restore-btn,
+  .history-delete-btn {
+    height: 20px;
+    min-width: 32px;
+    padding: 0 6px;
+    border: 1px solid rgba(17, 17, 17, 0.14);
+    border-radius: 6px;
+    background: #ffffff;
+    color: #111111;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .history-restore-btn:hover {
+    background: #111111;
+    border-color: #111111;
+    color: #ffffff;
+  }
+  .history-delete-btn:hover {
+    background: #fef2f2;
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #dc2626;
+  }
 `;
 export const OVERLAY_STYLES = BASE + OVERLAY_PICKER_STYLES + OVERLAY_DARK_STYLES;

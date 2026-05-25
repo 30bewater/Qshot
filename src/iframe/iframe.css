@@ -1,3 +1,13 @@
-﻿@import "./styles/01-light.css";
+﻿@import "./styles/01-base.css";
+@import "./styles/01-cards.css";
+@import "./styles/01-card-nav.css";
+@import "./styles/01-history.css";
+@import "./styles/01-composer.css";
+@import "./styles/01-overlays.css";
+@import "./styles/01-sidebar.css";
 @import "./styles/02-dark-base.css";
 @import "./styles/03-dark-panels.css";
+@import "./styles/04-preview-shell.css";
+@import "./styles/05-row-collapsed.css";
+@import "./styles/06-ai-summary.css";
+@import "./styles/06a-ai-summary-glass.css";

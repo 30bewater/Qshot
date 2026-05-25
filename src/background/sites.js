@@ -1,8 +1,10 @@
 import { loadEnabledSites as loadSitesFromRegistry } from "../shared/site-registry.js";
 
 export const AI_SITE_IDS = [
-  "deepseek", "doubao", "kimi", "yuanbao", "qwen",
-  "gemini", "chatgpt", "claude", "grok",
+  "deepseek", "doubao", "kimi", "yuanbao", "qianwen", "qwen", "metaso",
+  "chatglm", "xiaomimimo", "zhida",
+  "gemini", "chatgpt", "claude", "grok", "dots", "perplexity",
+  "zai", "monica", "poe", "copilot",
 ];
 
 export async function loadEnabledSites() {

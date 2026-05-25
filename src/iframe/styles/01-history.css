@@ -1,0 +1,257 @@
+/* ── 历史记录面板 ── */
+.history-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  padding: 20px 16px 16px;
+  border-left: 1px solid rgba(0, 0, 0, .07);
+  border-radius: 0;
+  background: #fff;
+  box-shadow: -8px 0 28px rgba(0, 0, 0, .08);
+  z-index: 35;
+  overflow: hidden;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform .36s cubic-bezier(.25, .46, .45, .94), visibility .36s;
+  /* grid layout fix */
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+.history-panel.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.history-close-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .06);
+  color: #888;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+  transition: background .15s, color .15s;
+  line-height: 0;
+}
+.history-close-btn svg { width: 14px; height: 14px; display: block; flex-shrink: 0; }
+.history-close-btn:hover { background: rgba(239, 68, 68, .1); color: #ef4444; }
+
+.history-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  min-height: 0 !important;
+}
+.history-panel-header h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: #111;
+  letter-spacing: .01em;
+}
+.history-header-actions { display: flex; align-items: center; gap: 8px; }
+
+.history-clear-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: #aaa;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.history-clear-btn:hover { background: #fef2f2; color: #ef4444; border-color: rgba(239, 68, 68, .2); }
+
+.history-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 0 12px 0 2px;
+  min-width: 0;
+  min-height: 0 !important;
+}
+.history-filter-btn {
+  flex: none;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: var(--r-sm);
+  background: #f5f5f5;
+  color: #666;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.history-filter-btn:hover {
+  background: #eee;
+  color: #333;
+  border-color: rgba(0, 0, 0, .16);
+}
+.history-filter-btn.is-active {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+.history-list {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 12px 2px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, .1) transparent;
+}
+.history-list::-webkit-scrollbar { width: 3px; }
+.history-list::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, .12); border-radius: 3px; }
+.history-list::-webkit-scrollbar-track { background: transparent; }
+
+/* ── 历史条目 ── */
+.history-item {
+  position: relative;
+  padding: 13px 16px;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: var(--r-lg);
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .04);
+  transition: box-shadow .18s, border-color .18s, background .18s;
+}
+.history-item:hover {
+  background: #fafafa;
+  border-color: rgba(0, 0, 0, .14);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .09);
+}
+.history-item-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  margin-bottom: 6px;
+  line-height: 1.5;
+  color: #111;
+}
+.history-item-meta {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  letter-spacing: .01em;
+}
+.history-site-links {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+/* 条目操作行（元数据 + 按钮） */
+.history-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+.history-item-actions .history-item-meta { margin: 0; min-width: 0; }
+.history-action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+/* 删除按钮（新版：文字按钮） */
+.history-item-delete-btn {
+  position: static;
+  height: 26px;
+  width: auto;
+  min-width: 48px;
+  padding: 0 10px;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  border-radius: var(--r-md);
+  background: #fff;
+  color: #111;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: none;
+  opacity: 1;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.history-item-delete-btn:hover {
+  background: #fef2f2;
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #dc2626;
+}
+
+/* 恢复按钮 */
+.history-restore-btn {
+  height: 26px;
+  min-width: 48px;
+  padding: 0 10px;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  border-radius: var(--r-md);
+  background: #fff;
+  color: #111;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: none;
+}
+.history-restore-btn:hover {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+/* 历史站点链接 */
+.history-site-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: var(--r-md);
+  background: #f5f5f5;
+  color: #444;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .12s, border-color .12s, color .12s;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.history-site-link:hover { background: #111; border-color: #111; color: #fff; }
+.history-site-link:disabled { opacity: .45; cursor: not-allowed; }
+.history-site-link:disabled:hover {
+  background: #f5f5f5;
+  border-color: rgba(0, 0, 0, .1);
+  color: #444;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 900px) {
+  .history-panel {
+    width: min(92vw, 340px);
+    right: 0;
+    border-radius: var(--r-md) 0 0 var(--r-md);
+  }
+}

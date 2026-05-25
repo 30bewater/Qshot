@@ -165,9 +165,16 @@ export function renderPromptPickerIfOpen() {
         onFill: (p) => {
           const queryInput = state.shadowRoot.querySelector(".query-input");
           if (queryInput instanceof HTMLTextAreaElement) {
-            queryInput.value = p.content || "";
+            const content = String(p.content || "");
+            const start = queryInput.selectionStart ?? queryInput.value.length;
+            const end = queryInput.selectionEnd ?? queryInput.value.length;
+            const before = queryInput.value.slice(0, start);
+            const after = queryInput.value.slice(end);
+            queryInput.value = before + content + after;
+            const newCursor = before.length + content.length;
             queryInput.dispatchEvent(new Event("input", { bubbles: true }));
             queryInput.focus();
+            try { queryInput.setSelectionRange(newCursor, newCursor); } catch (_) {}
           }
           state.isPromptPickerOpen = false;
           if (state.overlayPreviewMgr) state.overlayPreviewMgr.hide();

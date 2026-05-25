@@ -5,12 +5,14 @@ import {
   CUSTOM_SITES_STORAGE_KEY,
   DEFAULT_PROMPT_GROUP_ID,
   LEGACY_DEFAULT_GROUP_NAME,
+  SELECTION_CONTEXT_GROUPS_STORAGE_KEY,
 } from "../../shared/storage-keys.js";
 import {
   getAllPromptGroupName,
   isAllPromptGroup,
 } from "../../shared/prompt-groups.js";
 import { normalizeShortcut } from "../../shared/shortcut.js";
+import { normalizeAiPagePromptLauncherSites } from "../../shared/ai-page-prompt-launcher-prefs.js";
 import { state, SITE_CATEGORIES, COMMON_SEARCH_PARAM_KEYS } from "./state.js";
 import { msg } from "./state.js";
 
@@ -23,6 +25,7 @@ export {
 
 export function createNormalizedGroups(input) {
   const validSiteIds = new Set(state.sites.map((site) => site.id));
+  const normalizeLegacySiteId = (siteId) => (siteId === "m365_copilot" ? "copilot" : siteId);
   const source = Array.isArray(input) && input.length > 0
     ? input
     : [
@@ -38,9 +41,40 @@ export function createNormalizedGroups(input) {
     enabled: group.enabled !== false,
     mode: group.mode === "tabs" ? "tabs" : "compare",
     siteIds: Array.isArray(group.siteIds)
-      ? group.siteIds.filter((siteId, index, arr) => validSiteIds.has(siteId) && arr.indexOf(siteId) === index)
+      ? group.siteIds
+          .map(normalizeLegacySiteId)
+          .filter((siteId, index, arr) => validSiteIds.has(siteId) && arr.indexOf(siteId) === index)
       : []
   }));
+}
+
+export function createNormalizedSelectionContextGroups(input) {
+  const validSiteIds = new Set(state.sites.map((site) => site.id));
+  const validGroupIds = new Set(state.groups.map((group) => group.id));
+  const source = Array.isArray(input) ? input : [];
+
+  return source
+    .map((item) => {
+      const targetType = item?.targetType === "group" ? "group" : "sites";
+      const refGroupId =
+        targetType === "group" && validGroupIds.has(item?.refGroupId) ? item.refGroupId : null;
+      return {
+        id: String(item?.id || `ctx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+        name: String(item?.name || msg("settings_ctx_defaultName", "新选文组")),
+        enabled: item?.enabled !== false,
+        prompt: String(item?.prompt || ""),
+        targetType: refGroupId ? "group" : "sites",
+        refGroupId,
+        mode: item?.mode === "compare" ? "compare" : "tabs",
+        siteIds:
+          targetType === "sites" && Array.isArray(item?.siteIds)
+            ? item.siteIds.filter(
+                (siteId, index, arr) => validSiteIds.has(siteId) && arr.indexOf(siteId) === index
+              )
+            : [],
+      };
+    })
+    .filter((item) => !!item.id);
 }
 
 export function createNormalizedPromptGroups(input) {
@@ -112,10 +146,15 @@ export function createNormalizedUiPrefs(input) {
     showHistory: source.showHistory === true,
     showRandomButton: source.showRandomButton !== false,
     showPromptButton: source.showPromptButton !== false,
+    showAiPagePromptLauncher: source.showAiPagePromptLauncher !== false,
+    aiPagePromptLauncherSites: normalizeAiPagePromptLauncherSites(source.aiPagePromptLauncherSites),
     prewarmEnabled: source.prewarmEnabled !== false,
     overlayShortcutEnabled: source.overlayShortcutEnabled !== false,
     contextMenuEnabled: source.contextMenuEnabled !== false,
     selectionSearchEnabled: source.selectionSearchEnabled === true,
+    bubbleShowGroups: source.bubbleShowGroups !== false,
+    bubbleShowCtx: source.bubbleShowCtx === true,
+    bubbleShowGlobalSites: source.bubbleShowGlobalSites === true,
     diagnosticLogsEnabled: source.diagnosticLogsEnabled === true,
     darkMode: source.darkMode === "dark" || source.darkMode === "light" ? source.darkMode
              : source.darkMode === true ? "dark" : "auto",
@@ -142,20 +181,45 @@ export function createNormalizedCustomSites(input) {
         id = createCustomSiteId();
       }
       seenIds.add(id);
-      return {
+      const customType = raw.customType === "ai" ? "ai" : "url";
+      const base = {
         id,
         name,
         url,
         enabled: raw.enabled !== false,
         supportIframe: raw.supportIframe !== false,
-        supportUrlQuery: raw.supportUrlQuery !== false && url.includes("{query}"),
+        supportUrlQuery: customType === "url" && url.includes("{query}"),
         matchPatterns: Array.isArray(raw.matchPatterns) && raw.matchPatterns.length > 0
           ? raw.matchPatterns.map((pattern) => String(pattern))
           : deriveMatchPatterns(url),
-        isCustom: true
+        isCustom: true,
+        customType
       };
+      if (customType === "ai") {
+        base.searchHandler = (raw.searchHandler && typeof raw.searchHandler === "object")
+          ? raw.searchHandler
+          : buildCustomAiSearchHandler();
+      }
+      return base;
     })
     .filter(Boolean);
+}
+
+// 通用 AI 输入框选择器优先级列表，覆盖绝大多数主流 AI 对话页面
+const COMMON_AI_INPUT_SELECTORS = [
+  "textarea",
+  "div[contenteditable='true']",
+  "[role='textbox']",
+  "input[type='text']",
+];
+
+export function buildCustomAiSearchHandler() {
+  return {
+    steps: [
+      { action: "setValue", selectors: COMMON_AI_INPUT_SELECTORS, inputType: "auto", maxAttempts: 12, waitAfter: 200 },
+      { action: "smartSubmit", selectors: COMMON_AI_INPUT_SELECTORS, submitSelectors: [], submitWaitMs: 3000 }
+    ]
+  };
 }
 
 export function createCustomSiteId() {
@@ -231,6 +295,42 @@ export function convertUrlToTemplate(rawUrl) {
     }
   }
 
+  // Fallback: Check pathname for common search segments
+  const pathParts = parsed.pathname.split('/');
+  let keywordIndex = -1;
+  for (let i = 0; i < pathParts.length; i++) {
+    if (['search', 's', 'tag', 'tags', 'keyword', 'q', 'query'].includes(pathParts[i].toLowerCase())) {
+      keywordIndex = i;
+      break;
+    }
+  }
+
+  if (keywordIndex !== -1) {
+    // Find the last non-empty segment after keywordIndex
+    let targetIndex = -1;
+    for (let i = pathParts.length - 1; i > keywordIndex; i--) {
+      if (pathParts[i] !== "") {
+        targetIndex = i;
+        break;
+      }
+    }
+
+    if (targetIndex !== -1) {
+      pathParts[targetIndex] = "{query}";
+    } else {
+      // No non-empty segment after keyword, e.g. /search or /search/
+      if (pathParts[pathParts.length - 1] === "") {
+        pathParts[pathParts.length - 1] = "{query}";
+      } else {
+        pathParts.push("{query}");
+      }
+    }
+    
+    parsed.pathname = pathParts.join('/');
+    const rebuilt = parsed.toString().replace(/%7Bquery%7D/ig, "{query}");
+    return { ok: true, url: rebuilt, name: guessSiteNameFromUrl(rebuilt) };
+  }
+
   return {
     ok: false,
     error: msg("settings_custom_convertNoParam", "未能识别到搜索参数。请提供带有搜索词参数的搜索结果链接，或手动在 URL 中把搜索词替换成 {query}。")
@@ -261,10 +361,12 @@ export async function persistAll() {
   state.sites = mergeSites(builtinSites, state.customSites);
   syncCustomCategoryIds();
   state.groups = createNormalizedGroups(state.groups);
+  state.selectionContextGroups = createNormalizedSelectionContextGroups(state.selectionContextGroups);
   state.promptGroups = createNormalizedPromptGroups(state.promptGroups);
   state.uiPrefs = createNormalizedUiPrefs(state.uiPrefs);
   await chrome.storage.local.set({
     [GROUPS_STORAGE_KEY]: state.groups,
+    [SELECTION_CONTEXT_GROUPS_STORAGE_KEY]: state.selectionContextGroups,
     [PROMPTS_STORAGE_KEY]: state.promptGroups,
     [UI_PREFS_STORAGE_KEY]: state.uiPrefs,
     [CUSTOM_SITES_STORAGE_KEY]: state.customSites

@@ -1,0 +1,386 @@
+﻿/* 鈹€鈹€ Quick sites card (inline-style overridden via class) 鈹€鈹€ */
+html[data-theme="dark"] .quick-sites-card {
+  border-color: #3f3f46;
+  background: #27272a;
+}
+
+/* 鈹€鈹€ About logo 鈥?invert black SVG to white 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .settings-logo-image {
+  filter: brightness(0) invert(1);
+}
+
+/* 鈹€鈹€ Other settings rows 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .other-settings-card {
+  border-color: #3f3f46;
+  background: #27272a;
+}
+
+html[data-theme="dark"] .other-settings-intro strong {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .other-settings-intro span,
+html[data-theme="dark"] .other-setting-desc {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .other-setting-row {
+  border-color: #3f3f46;
+  background: #2a2a2e;
+}
+
+html[data-theme="dark"] .other-setting-title {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .other-setting-switch--stretch {
+  --color-grey: #52525b;
+}
+
+html[data-theme="dark"] .other-setting-switch--stretch-slider::after {
+  background: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-launcher-setting {
+  border-color: #3f3f46;
+  background: #27272a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+html[data-theme="dark"] .prompt-launcher-expand-btn {
+  border-color: #52525b;
+  background: #2a2a2e;
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .prompt-launcher-expand-btn:hover {
+  border-color: #71717a;
+  color: #f4f4f5;
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .prompt-launcher-setting-head .other-setting-title {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-launcher-panel-outer.is-open .prompt-launcher-panel-inner {
+  border-top-color: #3f3f46;
+  background: #232326;
+}
+
+html[data-theme="dark"] .prompt-launcher-panel-intro,
+html[data-theme="dark"] .prompt-launcher-desc {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .prompt-launcher-site-group + .prompt-launcher-site-group {
+  border-top-color: #3f3f46;
+}
+
+html[data-theme="dark"] .prompt-launcher-site-group-title {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .prompt-launcher-site-chip {
+  border-color: #52525b;
+  background: #2a2a2e;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .prompt-launcher-site-chip:hover {
+  border-color: #71717a;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-launcher-site-chip:has(input:checked) {
+  border-color: #f4f4f5;
+  background: #f4f4f5;
+  color: #18181b;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* 鈹€鈹€ Import / Export buttons 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .search-config-io-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .search-config-io-btn:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .search-config-export-btn {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+  color: #18181b;
+}
+
+html[data-theme="dark"] .search-config-export-btn svg {
+  stroke: #18181b;
+}
+
+html[data-theme="dark"] .search-config-export-btn:hover {
+  background: #d4d4d8;
+  border-color: #d4d4d8;
+  color: #18181b;
+}
+
+html[data-theme="dark"] .search-config-io-hint {
+  color: #71717a;
+}
+
+/* 鈹€鈹€ Import modal 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .import-modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="dark"] .import-modal-dialog {
+  background: #27272a;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"] .import-modal-header {
+  border-bottom-color: #3f3f46;
+}
+
+html[data-theme="dark"] .import-modal-title {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .import-modal-subtitle {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .import-modal-close {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .import-modal-close:hover {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Random questions 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .random-pool-textarea {
+  border-color: #3f3f46;
+  background: #2a2a2e;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .random-pool-textarea:focus {
+  border-color: #71717a;
+  background: #27272a;
+}
+
+html[data-theme="dark"] .random-pool-count {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .random-hint-para {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .random-prompt-block {
+  border-color: #3f3f46;
+  background: #2a2a2e;
+}
+
+html[data-theme="dark"] .random-prompt-text {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .random-prompt-copy-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .random-prompt-copy-btn:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .random-prompt-copy-btn.is-copied {
+  background: #14271e;
+  border-color: #2dbf62;
+  color: #2dbf62;
+}
+
+/* 鈹€鈹€ Shortcut section 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .shortcut-kbd {
+  border-color: #3f3f46;
+  background: #2a2a2e;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .shortcut-display {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .shortcut-display:hover {
+  border-color: #71717a;
+}
+
+html[data-theme="dark"] .shortcut-display.is-recording {
+  border-color: #2dbf62;
+  background: #14271e;
+  color: #2dbf62;
+}
+
+html[data-theme="dark"] .shortcut-reset {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .shortcut-reset:hover {
+  border-color: #71717a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .shortcut-tip {
+  color: #e4e4e7;
+}
+
+html[data-theme="dark"] .shortcut-page-hint {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .shortcut-page-link {
+  color: #a1a1aa;
+}
+
+/* 鈹€鈹€ Locale dropdown 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .locale-trigger {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .locale-trigger:hover {
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .locale-trigger.is-open,
+html[data-theme="dark"] .locale-trigger:focus-visible {
+  border-color: #71717a;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="dark"] .locale-trigger-arrow {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .locale-menu {
+  background: #27272a;
+  border-color: #3f3f46;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="dark"] .locale-option {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .locale-option:hover {
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .locale-option.is-active {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ About section 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .about-plugin-privacy p {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .about-plugin-privacy strong {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .about-plugin-privacy code {
+  background: #3f3f46;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .about-plugin-inline-link {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .about-plugin-inline-link:hover {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .about-plugin-permission-list {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .about-plugin-action-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .about-plugin-action-btn:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .about-plugin-author-label {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .about-plugin-social {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .about-plugin-social:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 鈹€鈹€ Custom section sub-tabs 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .custom-tab-bar {
+  border-color: #3f3f46;
+  background: #1e1e22;
+}
+
+html[data-theme="dark"] .custom-tab-btn {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .custom-tab-btn:hover:not(.is-active) {
+  background: #2a2a2e;
+  color: #e4e4e7;
+}
+
+html[data-theme="dark"] .custom-tab-btn.is-active {
+  background: #27272a;
+  color: #f4f4f5;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="dark"] .misc-tab-bar .tab-glider {
+  background: #27272a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="dark"] .misc-tab-bar .custom-tab-btn.is-active {
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .custom-builtin-group-label {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .custom-builtin-chip {
+  border-color: #3f3f46;
+  background: #2a2a2e;
+  color: #d4d4d8;
+}

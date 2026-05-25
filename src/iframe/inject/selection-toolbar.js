@@ -1,4 +1,8 @@
-import { SEARCH_GROUPS_STORAGE_KEY, UI_PREFS_STORAGE_KEY } from "../../shared/storage-keys.js";
+import {
+  SEARCH_GROUPS_STORAGE_KEY,
+  UI_PREFS_STORAGE_KEY,
+  SELECTION_CONTEXT_GROUPS_STORAGE_KEY,
+} from "../../shared/storage-keys.js";
 
 let host = null;
 let shadow = null;
@@ -6,6 +10,7 @@ let toolbar = null;
 let isVisible = false;
 let cachedUiPrefs = {};
 let cachedGroups = [];
+let cachedCtxGroups = [];
 let cacheInitPromise = null;
 let storageWatcherInstalled = false;
 
@@ -21,37 +26,46 @@ const CSS = `
     position: fixed;
     z-index: 2147483647;
     display: none;
-    align-items: center;
-    gap: 2px;
-    padding: 3px 6px;
+    flex-direction: row;
+    align-items: stretch;
+    padding: 3px 4px;
     background: #fff;
     border: 1px solid #e2e2e2;
-    border-radius: 999px;
+    border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.12);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 12px;
     line-height: 1;
     user-select: none;
     pointer-events: auto;
-    white-space: nowrap;
-    max-width: 500px;
-    overflow: hidden;
+    max-width: 520px;
     color: #111;
   }
   .toolbar.visible { display: flex; }
-  .q-icon {
+  .q-col {
     display: flex;
     align-items: center;
-    padding: 2px 3px;
+    justify-content: center;
     flex-shrink: 0;
-    color: #111;
+    padding: 2px 6px 2px 2px;
+    color: #bbb;
   }
-  .divider {
-    width: 1px;
-    height: 12px;
+  .rows-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  .h-divider {
+    height: 1px;
     background: #e2e2e2;
-    flex-shrink: 0;
-    margin: 0 2px;
+    margin: 1px 0;
   }
   .btn {
     background: none;
@@ -72,8 +86,8 @@ const CSS = `
       color: #eee;
       box-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
-    .q-icon { color: #fff; }
-    .divider { background: #3a3a3a; }
+    .q-col { color: #555; }
+    .h-divider { background: #3a3a3a; }
     .btn { color: #ccc; }
     .btn:hover { background: #2e2e2e; color: #fff; }
   }
@@ -82,6 +96,17 @@ const CSS = `
 export function initSelectionToolbar() {
   // 跳过扩展自身页面（chrome-extension:// 不会被 <all_urls> 匹配，防御性检查）
   if (location.protocol === "chrome-extension:") return;
+
+  // 跳过 compare 页的卡片 iframe：顶层是扩展页（chrome-extension://），
+  // 访问跨域 window.top.location 会抛错，以此判断当前处于嵌入卡片内
+  if (window !== window.top) {
+    try {
+      // 同源时可正常访问；跨域（含扩展页）时抛 DOMException
+      void window.top.location.href;
+    } catch (_) {
+      return;
+    }
+  }
 
   primeToolbarCache().catch(() => {});
   installStorageWatcher();
@@ -113,12 +138,30 @@ async function onMouseUp(e) {
   if (!rect.width || !rect.height) return;
 
   await primeToolbarCache();
-  if (cachedUiPrefs.selectionSearchEnabled === false) return;
+  if (cachedUiPrefs.selectionSearchEnabled !== true) return;
 
-  const groups = cachedGroups;
-  if (!groups.length) return;
+  const showGroups = cachedUiPrefs.bubbleShowGroups !== false;
+  const showCtx = cachedUiPrefs.bubbleShowCtx === true;
+  const showSites = cachedUiPrefs.bubbleShowGlobalSites === true;
 
-  renderToolbar(text, groups, rect);
+  const itemGroups = [];
+  if (showGroups && cachedGroups.length) {
+    itemGroups.push({ items: cachedGroups.slice(0, 5), type: "group" });
+  }
+  if (showCtx && cachedCtxGroups.length) {
+    itemGroups.push({ items: cachedCtxGroups.slice(0, 5), type: "ctx" });
+  }
+  if (showSites) {
+    try {
+      const { sites } = await chrome.runtime.sendMessage({ type: "GET_QUICK_ACCESS_SITES" });
+      if (Array.isArray(sites) && sites.length) {
+        itemGroups.push({ items: sites.slice(0, 5), type: "site" });
+      }
+    } catch (_) {}
+  }
+  if (!itemGroups.length) return;
+
+  renderToolbar(text, itemGroups, rect);
 }
 
 function onMouseDown(e) {
@@ -145,6 +188,8 @@ function onSelectionChange() {
 
 function ensureHost() {
   if (host) return;
+  const body = document.body || document.documentElement;
+  if (!body) return;
   host = document.createElement("div");
   shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
@@ -153,34 +198,55 @@ function ensureHost() {
   toolbar = document.createElement("div");
   toolbar.className = "toolbar";
   shadow.appendChild(toolbar);
-  document.body.appendChild(host);
+  body.appendChild(host);
 }
 
-function renderToolbar(query, groups, selectionRect) {
+function renderToolbar(query, itemGroups, selectionRect) {
   ensureHost();
   toolbar.innerHTML = "";
 
-  // Q 图标
-  const iconWrap = document.createElement("span");
-  iconWrap.className = "q-icon";
-  iconWrap.innerHTML = Q_SVG;
-  toolbar.appendChild(iconWrap);
+  // Q 图标固定在左侧，垂直居中
+  const qCol = document.createElement("div");
+  qCol.className = "q-col";
+  qCol.innerHTML = Q_SVG;
+  toolbar.appendChild(qCol);
 
-  // 分隔线
-  toolbar.appendChild(makeDivider());
+  // 右侧：所有按钮行纵向堆叠，行间用横线隔开
+  const rowsCol = document.createElement("div");
+  rowsCol.className = "rows-col";
 
-  // 搜索组按钮（最多 5 个）
-  groups.slice(0, 5).forEach((group) => {
-    const btn = document.createElement("button");
-    btn.className = "btn";
-    btn.textContent = group.name;
-    btn.addEventListener("mousedown", (e) => e.stopPropagation());
-    btn.addEventListener("click", () => {
-      hideToolbar();
-      chrome.runtime.sendMessage({ type: "RUN_SEARCH_GROUP", group, query }).catch(() => {});
+  itemGroups.forEach((group, gIdx) => {
+    if (gIdx > 0) {
+      const hd = document.createElement("div");
+      hd.className = "h-divider";
+      rowsCol.appendChild(hd);
+    }
+
+    const row = document.createElement("div");
+    row.className = "toolbar-row";
+
+    group.items.forEach((item) => {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = item.name;
+      btn.addEventListener("mousedown", (e) => e.stopPropagation());
+      btn.addEventListener("click", () => {
+        hideToolbar();
+        if (group.type === "ctx") {
+          chrome.runtime.sendMessage({ type: "RUN_CTX_GROUP", ctxGroup: item, query }).catch(() => {});
+        } else if (group.type === "site") {
+          chrome.runtime.sendMessage({ type: "OPEN_SITE_TAB_AND_SEND", site: item, query }).catch(() => {});
+        } else {
+          chrome.runtime.sendMessage({ type: "RUN_SEARCH_GROUP", group: item, query }).catch(() => {});
+        }
+      });
+      row.appendChild(btn);
     });
-    toolbar.appendChild(btn);
+
+    rowsCol.appendChild(row);
   });
+
+  toolbar.appendChild(rowsCol);
 
   toolbar.classList.add("visible");
   isVisible = true;
@@ -208,11 +274,6 @@ function hideToolbar() {
   isVisible = false;
 }
 
-function makeDivider() {
-  const d = document.createElement("div");
-  d.className = "divider";
-  return d;
-}
 
 function installStorageWatcher() {
   if (storageWatcherInstalled) {
@@ -220,14 +281,15 @@ function installStorageWatcher() {
   }
   storageWatcherInstalled = true;
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") {
-      return;
-    }
+    if (area !== "local") return;
     if (changes[UI_PREFS_STORAGE_KEY]) {
       cachedUiPrefs = changes[UI_PREFS_STORAGE_KEY].newValue || {};
     }
     if (changes[SEARCH_GROUPS_STORAGE_KEY]) {
       cachedGroups = normalizeGroups(changes[SEARCH_GROUPS_STORAGE_KEY].newValue);
+    }
+    if (changes[SELECTION_CONTEXT_GROUPS_STORAGE_KEY]) {
+      cachedCtxGroups = normalizeCtxGroups(changes[SELECTION_CONTEXT_GROUPS_STORAGE_KEY].newValue);
     }
   });
 }
@@ -238,14 +300,16 @@ async function primeToolbarCache() {
   }
 
   cacheInitPromise = chrome.storage.local
-    .get([UI_PREFS_STORAGE_KEY, SEARCH_GROUPS_STORAGE_KEY])
+    .get([UI_PREFS_STORAGE_KEY, SEARCH_GROUPS_STORAGE_KEY, SELECTION_CONTEXT_GROUPS_STORAGE_KEY])
     .then((stored) => {
       cachedUiPrefs = stored[UI_PREFS_STORAGE_KEY] || {};
       cachedGroups = normalizeGroups(stored[SEARCH_GROUPS_STORAGE_KEY]);
+      cachedCtxGroups = normalizeCtxGroups(stored[SELECTION_CONTEXT_GROUPS_STORAGE_KEY]);
     })
     .catch(() => {
       cachedUiPrefs = {};
       cachedGroups = [];
+      cachedCtxGroups = [];
     });
 
   return cacheInitPromise;
@@ -255,4 +319,13 @@ function normalizeGroups(input) {
   return Array.isArray(input)
     ? input.filter((group) => group && group.enabled !== false)
     : [];
+}
+
+function normalizeCtxGroups(input) {
+  if (!Array.isArray(input)) return [];
+  return input.filter((g) => {
+    if (!g || g.enabled === false) return false;
+    if (g.targetType === "group") return !!g.refGroupId;
+    return Array.isArray(g.siteIds) && g.siteIds.length > 0;
+  });
 }

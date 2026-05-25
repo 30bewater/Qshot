@@ -16,6 +16,7 @@ import { state, elements } from "./state.js";
 import { setGlobalStatus, setSiteStatus } from "./status.js";
 import { createRequestId } from "./utils.js";
 import { diagnosticLog } from "../../shared/diagnostics.js";
+import { MSG } from "../../shared/compare-protocol.js";
 
 // 单文件体积上限：postMessage 结构化克隆 + N 张卡片各持一份，需要给内存留余量。
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -93,7 +94,7 @@ function dispatchFilesToCard(ref, entries) {
   try {
     ref.iframeEl.contentWindow.postMessage(
       {
-        type: "QSHOT_PASTE_FILES",
+        type: MSG.PASTE_FILES,
         files: entries,
         site: ref.site,
         requestId,

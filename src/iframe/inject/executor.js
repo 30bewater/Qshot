@@ -1,28 +1,43 @@
+/**
+ * executor.js — entry point for site handler execution.
+ *
+ * Sub-modules:
+ *   executor-dom.js     — element finding, button detection, pointer events
+ *   executor-actions.js — individual step executors (setValue, click, etc.)
+ */
+
 import { SUBMIT_ACTIONS, delay } from "./constants.js";
+import {
+  executeFocus,
+  executeSetValue,
+  readCurrentValue,
+  executeTriggerEvents,
+  executeClick,
+  executeSendKeys,
+  executeSmartSubmit,
+} from "./executor-actions.js";
+import { findElement, getSelectors } from "./executor-dom.js";
 import {
   safeFocus,
   isTextControl,
-  setNativeValue,
   dispatchEventList,
-  dispatchKeyboardEvent,
-  detectInputType,
 } from "./dom-utils.js";
-import { setContenteditableValue } from "./editors.js";
 
-// hasFiles=true 时整体把"等按钮可用"的预算调大：
-//   - 上传到各 AI 站点服务器的文件传输普遍 3~15 秒，原配置的 submitWaitMs（多数
-//     1500ms，ChatGPT 3000ms）远远不够。等不到按钮亮起就会回落到 Enter 兜底，
-//     站点会把文本提交但抛弃尚未上传完成的附件。
-//   - 这里用最小值 20s 兜底；个别站点上传特别慢可以在 siteHandlers.json 里给
-//     单独 step 显式调更大的 submitWaitMs，仍然保留 max() 语义。
 const FILES_MIN_SUBMIT_WAIT_MS = 20000;
 const FILES_MIN_FIND_TIMEOUT_MS = 25000;
-const SUBMIT_VERIFY_WAIT_MS = 900;
-const SUBMIT_VERIFY_RETRY_COUNT = 4;
+// 首次验证等待 1000ms：给输入框足够时间在提交后清空，
+// 低于此值容易误判为未发送并触发错误重试（ChatGPT 等单独配了更长的 submitVerifyWaitMs）。
+const SUBMIT_VERIFY_WAIT_MS = 1000;
+// 多轮对话场景：上一轮 AI 仍在生成时发送按钮禁用，可能需要等待 30~60 秒才能重新启用。
+// 8 次重试 × (4500ms 按钮等待 + 450ms 验证 + 2000ms 间隔) ≈ 56 秒总重试窗口，
+// 加上初始 3000ms + 1000ms 共约 60 秒，覆盖绝大多数 AI 模型的生成耗时。
+const SUBMIT_VERIFY_RETRY_COUNT = 8;
+// 重试提交时给按钮更长的等待窗口（应对多轮对话中上一轮仍在生成的情况）
+const RETRY_SUBMIT_WAIT_MS = 4500;
+// 重试轮次之间的等待时长（比首次验证等待更长，给 AI 更多时间完成生成）
+const RETRY_BETWEEN_WAIT_MS = 2000;
 
 function applyFilesAwareTimeouts(step) {
-  // 不在原 config 上改写：每次只对 SUBMIT_ACTIONS 类的步骤产出一份补丁副本，
-  // 让 hasFiles 开关只影响本次执行，避免污染全局缓存的 site config。
   if (step.action !== "smartSubmit" && step.action !== "click") {
     return step;
   }
@@ -134,19 +149,33 @@ async function verifySubmittedOrRetry(query, handlerConfig, context, options = {
       throw new Error("内容仍停留在输入框，发送按钮可能未生效");
     }
 
-    if (rewriteStep) {
-      await executeStep(rewriteStep, query, context);
-      if (rewriteStep.waitAfter) {
-        await delay(rewriteStep.waitAfter);
+    // 文字仍在输入框：可能是按钮禁用（上轮 AI 仍在生成）或写入后未触发提交。
+    // 若文字已存在且无需重写（输入框内容完整），直接跳过 setValue 重试提交；
+    // 否则重写以确保内容刷新，再提交。
+    const textAlreadyPresent = current.includes(text);
+    if (!textAlreadyPresent || !rewriteStep) {
+      if (rewriteStep) {
+        await executeStep(rewriteStep, query, context);
+        if (rewriteStep.waitAfter) await delay(rewriteStep.waitAfter);
+        await delay(120);
+      } else {
+        await refireInputEvents(inputStep, text);
       }
-      await delay(120);
-    } else {
-      await refireInputEvents(inputStep, text);
     }
 
     context.submitted = false;
     for (const rawStep of submitSteps) {
-      const step = options.hasFiles ? applyFilesAwareTimeouts(rawStep) : rawStep;
+      // 重试时给 smartSubmit 更长的按钮等待窗口，应对多轮对话中发送按钮暂时禁用的情况
+      let step = options.hasFiles ? applyFilesAwareTimeouts(rawStep) : rawStep;
+      if (step.action === "smartSubmit") {
+        step = {
+          ...step,
+          submitWaitMs: Math.max(
+            Number.isFinite(step.submitWaitMs) ? step.submitWaitMs : 0,
+            RETRY_SUBMIT_WAIT_MS
+          ),
+        };
+      }
       try {
         await executeStep(step, query, context);
       } catch (error) {
@@ -154,9 +183,7 @@ async function verifySubmittedOrRetry(query, handlerConfig, context, options = {
         throw error;
       }
 
-      if (step.waitAfter) {
-        await delay(step.waitAfter);
-      }
+      if (step.waitAfter) await delay(step.waitAfter);
       await delay(Math.min(verifyWaitMs, 450));
       const afterSubmitValue = await readCurrentValue(inputStep);
       if (!afterSubmitValue.includes(text)) {
@@ -164,7 +191,7 @@ async function verifySubmittedOrRetry(query, handlerConfig, context, options = {
       }
     }
 
-    await delay(verifyWaitMs);
+    await delay(RETRY_BETWEEN_WAIT_MS);
   }
 }
 
@@ -195,493 +222,4 @@ function findSubmitVerificationInputStep(steps) {
   return steps.find((step) => step.action === "setValue" && getSelectors(step).length > 0)
     || steps.find((step) => inputActions.has(step.action) && getSelectors(step).length > 0)
     || null;
-}
-
-async function executeFocus(step) {
-  const element = await findElement(step);
-  safeFocus(element);
-  if (typeof element.click === "function") {
-    element.click();
-  }
-}
-
-async function executeSetValue(step, query) {
-  const text = String(query || "");
-  // ChatGPT-class SPAs have #prompt-textarea in DOM on iframe load but
-  // ProseMirror/React hydration hasn't finished — a write-then-done flow
-  // gets clobbered by a re-render. Write, verify, retry until the editor
-  // actually takes the text or attempts run out.
-  const maxAttempts = step.maxAttempts || 12;
-  let lastError = null;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const element = await findElement(step);
-    safeFocus(element);
-
-    let inputType = step.inputType === "auto"
-      ? detectInputType(element)
-      : (step.inputType || detectInputType(element));
-
-    // Kimi's .chat-input-editor and some Vue editors stay
-    // contenteditable="false" during SSR → hydration and fall through to
-    // "text" mode incorrectly. If the element is a DIV/SPAN-ish editable
-    // container, force contenteditable path and try to flip the attribute.
-    if (inputType === "text" && !isTextControl(element)) {
-      inputType = "contenteditable";
-      try {
-        if (element.getAttribute("contenteditable") !== "true") {
-          element.setAttribute("contenteditable", "true");
-        }
-      } catch (_error) {
-        // some containers actively reset contenteditable; setContenteditableValue fallback handles it
-      }
-    }
-
-    try {
-      if (inputType === "contenteditable") {
-        setContenteditableValue(element, text);
-      } else if (isTextControl(element)) {
-        setNativeValue(element, text);
-        dispatchEventList(element, ["input", "change"]);
-      } else {
-        throw new Error("目标元素不是可写输入控件");
-      }
-    } catch (error) {
-      lastError = error;
-    }
-
-    if (!text) return;
-
-    await delay(60 + attempt * 40);
-
-    const current = await readCurrentValue(step);
-    if (current.includes(text) && await valueRemainsStable(step, text)) return;
-  }
-
-  if (lastError) throw lastError;
-  throw new Error("写入输入框后内容未生效");
-}
-
-async function valueRemainsStable(step, text) {
-  const stableWaitMs = Number.isFinite(step.stableWaitMs) ? step.stableWaitMs : 0;
-  if (stableWaitMs <= 0) {
-    return true;
-  }
-
-  const deadline = Date.now() + stableWaitMs;
-  while (Date.now() < deadline) {
-    await delay(Math.min(120, deadline - Date.now()));
-    const current = await readCurrentValue(step);
-    if (!current.includes(text)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-async function readCurrentValue(step) {
-  try {
-    const element = await findElement(step);
-    if (!element) return "";
-    if (isTextControl(element)) return String(element.value || "");
-    return String(element.textContent || "");
-  } catch (_error) {
-    return "";
-  }
-}
-
-async function executeTriggerEvents(step) {
-  const element = await findElement(step);
-  const events = Array.isArray(step.events) ? step.events : [];
-  // contenteditable + execCommand("insertText") already dispatched an
-  // isTrusted=true input; a second synthetic input (data=="") makes
-  // ProseMirror think the field was emptied and the new text flashes away.
-  const filtered = element && element.isContentEditable
-    ? events.filter((name) => name !== "input" && name !== "beforeinput")
-    : events;
-  dispatchEventList(element, filtered);
-}
-
-async function executeClick(step) {
-  // After setValue, React often needs another render before the send button
-  // flips from aria-disabled. Poll until the button is truly usable instead
-  // of "click on sight", which would fall through to Enter fallback 1–2s later.
-  const selectors = getSelectors(step);
-  if (selectors.length === 0) throw new Error("缺少选择器");
-
-  const timeoutMs = Number.isFinite(step.timeout) ? step.timeout : 1500;
-  const deadline = Date.now() + timeoutMs;
-  let lastSeen = null;
-
-  while (Date.now() <= deadline) {
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (!element) continue;
-      lastSeen = element;
-      if (isUsableSubmitButton(element)) {
-        activateSubmitButton(element);
-        return true;
-      }
-    }
-    await delay(25);
-  }
-
-  if (!lastSeen) throw new Error(`未找到元素: ${selectors.join(", ")}`);
-  throw new Error("目标按钮处于禁用态");
-}
-
-async function executeSendKeys(step) {
-  const element = step.selector || step.selectors
-    ? await findElement(step)
-    : document.activeElement;
-  if (!element) throw new Error("没有可发送按键的目标元素");
-
-  const keys = Array.isArray(step.keys) ? step.keys : [];
-  for (const key of keys) {
-    dispatchKeyboardEvent(element, "keydown", key);
-    dispatchKeyboardEvent(element, "keypress", key);
-    dispatchKeyboardEvent(element, "keyup", key);
-  }
-}
-
-async function executeSmartSubmit(step, query) {
-  const anchor = step.selector || step.selectors
-    ? await findElement(step)
-    : document.activeElement;
-  if (!anchor) throw new Error("没有可用于提交的输入元素");
-
-  safeFocus(anchor);
-
-  const submitSelectors = Array.isArray(step.submitSelectors) && step.submitSelectors.length > 0
-    ? step.submitSelectors
-    : [
-        "button[type='submit']",
-        "button[aria-label*='发送']",
-        "button[aria-label*='Send']",
-        "button[title*='发送']",
-        "button[title*='Send']",
-        "[role='button'][aria-label*='发送']",
-        "[role='button'][aria-label*='Send']",
-      ];
-
-  // Poll for a usable send button first. Lexical (Kimi) / ProseMirror
-  // (ChatGPT) need a React re-render after setValue before the button
-  // un-disables — don't skip this with form.requestSubmit() which would
-  // silently fail while the button is still disabled.
-  const waitMs = Number.isFinite(step.submitWaitMs) ? step.submitWaitMs : 1200;
-  const deadline = Date.now() + waitMs;
-  while (Date.now() <= deadline) {
-    const candidate = findBestSubmitButton(anchor, submitSelectors);
-    if (candidate) {
-      activateSubmitButton(candidate);
-      if (step.enterFallbackAfterClick !== false && await shouldTryKeyboardFallbackAfterClick(step, query, anchor)) {
-        const retryCandidate = findBestSubmitButton(anchor, submitSelectors);
-        if (retryCandidate && retryCandidate !== candidate) {
-          activateSubmitButton(retryCandidate);
-          await delay(120);
-        }
-        dispatchSubmitKeys(anchor);
-      }
-      return true;
-    }
-    await delay(25);
-  }
-
-  // Form-submit fallback. Risk: chat.qwen.ai / kimi.com wrap the composer
-  // in an empty <form> with no action and no real submit button. Calling
-  // form.requestSubmit()/submit() would navigate the iframe to current URL
-  // (GET submit), freezing the frame. Only submit when the form has a real
-  // action or at least one usable submit button.
-  const form = typeof anchor.closest === "function" ? anchor.closest("form") : null;
-  if (form && isSafeToSubmitForm(form)) {
-    if (typeof form.requestSubmit === "function") {
-      form.requestSubmit();
-      return true;
-    }
-    if (typeof form.submit === "function") {
-      form.submit();
-      return true;
-    }
-  }
-
-  // Last resort: synthetic Enter.
-  dispatchSubmitKeys(anchor);
-  return false;
-}
-
-function dispatchSubmitKeys(anchor) {
-  const targets = [anchor, document.activeElement, document.body, document].filter(Boolean);
-  const seen = new Set();
-
-  targets.forEach((target) => {
-    if (seen.has(target)) return;
-    seen.add(target);
-    dispatchKeyboardEvent(target, "keydown", "Enter");
-    dispatchKeyboardEvent(target, "keypress", "Enter");
-    dispatchKeyboardEvent(target, "keyup", "Enter");
-  });
-}
-
-function activateSubmitButton(element) {
-  safeFocus(element);
-  dispatchPointerLikeEvent(element, "pointerdown");
-  dispatchPointerLikeEvent(element, "mousedown");
-  dispatchPointerLikeEvent(element, "pointerup");
-  dispatchPointerLikeEvent(element, "mouseup");
-  if (typeof element.click === "function") {
-    element.click();
-  }
-}
-
-function dispatchPointerLikeEvent(element, type) {
-  const rect = element.getBoundingClientRect();
-  const eventInit = {
-    bubbles: true,
-    cancelable: true,
-    view: window,
-    button: 0,
-    buttons: type.endsWith("down") ? 1 : 0,
-    clientX: rect.left + rect.width / 2,
-    clientY: rect.top + rect.height / 2,
-  };
-  const EventCtor = type.startsWith("pointer") && typeof PointerEvent === "function"
-    ? PointerEvent
-    : MouseEvent;
-  element.dispatchEvent(new EventCtor(type, eventInit));
-}
-
-async function shouldTryKeyboardFallbackAfterClick(step, query, anchor) {
-  const text = String(query || "").trim();
-  if (!text) return false;
-
-  const waitMs = Number.isFinite(step.postClickVerifyMs) ? step.postClickVerifyMs : 900;
-  await delay(waitMs);
-
-  const current = readCurrentValueNow(step, anchor);
-  return current.includes(text);
-}
-
-function readCurrentValueNow(step, anchor) {
-  const anchorText = readElementValue(anchor);
-  if (anchorText) return anchorText;
-
-  for (const selector of getSelectors(step)) {
-    const element = document.querySelector(selector);
-    const value = readElementValue(element);
-    if (value) return value;
-  }
-
-  return "";
-}
-
-function readElementValue(element) {
-  if (!element) return "";
-  if (isTextControl(element)) return String(element.value || "");
-  return String(element.textContent || "");
-}
-
-function isSafeToSubmitForm(form) {
-  if (!(form instanceof HTMLFormElement)) return false;
-
-  const action = (form.getAttribute("action") || "").trim();
-  const currentUrl = (window.location.href || "").split("#")[0];
-  const absoluteAction = (() => {
-    if (!action) return "";
-    try {
-      return new URL(action, window.location.href).href.split("#")[0];
-    } catch (_error) {
-      return "";
-    }
-  })();
-
-  if (action && absoluteAction && absoluteAction !== currentUrl) return true;
-
-  const submitButton = form.querySelector("button[type='submit'], input[type='submit']");
-  if (submitButton && isUsableSubmitButton(submitButton)) return true;
-
-  return false;
-}
-
-async function findElement(step) {
-  const selectors = getSelectors(step);
-  if (selectors.length === 0) throw new Error("缺少选择器");
-
-  const timeoutMs = step.timeout || 6000;
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt <= timeoutMs) {
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (element) return element;
-    }
-    await delay(25);
-  }
-
-  throw new Error(`未找到元素: ${selectors.join(", ")}`);
-}
-
-function getSelectors(step) {
-  if (Array.isArray(step.selectors)) return step.selectors.filter(Boolean);
-  if (Array.isArray(step.selector)) return step.selector.filter(Boolean);
-  return step.selector ? [step.selector] : [];
-}
-
-function findBestSubmitButton(anchor, selectors) {
-  const searchRoots = [];
-  const nearbyRoot = typeof anchor.closest === "function"
-    ? anchor.closest("form, footer, [role='form'], [class*='input'], [class*='composer'], [class*='footer']")
-    : null;
-
-  if (nearbyRoot) searchRoots.push(nearbyRoot);
-  if (anchor.parentElement) searchRoots.push(anchor.parentElement);
-  searchRoots.push(document);
-
-  const seen = new Set();
-  const candidates = [];
-
-  searchRoots.forEach((root) => {
-    selectors.forEach((selector) => {
-      root.querySelectorAll(selector).forEach((element) => {
-        if (seen.has(element) || !isUsableSubmitButton(element)) return;
-        if (looksLikeNonSubmitControl(element)) return;
-        seen.add(element);
-        candidates.push(element);
-      });
-    });
-  });
-
-  if (candidates.length === 0) {
-    return findHeuristicSubmitButton(anchor);
-  }
-
-  const anchorRect = anchor.getBoundingClientRect();
-  const sendLike = candidates.filter(looksLikeSubmitControl);
-  const pool = sendLike.length > 0 ? sendLike : candidates;
-  pool.sort((left, right) => {
-    const leftRect = left.getBoundingClientRect();
-    const rightRect = right.getBoundingClientRect();
-    const leftScore = Math.abs(leftRect.right - anchorRect.right) + Math.abs(leftRect.bottom - anchorRect.bottom);
-    const rightScore = Math.abs(rightRect.right - anchorRect.right) + Math.abs(rightRect.bottom - anchorRect.bottom);
-    return leftScore - rightScore;
-  });
-
-  return pool[0];
-}
-
-function findHeuristicSubmitButton(anchor) {
-  const root = typeof anchor.closest === "function"
-    ? anchor.closest("form, footer, [role='form'], [class*='input'], [class*='composer'], [class*='footer'], [class*='sender'], [class*='chat']")
-    : null;
-  const searchRoot = root || document;
-  const anchorRect = anchor.getBoundingClientRect();
-  const candidates = [];
-
-  searchRoot
-    .querySelectorAll("button, [role='button'], [tabindex='0']")
-    .forEach((element) => {
-      if (!(element instanceof HTMLElement)) return;
-      if (element === anchor || element.contains(anchor) || !isUsableSubmitButton(element)) return;
-      if (element.querySelector("textarea, input, [contenteditable='true']")) return;
-      if (looksLikeNonSubmitControl(element)) return;
-
-      const rect = element.getBoundingClientRect();
-      const isNearComposer =
-        rect.top >= anchorRect.top - 80 &&
-        rect.bottom <= anchorRect.bottom + 100 &&
-        rect.left >= anchorRect.left - 40;
-      if (!isNearComposer) return;
-
-      candidates.push(element);
-    });
-
-  if (candidates.length === 0) return null;
-
-  const sendLike = candidates.filter(looksLikeSubmitControl);
-  const pool = sendLike.length > 0 ? sendLike : candidates;
-  pool.sort((left, right) => {
-    const leftRect = left.getBoundingClientRect();
-    const rightRect = right.getBoundingClientRect();
-    const leftScore = Math.abs(leftRect.right - anchorRect.right) + Math.abs(leftRect.bottom - anchorRect.bottom);
-    const rightScore = Math.abs(rightRect.right - anchorRect.right) + Math.abs(rightRect.bottom - anchorRect.bottom);
-    return leftScore - rightScore;
-  });
-
-  return pool[0];
-}
-
-function looksLikeSubmitControl(element) {
-  const label = getControlSignature(element);
-  return /发送|提交|send|submit|arrow[-_ ]?up|paper[-_ ]?plane|send-button|btn-send|icon-send/i.test(label);
-}
-
-function looksLikeNonSubmitControl(element) {
-  const label = getControlSignature(element);
-  return /附件|上传|添加|更多|语音|麦克风|停止|取消|模型|工具|attach|upload|add|plus|more|voice|mic|microphone|stop|cancel|model|tool|file|image|photo|camera/i.test(label);
-}
-
-function getControlSignature(element) {
-  const attrs = [
-    element.getAttribute("aria-label"),
-    element.getAttribute("title"),
-    element.getAttribute("data-testid"),
-    element.getAttribute("data-test-id"),
-    element.getAttribute("class"),
-    element.textContent,
-  ];
-  element.querySelectorAll("svg, path, use, mat-icon, i").forEach((child) => {
-    attrs.push(
-      child.getAttribute("aria-label"),
-      child.getAttribute("data-icon"),
-      child.getAttribute("class"),
-      child.getAttribute("d"),
-      child.textContent
-    );
-  });
-  return attrs.filter(Boolean).join(" ");
-}
-
-function isUsableSubmitButton(element) {
-  if (!(element instanceof HTMLElement)) return false;
-  if (element.hasAttribute("disabled")
-    || element.getAttribute("aria-disabled") === "true"
-    || element.getAttribute("data-disabled") === "true") {
-    return false;
-  }
-
-  // Kimi (.send-button-container.disabled) / 豆包 etc. express "disabled" via
-  // class names instead of the attribute. Without filtering we'd click a DIV
-  // still in disabled state and the site would silently ignore it.
-  if (hasDisabledState(element)) {
-    return false;
-  }
-
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
-
-  const style = window.getComputedStyle(element);
-  return style.visibility !== "hidden"
-    && style.display !== "none"
-    && style.pointerEvents !== "none";
-}
-
-function hasDisabledState(element) {
-  const disabledClassPattern = /(^|\s|[-_])(disabled|is-disabled|btn-disabled|button-disabled|mat-mdc-button-disabled|send-button-container--disabled)(\s|$|[-_])/i;
-  let current = element;
-
-  while (current instanceof HTMLElement) {
-    const className = typeof current.className === "string" ? current.className : "";
-    if (disabledClassPattern.test(className)
-      || current.getAttribute("aria-disabled") === "true"
-      || current.getAttribute("data-disabled") === "true") {
-      return true;
-    }
-
-    if (current.tagName === "FORM" || current.getAttribute("role") === "form") {
-      return false;
-    }
-    current = current.parentElement;
-  }
-
-  return false;
 }

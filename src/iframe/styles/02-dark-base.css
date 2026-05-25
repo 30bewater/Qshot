@@ -55,6 +55,27 @@ html[data-theme="dark"] .composer-inline-icon-send.is-empty {
   color: #71717a;
 }
 
+html[data-theme="dark"] .composer-collapsed-action {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .composer-collapsed-action:hover,
+html[data-theme="dark"] .composer-collapsed-action:focus-visible {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .bottom-settings-entry {
+  background: transparent;
+  color: #a1a1aa;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .bottom-settings-entry:hover,
+html[data-theme="dark"] .bottom-settings-entry:focus-visible {
+  color: #f4f4f5;
+}
+
 html[data-theme="dark"] .composer-inline-icon-send:not(.is-empty):hover {
   background: #d4d4d8;
 }
@@ -154,6 +175,24 @@ html[data-theme="dark"] .history-clear-btn:hover {
   background: #3d1515;
   color: #ef4444;
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+html[data-theme="dark"] .history-filter-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .history-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+html[data-theme="dark"] .history-filter-btn.is-active {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+  color: #18181b;
 }
 
 html[data-theme="dark"] .history-close-btn {

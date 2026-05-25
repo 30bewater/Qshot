@@ -101,8 +101,23 @@ html[data-theme="dark"] .popup-history-meta {
   color: #71717a;
 }
 
+html[data-theme="dark"] .popup-history-restore-btn,
 html[data-theme="dark"] .popup-history-delete-btn {
-  color: #71717a;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .popup-history-restore-btn:hover {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+  color: #18181b;
+}
+
+html[data-theme="dark"] .popup-history-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
 }
 
 /* ── 底部设置按钮 ── */

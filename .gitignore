@@ -18,7 +18,30 @@ node_modules/
 dist/
 build/
 
+# Test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Desktop generated native host launcher/manifest (local install)
+desktop/run-native-host.cmd
+desktop/run-native-host.sh
+desktop/native-host/
+
 # Release packages
 *.zip
 qshot-*/
 make-zip.cjs
+
+# Experimental modules (local dev only — stubs stay tracked for build:store)
+desktop/
+src/memory/*
+!src/memory/background-stub.js
+src/desktop/*
+!src/desktop/background-stub.js
+src/settings/settings/sections/memory-*.js
+!src/settings/settings/sections/memory-stub.js
+src/settings/styles/12-memory.css
+src/settings/styles/12a-memory-ai-analysis.css
+src/settings/styles/12b-memory-usage.css
+src/settings/styles/12c-memory-control.css

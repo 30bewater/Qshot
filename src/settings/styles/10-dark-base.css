@@ -1,0 +1,343 @@
+﻿/* ============================================================
+   Dark Mode 鈥?applied via html[data-theme="dark"]
+   ============================================================ */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* 鈹€鈹€ Body & page background 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] body {
+  background: #18181b;
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Sidebar divider 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .settings-sidebar::after {
+  background: repeating-linear-gradient(
+    to bottom,
+    #3f3f46 0 7px,
+    transparent 7px 14px
+  );
+}
+
+/* 鈹€鈹€ Nav 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .settings-nav-item {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .settings-nav-title {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .settings-nav-icon {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .settings-nav-desc {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .settings-nav-item.is-active {
+  background: #27272a;
+}
+
+html[data-theme="dark"] .settings-nav-item.is-active .settings-nav-title,
+html[data-theme="dark"] .settings-nav-item.is-active .settings-nav-icon {
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Section headings & subtitles 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .settings-sidebar-header h1,
+html[data-theme="dark"] .settings-content-header h2 {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .settings-nav-desc,
+html[data-theme="dark"] .settings-subtitle,
+html[data-theme="dark"] .settings-eyebrow,
+html[data-theme="dark"] .settings-sidebar-eyebrow,
+html[data-theme="dark"] .save-status,
+html[data-theme="dark"] .field-label,
+html[data-theme="dark"] .group-meta-count,
+html[data-theme="dark"] .sites-panel-subtitle,
+html[data-theme="dark"] .prompt-group-subtitle,
+html[data-theme="dark"] .site-selection-empty,
+html[data-theme="dark"] .hover-picker-empty,
+html[data-theme="dark"] .settings-add-copy span {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .sites-panel-title,
+html[data-theme="dark"] .prompt-group-title,
+html[data-theme="dark"] .settings-add-copy strong {
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Cards 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .settings-empty-state,
+html[data-theme="dark"] .settings-group-card,
+html[data-theme="dark"] .prompt-group-card,
+html[data-theme="dark"] .settings-add-card {
+  border-color: #3f3f46;
+  background: #27272a;
+}
+
+html[data-theme="dark"] .settings-group-meta {
+  border-bottom-color: #3f3f46;
+}
+
+/* 鈹€鈹€ Inputs & textareas 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .group-name-input,
+html[data-theme="dark"] .prompt-group-name-input,
+html[data-theme="dark"] .prompt-title-input,
+html[data-theme="dark"] .prompt-content-input {
+  border-color: #3f3f46;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .group-name-input:focus,
+html[data-theme="dark"] .prompt-group-name-input:focus,
+html[data-theme="dark"] .prompt-title-input:focus,
+html[data-theme="dark"] .prompt-content-input:focus {
+  border-color: #71717a;
+}
+
+/* 鈹€鈹€ Group mode dropdown 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .group-mode-trigger {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .group-mode-trigger-arrow {
+  border-right-color: #a1a1aa;
+  border-bottom-color: #a1a1aa;
+}
+
+html[data-theme="dark"] .group-mode-menu {
+  border-color: #3f3f46;
+  background: #27272a;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="dark"] .group-mode-option {
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .group-mode-option:hover:not(.is-active) {
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .group-mode-option.is-active {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+/* 鈹€鈹€ Group mode pills (fallback) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .group-mode-pill {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .group-mode-pill:hover:not(.is-active) {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+html[data-theme="dark"] .group-mode-pill.is-active {
+  background: #f4f4f5;
+  color: #18181b;
+  border-color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Group lock tip 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .group-lock-tip {
+  background: #3f3f46;
+  color: #a1a1aa;
+}
+
+/* 鈹€鈹€ Site selection empty 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .site-selection-empty {
+  border-color: #3f3f46;
+  background: #27272a;
+}
+
+/* 鈹€鈹€ Drag-over states 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .site-chip-list.is-drag-over {
+  background: #3f3f46;
+  box-shadow: inset 0 0 0 1px #52525b;
+}
+
+html[data-theme="dark"] .settings-group-card.is-group-drag-over {
+  box-shadow: inset 0 0 0 2px #52525b;
+}
+
+/* 鈹€鈹€ Group control buttons (delete / drag handle) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .settings-group-card {
+  --group-control-stroke: #3f3f46;
+  --group-control-icon: #71717a;
+}
+
+html[data-theme="dark"] .group-delete-corner-btn,
+html[data-theme="dark"] .group-drag-handle {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #71717a;
+}
+
+html[data-theme="dark"] .group-delete-corner-btn:hover {
+  background: #3d1515;
+  color: #ef4444;
+  border-color: #7f1d1d;
+}
+
+html[data-theme="dark"] .group-enabled-switch-thumb {
+  background: #f4f4f5;
+}
+
+/* 鈹€鈹€ Chips 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .selected-chip {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Hover picker panel & submenu 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .hover-picker-panel,
+html[data-theme="dark"] .hover-picker-submenu {
+  border-color: #3f3f46;
+  background: #27272a;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="dark"] .hover-picker-tab-bar {
+  border-color: #52525b;
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .hover-picker-tab {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .hover-picker-tab:hover:not(.is-active) {
+  background: #52525b;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .hover-picker-tab.is-active {
+  background: #27272a;
+  color: #f4f4f5;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="dark"] .hover-picker-entry {
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .hover-picker-entry:hover,
+html[data-theme="dark"] .hover-picker-row.is-active .hover-picker-entry {
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .hover-picker-row.is-active .hover-picker-entry {
+  box-shadow: inset 0 0 0 1px #52525b;
+}
+
+html[data-theme="dark"] .hover-picker-arrow {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .hover-picker-ai-col + .hover-picker-ai-col {
+  border-top-color: #3f3f46;
+}
+
+html[data-theme="dark"] .hover-picker-preset-divider {
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .hover-picker-preset-item:hover {
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .hover-picker-preset-label {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .hover-picker-preset-sites {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .hover-picker-preset-apply {
+  border-color: #52525b;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .hover-picker-preset-apply:hover {
+  background: #f4f4f5;
+  color: #18181b;
+  border-color: #f4f4f5;
+}
+
+html[data-theme="dark"] .hover-picker-option-row {
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .hover-picker-option {
+  background: transparent;
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .hover-picker-option:hover:not(.is-selected) {
+  background: #52525b;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .hover-picker-option.is-selected {
+  background: #27272a;
+  color: #f4f4f5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] .hover-picker-option.is-selected:hover {
+  background: #27272a;
+  color: #fafafa;
+}
+
+html[data-theme="dark"] .hover-picker-site-group-title {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .hover-picker-tip {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .hover-picker-empty-hint {
+  color: #71717a;
+}
+
+/* 鈹€鈹€ Buttons 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .secondary-btn,
+html[data-theme="dark"] .compact-danger-btn,
+html[data-theme="dark"] .prompt-add-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .add-section-btn {
+  border-color: #f4f4f5;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .add-section-btn:hover {
+  background: #f4f4f5;
+  color: #18181b;
+}

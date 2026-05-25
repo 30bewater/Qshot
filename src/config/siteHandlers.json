@@ -71,6 +71,63 @@
             "description": "回车作为最终备用发送方式"
           }
         ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1400,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])",
+              "#prompt-textarea"
+            ],
+            "timeout": 15000,
+            "description": "备选：更宽泛的输入框定位"
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])",
+              "#prompt-textarea"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 24,
+            "stableWaitMs": 1000
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "submitSelectors": [
+              "button[data-testid*='send']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='Submit']",
+              "button[aria-label*='发送']",
+              "button[type='submit']",
+              "[role='button'][aria-label*='Send']"
+            ],
+            "submitWaitMs": 8000,
+            "postClickVerifyMs": 1600
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
       }
     },
     {
@@ -135,17 +192,70 @@
             "optional": true
           }
         ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1200,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "textarea:not([disabled])",
+              "div[contenteditable='true']",
+              "[placeholder*='发送']",
+              "[placeholder*='问']"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']",
+              "[role='button'][aria-label*='发送']",
+              "div[role='button'][tabindex='0']"
+            ],
+            "submitWaitMs": 5000,
+            "postClickVerifyMs": 1200
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
       }
     },
     {
       "id": "kimi",
       "name": "Kimi",
-      "url": "https://kimi.moonshot.cn/",
+      "url": "https://kimi.com/",
       "enabled": true,
       "supportIframe": true,
       "supportUrlQuery": false,
       "matchPatterns": [
-        "kimi.moonshot.cn"
+        "kimi.moonshot.cn",
+        "kimi.com"
       ],
       "notes": "优先在页面内 iframe 卡片中加载 Kimi，优先匹配 textarea 和 contenteditable 输入区。",
       "searchHandler": {
@@ -206,21 +316,73 @@
             "optional": true
           }
         ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1400,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "[data-lexical-editor='true'][contenteditable='true']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "[role='button'][aria-label*='发送']",
+              "[role='button'][aria-label*='Send']"
+            ],
+            "submitWaitMs": 7000,
+            "postClickVerifyMs": 1000
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
       }
     },
     {
-      "id": "qwen",
-      "name": "通义千问",
-      "url": "https://tongyi.aliyun.com/qianwen/",
+      "id": "qianwen",
+      "name": "千问",
+      "url": "https://www.qianwen.com/",
       "enabled": true,
       "supportIframe": true,
       "supportUrlQuery": false,
       "matchPatterns": [
-        "tongyi.aliyun.com",
-        "qwen.ai",
-        "chat.qwen.ai"
+        "qianwen.com",
+        "www.qianwen.com",
+        "tongyi.aliyun.com"
       ],
-      "notes": "优先在页面内 iframe 卡片中加载 Qwen / 通义千问，自动发送依赖页面当前 DOM 结构。",
+      "notes": "阿里千问（原通义千问 Web 入口），优先在对比页 iframe 卡片中加载。",
       "searchHandler": {
         "submitVerifyWaitMs": 1200,
         "submitVerifyRetries": 3,
@@ -296,6 +458,82 @@
             "optional": true
           }
         ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1200,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "[role='button'][aria-label*='发送']"
+            ],
+            "submitWaitMs": 7000,
+            "postClickVerifyMs": 1000
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "qwen",
+      "name": "Qwen",
+      "url": "https://chat.qwen.ai/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "qwen.ai",
+        "www.qwen.ai",
+        "chat.qwen.ai"
+      ],
+      "embedStrategies": [
+        { "type": "dom_automation" }
+      ],
+      "notes": "Qwen 国际站（chat.qwen.ai），与千问（qianwen.com）为不同产品线。嵌入时禁止页面自动弹窗；批量发送失败不会自动新开标签，请用卡片内输入或「跳往原网站」。",
+      "searchHandler": {
+        "submitVerifyWaitMs": 1200,
+        "submitVerifyRetries": 3,
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='发送']"], "submitWaitMs": 8000, "postClickVerifyMs": 800, "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
       }
     },
     {
@@ -361,6 +599,56 @@
             "keys": [
               "Enter"
             ],
+            "optional": true
+          }
+        ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1400,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[type='submit']",
+              "button[aria-label*='发送']",
+              "button[aria-label*='Send']",
+              "button[data-testid*='send']",
+              "[role='button'][aria-label*='发送']"
+            ],
+            "submitWaitMs": 7000,
+            "postClickVerifyMs": 1200
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "keys": ["Enter"],
             "optional": true
           }
         ]
@@ -433,6 +721,58 @@
             "keys": [
               "Enter"
             ],
+            "optional": true
+          }
+        ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1400,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "rich-textarea div[contenteditable='true']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "submitSelectors": [
+              "button.send-button",
+              "button[aria-label*='Send']",
+              "button[aria-label*='发送']",
+              "button[mattooltip*='Send']",
+              "button[data-test-id*='send']",
+              "[role='button'][aria-label*='Send']"
+            ],
+            "submitWaitMs": 7000,
+            "postClickVerifyMs": 1400
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "keys": ["Enter"],
             "optional": true
           }
         ]
@@ -516,11 +856,74 @@
             "optional": true
           }
         ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1400,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "triggerEvents",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "events": ["input", "change"]
+          },
+          {
+            "action": "wait",
+            "duration": 120
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "submitSelectors": [
+              "button[data-testid*='send']",
+              "button[data-testid*='submit']",
+              "button[type='submit']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='Submit']",
+              "[role='button'][aria-label*='Send']"
+            ],
+            "submitWaitMs": 7000,
+            "postClickVerifyMs": 1400
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "div[contenteditable='true']",
+              "textarea:not([disabled])"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
       }
     },
     {
       "id": "yuanbao",
-      "name": "腾讯元宝",
+      "name": "元宝",
       "url": "https://yuanbao.tencent.com/",
       "enabled": true,
       "supportIframe": true,
@@ -1258,8 +1661,13 @@
           {
             "action": "focus",
             "selectors": [
-              "div[contenteditable='true']",
-              "textarea"
+              "textarea[placeholder*='知道']",
+              "textarea[placeholder*='know']",
+              "textarea[placeholder*='Ask']",
+              "textarea",
+              "[contenteditable='plaintext-only']",
+              "[contenteditable='true'][role='textbox']",
+              "div[contenteditable='true']"
             ],
             "timeout": 8000,
             "description": "聚焦输入框"
@@ -1267,8 +1675,13 @@
           {
             "action": "setValue",
             "selectors": [
-              "div[contenteditable='true']",
-              "textarea"
+              "textarea[placeholder*='知道']",
+              "textarea[placeholder*='know']",
+              "textarea[placeholder*='Ask']",
+              "textarea",
+              "[contenteditable='plaintext-only']",
+              "[contenteditable='true'][role='textbox']",
+              "div[contenteditable='true']"
             ],
             "inputType": "auto",
             "waitAfter": 80
@@ -1276,8 +1689,13 @@
           {
             "action": "triggerEvents",
             "selectors": [
-              "div[contenteditable='true']",
-              "textarea"
+              "textarea[placeholder*='知道']",
+              "textarea[placeholder*='know']",
+              "textarea[placeholder*='Ask']",
+              "textarea",
+              "[contenteditable='plaintext-only']",
+              "[contenteditable='true'][role='textbox']",
+              "div[contenteditable='true']"
             ],
             "events": [
               "input",
@@ -1291,8 +1709,13 @@
           {
             "action": "smartSubmit",
             "selectors": [
-              "div[contenteditable='true']",
-              "textarea"
+              "textarea[placeholder*='知道']",
+              "textarea[placeholder*='know']",
+              "textarea[placeholder*='Ask']",
+              "textarea",
+              "[contenteditable='plaintext-only']",
+              "[contenteditable='true'][role='textbox']",
+              "div[contenteditable='true']"
             ],
             "submitSelectors": [
               "button[data-testid*='send']",
@@ -1309,8 +1732,342 @@
           {
             "action": "sendKeys",
             "selectors": [
+              "textarea[placeholder*='知道']",
+              "textarea[placeholder*='know']",
+              "textarea[placeholder*='Ask']",
+              "textarea",
+              "[contenteditable='plaintext-only']",
+              "[contenteditable='true'][role='textbox']",
+              "div[contenteditable='true']"
+            ],
+            "keys": [
+              "Enter"
+            ],
+            "optional": true
+          }
+        ]
+      },
+      "searchHandlerFallback": {
+        "submitVerifyWaitMs": 1200,
+        "submitVerifyRetries": 3,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              "[role='textbox']",
+              "textarea:not([disabled])",
+              "[contenteditable='true']",
+              "div[contenteditable='true']"
+            ],
+            "timeout": 15000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              "[role='textbox']",
+              "textarea:not([disabled])",
+              "[contenteditable='true']",
+              "div[contenteditable='true']"
+            ],
+            "inputType": "auto",
+            "maxAttempts": 20
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "submitSelectors": [
+              "button[data-testid*='send']",
+              "button[data-testid*='submit']",
+              "button[type='submit']",
+              "button[aria-label*='Send']",
+              "button[aria-label*='Submit']",
+              "[role='button'][aria-label*='Send']"
+            ],
+            "submitWaitMs": 7000,
+            "postClickVerifyMs": 1200
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              "textarea:not([disabled])",
+              "div[contenteditable='true']"
+            ],
+            "keys": ["Enter"],
+            "optional": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "chatglm",
+      "name": "智谱清言",
+      "url": "https://chatglm.cn/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "chatglm.cn"
+      ],
+      "notes": "智谱清言对话页，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='发送']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "stepfun",
+      "name": "阶跃星辰",
+      "url": "https://www.stepfun.com/chats/new",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "stepfun.com"
+      ],
+      "notes": "阶跃星辰 Step 对话页，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='发送']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "xiaomimimo",
+      "name": "MIMo",
+      "url": "https://aistudio.xiaomimimo.com/",
+      "enabled": true,
+      "supportIframe": false,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "aistudio.xiaomimimo.com",
+        "xiaomimimo.com"
+      ],
+      "notes": "MIMo 不支持卡片嵌入（iframe 内登录态不稳定）。请先在新标签页登录，批量搜索时会自动在新标签向 MIMo 发送问题。",
+      "embedStrategies": [
+        { "type": "new_tab" }
+      ],
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='发送']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "zhida",
+      "name": "知乎直答",
+      "url": "https://zhida.zhihu.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "zhida.zhihu.com"
+      ],
+      "notes": "知乎直答 AI 搜索，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']", "input[type='text']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']", "input[type='text']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']", "input[type='text']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='搜索']", "button[aria-label*='发送']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']", "input[type='text']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "dots",
+      "name": "点点",
+      "url": "https://dots.ai/chat/home",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "dots.ai"
+      ],
+      "notes": "Dots AI 对话页，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "url": "https://www.perplexity.ai/",
+      "enabled": true,
+      "supportIframe": false,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "www.perplexity.ai",
+        "perplexity.ai"
+      ],
+      "notes": "Perplexity 不支持卡片嵌入。请先在新标签页登录，批量搜索时会自动在新标签向 Perplexity 发送问题。",
+      "embedStrategies": [
+        { "type": "new_tab" }
+      ],
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000, "skipClick": true },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto", "waitAfter": 500 },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[aria-label='Submit']", "button[type='submit']", "button[aria-label*='Submit']", "button[aria-label*='Send']"], "submitWaitMs": 4000, "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "zai",
+      "name": "Z.ai",
+      "url": "https://chat.z.ai/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "chat.z.ai",
+        "z.ai"
+      ],
+      "notes": "智谱 Z.ai 对话页，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='发送']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "monica",
+      "name": "Monica",
+      "url": "https://monica.im/home",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "monica.im",
+        "www.monica.im"
+      ],
+      "notes": "Monica 对话页，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='Submit']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "poe",
+      "name": "Poe",
+      "url": "https://poe.com/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "poe.com",
+        "www.poe.com"
+      ],
+      "notes": "Poe 对话页，使用通用输入与发送策略。",
+      "searchHandler": {
+        "steps": [
+          { "action": "focus", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "timeout": 10000 },
+          { "action": "setValue", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "inputType": "auto" },
+          { "action": "smartSubmit", "selectors": ["textarea", "div[contenteditable='true']", "[role='textbox']"], "submitSelectors": ["button[type='submit']", "button[aria-label*='Send']", "button[aria-label*='Submit']"], "optional": true },
+          { "action": "sendKeys", "selectors": ["textarea", "div[contenteditable='true']"], "keys": ["Enter"], "optional": true }
+        ]
+      }
+    },
+    {
+      "id": "copilot",
+      "name": "Copilot",
+      "url": "https://m365.cloud.microsoft/chat/",
+      "enabled": true,
+      "supportIframe": true,
+      "supportUrlQuery": false,
+      "matchPatterns": [
+        "m365.cloud.microsoft"
+      ],
+      "notes": "Microsoft 365 Copilot Chat（https://m365.cloud.microsoft/chat/），需登录 Microsoft 365 账号。",
+      "searchHandler": {
+        "submitVerifyWaitMs": 1600,
+        "submitVerifyRetries": 4,
+        "steps": [
+          {
+            "action": "focus",
+            "selectors": [
+              ".fai-EditorInput__input",
+              "[class*='EditorInput'] [contenteditable='true']",
+              "[class*='EditorInput'] textarea",
+              "textarea[placeholder*='Copilot']",
+              "textarea[placeholder*='发送']",
+              "textarea",
               "div[contenteditable='true']",
-              "textarea"
+              "[role='textbox']"
+            ],
+            "timeout": 10000
+          },
+          {
+            "action": "setValue",
+            "selectors": [
+              ".fai-EditorInput__input",
+              "[class*='EditorInput'] [contenteditable='true']",
+              "[class*='EditorInput'] textarea",
+              "textarea[placeholder*='Copilot']",
+              "textarea[placeholder*='发送']",
+              "textarea",
+              "div[contenteditable='true']",
+              "[role='textbox']"
+            ],
+            "inputType": "auto"
+          },
+          {
+            "action": "smartSubmit",
+            "selectors": [
+              ".fai-EditorInput__input",
+              "[class*='EditorInput'] [contenteditable='true']",
+              "[class*='EditorInput'] textarea",
+              "textarea[placeholder*='Copilot']",
+              "textarea[placeholder*='发送']",
+              "textarea",
+              "div[contenteditable='true']",
+              "[role='textbox']"
+            ],
+            "submitSelectors": [
+              "button[aria-label*='Send']",
+              "button[aria-label*='Submit']",
+              "button[aria-label*='发送']",
+              "button[type='submit']",
+              "[data-testid*='send']"
+            ],
+            "submitWaitMs": 6000,
+            "postClickVerifyMs": 1400,
+            "optional": true
+          },
+          {
+            "action": "sendKeys",
+            "selectors": [
+              ".fai-EditorInput__input",
+              "[class*='EditorInput'] [contenteditable='true']",
+              "[class*='EditorInput'] textarea",
+              "textarea[placeholder*='Copilot']",
+              "textarea[placeholder*='发送']",
+              "textarea",
+              "div[contenteditable='true']"
             ],
             "keys": [
               "Enter"

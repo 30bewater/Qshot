@@ -1,0 +1,159 @@
+﻿/* 鈹€鈹€ Prompt group sidebar nav 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .prompt-group-nav-item {
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .prompt-group-nav-item.is-active {
+  background: #f4f4f5;
+  color: #111111;
+  outline-color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-group-nav-item.is-renaming {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-group-nav-action {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+html[data-theme="dark"] .prompt-group-nav-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-group-nav-input {
+  border-color: #3f3f46;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-group-nav-input:focus {
+  border-color: #71717a;
+}
+
+html[data-theme="dark"] .prompt-groups-sidebar {
+  border-right-color: #3f3f46;
+}
+
+/* 鈹€鈹€ Prompt content panel 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .prompt-content-title {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-content-subtitle {
+  color: #a1a1aa;
+}
+
+/* 鈹€鈹€ Prompt action buttons 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .prompt-sidebar-add-btn,
+html[data-theme="dark"] .prompt-panel-add-btn {
+  border-color: #f4f4f5;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-sidebar-add-btn:hover,
+html[data-theme="dark"] .prompt-panel-add-btn:hover {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+html[data-theme="dark"] .prompt-panel-delete-btn,
+html[data-theme="dark"] .prompt-card-edit-btn,
+html[data-theme="dark"] .prompt-editor-cancel-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .prompt-editor-save-btn {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+/* 鈹€鈹€ Prompt editor inputs 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .prompt-group-rename-input,
+html[data-theme="dark"] .prompt-editor-title-input,
+html[data-theme="dark"] .prompt-editor-group-select,
+html[data-theme="dark"] .prompt-editor-content-input {
+  border-color: #3f3f46;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+/* 鈹€鈹€ Prompt cards & editor 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+html[data-theme="dark"] .prompt-card-item {
+  border-bottom-color: #3f3f46;
+  background: #27272a;
+}
+
+html[data-theme="dark"] .prompt-card-item:first-child {
+  border-top-color: #3f3f46;
+}
+
+html[data-theme="dark"] .prompt-icon-btn {
+  color: #71717a;
+}
+
+html[data-theme="dark"] .prompt-icon-btn:hover {
+  color: #d4d4d8;
+  background: #3f3f46;
+}
+
+html[data-theme="dark"] .prompt-preview-popup {
+  border-color: #3f3f46;
+  background: #27272a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="dark"] .prompt-preview-popup-title {
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .prompt-preview-popup-body {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] .prompt-card-title {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-card-content {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-editor-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="dark"] .prompt-editor-modal {
+  background: #27272a;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"] .prompt-editor-title {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .prompt-header-action-btn {
+  border-color: #3f3f46;
+  background: #27272a;
+  color: #d4d4d8;
+}
+
+html[data-theme="dark"] .prompt-header-action-btn:hover {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+  color: #18181b;
+}
+
+html[data-theme="dark"] .prompt-groups-sidebar {
+  border-right-color: #3f3f46;
+}
+
+html[data-theme="dark"] .prompt-group-nav-item.is-empty {
+  border-color: #3f3f46;
+  background: #27272a;
+}

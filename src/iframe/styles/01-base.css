@@ -1,0 +1,83 @@
+/* ── CSS 变量 & 全局 Reset ── */
+:root {
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  color-scheme: light;
+  font-family: "Segoe UI", Arial, sans-serif;
+  --border-color: #e0e0e0;
+  --card-bg: #ffffff;
+  --page-bg: #ffffff;
+  --text-main: #1a1a1a;
+  --text-muted: #666;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --secondary: #eef2ff;
+  --success: #166534;
+  --warning-bg: #fff7ed;
+  --warning-border: #fdba74;
+  --card-width: 640px;
+  --wide-media-card-width: 860px;
+  --row-height: calc(100vh - 208px);
+  --grid-gap: 18px;
+  --composer-height: 80px;
+  --r-sm: 6px;
+  --r-md: 12px;
+  --r-lg: 18px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--text-main);
+  overflow: hidden;
+}
+
+.app-shell {
+  height: 100vh;
+  padding: 10px 24px 0;
+  overflow: hidden;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── 全局按钮 Reset ── */
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  background: transparent;
+  transition: background .2s ease, opacity .2s ease, transform .2s ease;
+}
+button:disabled { cursor: not-allowed; opacity: .6; }
+
+.primary-btn { background: var(--primary); color: #fff; }
+.primary-btn:hover:not(:disabled) { background: var(--primary-hover); }
+
+.site-action-btn {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--border-color);
+}
+
+.global-status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}

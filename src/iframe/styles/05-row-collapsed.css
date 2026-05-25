@@ -1,0 +1,363 @@
+/* ===================================================================
+   1/2/3 排：底部输入条折叠/展开（居中，参考侧边风格）
+   默认折叠为单行输入条，focus-within 时展开完整工具栏。
+   =================================================================== */
+
+/* ── 自定义水平滚动指示条（1排模式，位于 chips 和输入框之间） ── */
+
+/* 卡片区域填满视口，底部 bar 悬浮覆盖其上；padding-top 减 4px 让卡片整体上移 */
+.app-shell:not(.is-sidebar-mode) {
+  padding-top: 6px;
+}
+.app-shell:not(.is-sidebar-mode) .cards-panel {
+  height: calc(100vh - 94px);  /* +14px，给卡片底部阴影留出呼吸空间 */
+}
+
+/* chips 行：去掉多余 padding-bottom（默认 12px），让 chips ↔ 滚动条间距与滚动条 ↔ 输入框间距对称 */
+.app-shell:not(.is-sidebar-mode) .card-nav-row {
+  padding-bottom: 0;
+}
+
+/* 非侧边模式：chips 条的原生滚动条由底部自定义 h-scroll-strip 接管，隐藏原生 */
+.app-shell:not(.is-sidebar-mode) .card-nav-strip {
+  scrollbar-width: none;
+}
+.app-shell:not(.is-sidebar-mode) .card-nav-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* 各排容器顶部 padding +8px，为 top:-8px 的按钮创造不被裁切的空间 */
+.app-shell:not(.is-sidebar-mode) .iframes-container[data-layout-rows="1"] {
+  padding-top: 10px;
+}
+.app-shell:not(.is-sidebar-mode) .iframes-container[data-layout-rows="2"],
+.app-shell:not(.is-sidebar-mode) .iframes-container[data-layout-rows="3"] {
+  padding-top: 14px;
+}
+
+/* ── 卡片 grid：标题行 28px + 主体撑满（操作按钮绝对定位，不占 grid 位置）── */
+.app-shell:not(.is-sidebar-mode) .iframe-card {
+  grid-template-rows: 28px minmax(0, 1fr);
+  padding-bottom: 6px;
+}
+
+/* 卡片体阴影柔化：去掉硬边框，12px 扩散在 20px 空间内完整过渡不被截断 */
+.app-shell:not(.is-sidebar-mode) .iframe-card-body {
+  border-color: transparent;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+}
+
+/* ── 标题：默认显示，hover 时淡出 ── */
+.app-shell:not(.is-sidebar-mode) .site-title {
+  height: auto;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  font-size: var(--fs-md);
+  transition: opacity 0.15s ease;
+}
+.app-shell:not(.is-sidebar-mode) .iframe-card.is-actions-visible .site-title {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── 操作按钮区：绝对定位，上浮 8px 悬于标题行上方，hover 时淡入替代标题 ── */
+.app-shell:not(.is-sidebar-mode) .card-hover-actions {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 28px;
+  align-items: center;
+  padding: 0;
+  z-index: 3;
+}
+
+/* 悬停时 tooltip 改为向下弹出 */
+.app-shell:not(.is-sidebar-mode) .card-hover-btn-icon[data-tooltip]::after {
+  bottom: auto;
+  top: calc(100% + 6px);
+  margin-bottom: 0;
+}
+
+/* 跳转/刷新/关闭按钮尺寸与图标大小 */
+.app-shell:not(.is-sidebar-mode) .card-hover-btn {
+  width: 28px;
+  height: 28px;
+}
+.app-shell:not(.is-sidebar-mode) .card-hover-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 隐藏 iframes-container 的原生滚动条（1排非侧边模式） */
+.app-shell:not(.is-sidebar-mode) .iframes-container[data-layout-rows="1"] {
+  scrollbar-width: none;
+  padding-bottom: 20px;  /* 给底部阴影留 20px 空间，避免 overflow-y:hidden 截断 */
+}
+.app-shell:not(.is-sidebar-mode) .iframes-container[data-layout-rows="1"]::-webkit-scrollbar {
+  display: none;
+}
+
+.h-scroll-strip {
+  width: min(740px, calc(100vw - 48px));
+  height: 12px;            /* 扩大可点击/拖拽区域，视觉轨道通过内边距居中 */
+  background: transparent;
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  pointer-events: auto;
+  flex-shrink: 0;
+  margin-top: 0px;         /* 补偿 card-nav-row top:6px 偏移，让滚动条上下间距对称：(8-6+0)=2px */
+  margin-bottom: -6px;    /* 缩短下方 flex gap 到同样 2px：(8-6)=2px */
+  display: flex;
+  align-items: center;
+}
+
+/* 视觉轨道：绝对定位居中在 12px 高度内 */
+.h-scroll-strip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  background: rgba(0, 0, 0, 0.07);
+  border-radius: 999px;
+}
+
+.h-scroll-strip[hidden] { display: none; }
+
+.h-scroll-thumb {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  transition: background .15s, height .15s;
+  will-change: left, width;
+}
+
+.h-scroll-thumb:active {
+  cursor: grabbing;
+}
+
+.h-scroll-strip:hover .h-scroll-thumb {
+  background: rgba(0, 0, 0, 0.42);
+  height: 5px;
+}
+
+/* ── 折叠态：单行紧凑条 ── */
+
+.composer-collapsed-actions {
+  display: none;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:not(:focus-within) .composer-collapsed-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  margin: 0 12px 0 -6px;
+}
+
+.composer-collapsed-action {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+
+.composer-collapsed-action svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.composer-collapsed-action .left-tools-item-icon {
+  width: 26px;
+  height: 26px;
+}
+
+#quickExportBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.bottom-settings-entry {
+  position: fixed;
+  right: 24px;
+  bottom: 22px;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #777;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  pointer-events: auto;
+  z-index: 22;
+  transition: color .16s ease;
+}
+
+.bottom-settings-entry svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+}
+
+.bottom-settings-entry:hover,
+.bottom-settings-entry:focus-visible {
+  background: transparent;
+  color: #111;
+  transform: none;
+}
+
+.bottom-settings-entry:hover svg,
+.bottom-settings-entry:focus-visible svg {
+  transform: rotate(32deg);
+}
+
+.bottom-settings-entry:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
+}
+
+.app-shell.is-sidebar-mode .bottom-settings-entry {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .bottom-settings-entry {
+    right: 14px;
+  }
+}
+
+.composer-collapsed-action:hover,
+.composer-collapsed-action:focus-visible {
+  background: #f3f3f3;
+  color: #111;
+  transform: none;
+}
+
+.composer-collapsed-action:focus-visible {
+  outline: 2px dashed #000;
+  outline-offset: 2px;
+}
+
+.layout-popover--quick {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  z-index: 45;
+}
+
+.app-shell:not(.is-sidebar-mode) .composer-input-shell {
+  flex-direction: row;
+  align-items: center;
+  height: 38px;
+  min-height: 38px;
+  gap: 0;
+  padding: 8px 8px 8px 14px;
+  transition:
+    height .22s cubic-bezier(.4,0,.2,1),
+    min-height .22s cubic-bezier(.4,0,.2,1),
+    padding .22s cubic-bezier(.4,0,.2,1);
+}
+
+.app-shell:not(.is-sidebar-mode) .composer-input-row {
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-query-input {
+  min-height: 22px;
+  max-height: 22px;
+  height: 22px;
+  font-size: var(--fs-md);
+  overflow: hidden;
+  transition: max-height .22s cubic-bezier(.4,0,.2,1);
+}
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:not(:focus-within) .bottom-query-input {
+  height: 22px;
+  max-height: 22px;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:not(:focus-within) .bottom-query-input::placeholder {
+  color: transparent;
+}
+
+.app-shell:not(.is-sidebar-mode) .composer-toolbar-row {
+  flex: none;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 折叠态隐藏左侧工具和辅助按钮，只保留发送按钮 */
+.app-shell:not(.is-sidebar-mode) .left-tools-menu-wrap,
+.app-shell:not(.is-sidebar-mode) #newChatBtn,
+.app-shell:not(.is-sidebar-mode) .composer-prompt-wrap,
+.app-shell:not(.is-sidebar-mode) #fileUploadBtn {
+  display: none;
+}
+
+/* ── 展开态：focus-within 触发 ── */
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within .composer-input-shell {
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  min-height: 0;
+  gap: 8px;
+  padding: 10px 18px 12px;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within .bottom-query-input {
+  font-size: var(--fs-lg);
+  max-height: 162px;
+  min-height: 34px;
+  overflow-y: auto;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within .composer-toolbar-row {
+  min-height: 40px;
+  justify-content: space-between;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within .composer-inline-actions {
+  gap: 0;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within .left-tools-menu-wrap {
+  display: block;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within .composer-prompt-wrap {
+  display: block;
+}
+
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within #newChatBtn,
+.app-shell:not(.is-sidebar-mode) .bottom-composer-bar:focus-within #fileUploadBtn {
+  display: inline-flex;
+}

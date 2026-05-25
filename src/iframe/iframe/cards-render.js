@@ -1,4 +1,4 @@
-import { state, elements } from "./state.js";
+import { state, elements, BASE_CONFIG } from "./state.js";
 import { getSelectedSites, isWideMediaSite, isSocialMediaCardSite, buildSiteUrl, escapeHtml, ensureCardsNotEmpty } from "./utils.js";
 import { setSiteStatus, setGlobalStatus } from "./status.js";
 import {
@@ -17,6 +17,15 @@ import {
 } from "./layout.js";
 import { abortPendingWorkForSite, flushPendingQueryAfterLoad, settlePendingQuery } from "./send.js";
 import { dispatchPendingFilesForCard } from "./file-upload.js";
+import {
+  applyHistoryRestoreNavigation,
+  resolveHistoryRestoreLoadTarget,
+  urlsNeedIframeReload,
+} from "./iframe-url-sync.js";
+
+function msg(key, fallback) {
+  return window.__QSHOT_I18N__?.t?.(key) || fallback || "";
+}
 
 export function renderCards() {
   elements.iframesContainer.innerHTML = "";
@@ -25,6 +34,9 @@ export function renderCards() {
   state.cardRefs.clear();
 
   const selectedSites = getSelectedSites();
+  // 外链模式站点（supportIframe===false）不渲染卡片，发送时直接后台新开标签页
+  const cardSites = selectedSites.filter((s) => s.supportIframe !== false);
+
   if (selectedSites.length === 0) {
     const emptyState = document.createElement("div");
     emptyState.className = "empty-state";
@@ -33,10 +45,17 @@ export function renderCards() {
     return;
   }
 
+  if (cardSites.length === 0) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "empty-state";
+    emptyState.textContent = "本组所有站点均为新标签页模式，发送后将在新标签页打开。";
+    elements.iframesContainer.appendChild(emptyState);
+  }
+
   // 多卡片场景下使用并发槽位系统（见 pumpLoadQueue）：
   // 所有卡片先把 DOM 建出来插入容器并入队，由槽位系统按
   // BASE_CONFIG.iframeMaxConcurrent 限流，避免 6~8 个重型 SPA 同时冷启动打满 CPU。
-  selectedSites.forEach((site) => {
+  cardSites.forEach((site) => {
     const card = createSiteCard(site);
     if (isWideMediaSite(site.id)) {
       card.classList.add("iframe-card-wide-media");
@@ -49,7 +68,7 @@ export function renderCards() {
 
   if (state.layoutMode === "sidebar") {
     if (!state.activeSidebarSiteId || !state.cardRefs.has(state.activeSidebarSiteId)) {
-      state.activeSidebarSiteId = selectedSites[0]?.id || null;
+      state.activeSidebarSiteId = cardSites[0]?.id || null;
     }
     state.cardRefs.forEach((ref, siteId) => {
       if (ref.cardEl) ref.cardEl.hidden = siteId !== state.activeSidebarSiteId;
@@ -59,7 +78,7 @@ export function renderCards() {
 
   elements.iframesContainer.scrollLeft = 0;
   elements.iframesContainer.scrollTop = 0;
-  activateScrollGuard(0, 0, getScrollGuardDurationMs(selectedSites.length));
+  activateScrollGuard(0, 0, getScrollGuardDurationMs(cardSites.length));
   renderCardNavStrip();
 }
 
@@ -105,8 +124,8 @@ export function createSiteCard(site) {
   jumpBtn.type = "button";
   jumpBtn.className = "card-hover-btn card-hover-btn-icon";
   jumpBtn.innerHTML = iconJump;
-  jumpBtn.setAttribute("data-tooltip", "跳往原网站");
-  jumpBtn.setAttribute("aria-label", "跳往原网站");
+  jumpBtn.setAttribute("data-tooltip", msg("iframe_cardJump", "跳往原网站"));
+  jumpBtn.setAttribute("aria-label", msg("iframe_cardJump", "跳往原网站"));
   jumpBtn.addEventListener("click", () => {
     const ref = state.cardRefs.get(site.id);
     const targetUrl = ref?.currentUrl || site.url;
@@ -117,8 +136,8 @@ export function createSiteCard(site) {
   refreshBtn.type = "button";
   refreshBtn.className = "card-hover-btn card-hover-btn-icon";
   refreshBtn.innerHTML = iconRefresh;
-  refreshBtn.setAttribute("data-tooltip", "刷新当前卡片");
-  refreshBtn.setAttribute("aria-label", "刷新当前卡片");
+  refreshBtn.setAttribute("data-tooltip", msg("iframe_cardRefresh", "刷新当前卡片"));
+  refreshBtn.setAttribute("aria-label", msg("iframe_cardRefresh", "刷新当前卡片"));
   refreshBtn.addEventListener("click", () => {
     const ref = state.cardRefs.get(site.id);
     if (ref) {
@@ -130,8 +149,8 @@ export function createSiteCard(site) {
   closeBtn.type = "button";
   closeBtn.className = "card-hover-btn card-hover-btn-icon";
   closeBtn.innerHTML = iconClose;
-  closeBtn.setAttribute("data-tooltip", "关闭这张卡片");
-  closeBtn.setAttribute("aria-label", "关闭这张卡片");
+  closeBtn.setAttribute("data-tooltip", msg("iframe_cardClose", "关闭这张卡片"));
+  closeBtn.setAttribute("aria-label", msg("iframe_cardClose", "关闭这张卡片"));
   closeBtn.addEventListener("click", () => {
     state.hiddenSiteIds.add(site.id);
     // 先把本卡片尚未完成的派发全部清理掉：
@@ -192,7 +211,11 @@ export function createSiteCard(site) {
     //   fallbackTimerId：超过 embedTimeoutMs 仍未加载成功时切换到 fallback 页
     // 刷新 / 关闭卡片时必须清理，否则旧 timer 会把新 iframe 踢掉或在已关闭卡片上跑。
     loadDelayTimerId: null,
-    fallbackTimerId: null
+    fallbackTimerId: null,
+    // 超时后是否已做过一次静默自动重试（防止无限循环）。
+    _autoRetried: false,
+    // 自动重试时覆盖 embedTimeoutMs，用完即清（0 表示使用默认值）。
+    _retryTimeoutMs: 0
   };
 
   state.cardRefs.set(site.id, ref);
@@ -213,6 +236,7 @@ export function refreshSiteCard(ref, options = {}) {
   ref.loaded = false;
   ref.pendingFilesOnLoad = [];
   ref.iframeEl = null;
+  ref._autoRetried = false;
   createIframeBody(ref, { immediate });
   setSiteStatus(ref.site.id, "正在重新加载…");
 }
@@ -245,10 +269,15 @@ export function createIframeBody(ref, options = {}) {
   iframe.allow = ref.site.id === "grok"
     ? "clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture"
     : "clipboard-read; clipboard-write; microphone; camera; geolocation; autoplay; fullscreen; picture-in-picture; storage-access; web-share";
+  if (ref.site.iframeSandbox) {
+    iframe.setAttribute("sandbox", ref.site.iframeSandbox);
+  }
 
   const loadState = { resolved: false };
   ref._loadState = loadState;
-  ref._targetSrc = ref.restoreUrl || buildSiteUrl(ref.site, "");
+  ref._targetSrc = ref.restoreUrl
+    ? resolveHistoryRestoreLoadTarget(ref)
+    : buildSiteUrl(ref.site, "");
 
   const loading = createLoadingOverlay(ref.site.name, immediate ? "正在加载…" : "等待加载中…");
 
@@ -262,12 +291,26 @@ export function createIframeBody(ref, options = {}) {
     }
     loadState.resolved = true;
     ref.loaded = true;
-    ref.currentUrl = currentSrc;
+    const loadedUrl = currentSrc;
+    const pendingRestoreUrl = ref.restoreUrl;
+    ref.restoreUrl = "";
+    if (pendingRestoreUrl && urlsNeedIframeReload(loadedUrl, pendingRestoreUrl)) {
+      applyHistoryRestoreNavigation(ref, pendingRestoreUrl, loadedUrl);
+      return;
+    }
+    ref.currentUrl = loadedUrl;
     clearIframeTimers(ref);
     releaseLoadSlot(ref);
     hideLoadingOverlay(ref);
     setSiteStatus(ref.site.id, "iframe 已加载，可直接在卡片内操作。");
-    flushPendingQueryAfterLoad(ref);
+    // 给 AI 站点 JS 一小段初始化时间（React/Vue hydration 等），再触发待发查询。
+    // postLoadSendDelayMs = 0 时行为与原先完全一致（立即触发）。
+    const postLoadDelay = BASE_CONFIG.postLoadSendDelayMs || 0;
+    if (postLoadDelay > 0) {
+      window.setTimeout(() => flushPendingQueryAfterLoad(ref), postLoadDelay);
+    } else {
+      flushPendingQueryAfterLoad(ref);
+    }
 
     // 卡片在加载完成前用户可能已经选好了文件，dispatchPendingFilesForCard
     // 会把挂在 ref.pendingFilesOnLoad 上的那一批文件 postMessage 进去。
@@ -305,7 +348,22 @@ export function createIframeBody(ref, options = {}) {
   }
 }
 
-export function renderFallback(ref, message) {
+export function renderFallback(ref, message, options = {}) {
+  // 超时触发时：先静默重试一次，重试仍超时才显示 fallback UI。
+  // 用户手动点"重新加载"会先调 refreshSiteCard（已重置 _autoRetried），走 immediate 路径，不经此处。
+  if (options.fromTimeout && !ref._autoRetried) {
+    ref._autoRetried = true;
+    ref.loaded = false;
+    ref.iframeEl = null;
+    // 重试只给 8 秒，避免把原本 25s 超时变成 50s 等待。
+    // AI 站点正常加载通常在 4~8s 内完成，8s 能覆盖绝大多数正常加载场景。
+    ref._retryTimeoutMs = 8000;
+    createIframeBody(ref, { immediate: true });
+    setSiteStatus(ref.site.id, "加载超时，正在自动重试…");
+    updateLoadingOverlay(ref, "加载超时，正在自动重试…");
+    return;
+  }
+
   // 进入 fallback 意味着当前 iframe 已作废，同时收掉本张卡片残留的加载/超时定时器。
   clearIframeTimers(ref);
   settlePendingQuery(ref, {
@@ -332,6 +390,8 @@ export function renderFallback(ref, message) {
   if (retryButton) {
     retryButton.addEventListener("click", () => {
       // 用户主动点击"重新加载"：走立即路径，不受并发上限限制。
+      // 同时重置自动重试标记，让下次超时还能再自动重试一次。
+      ref._autoRetried = false;
       createIframeBody(ref, { immediate: true });
       setSiteStatus(ref.site.id, "正在重新加载…");
     });
@@ -353,14 +413,18 @@ function renderExternalFallback(ref) {
   ref.iframeEl = null;
   ref.loaded = false;
   ref.currentUrl = ref.restoreUrl || buildSiteUrl(ref.site, "");
+  const siteName = escapeHtml(ref.site.name);
+  const panelDesc = escapeHtml(
+    ref.site.notes || `${ref.site.name} 不支持卡片嵌入。请先在新标签页登录，批量搜索时会自动在新标签向该站点发送问题。`
+  );
   ref.bodyEl.innerHTML = `
     <div class="fallback-panel">
       <div class="warning-box">
-        <strong>${escapeHtml(ref.site.name)} 已改为新标签页模式</strong>
+        <strong>${siteName} — 新标签页模式</strong>
       </div>
-      <p>${escapeHtml(ref.site.notes || "该站点当前不适合在卡片内嵌入。")}</p>
+      <p>${panelDesc}</p>
       <div class="inline-action-row">
-        <button class="site-action-btn" type="button" data-open-site="${escapeHtml(ref.currentUrl)}">在新标签页打开</button>
+        <button class="site-action-btn" type="button" data-open-site="${escapeHtml(ref.currentUrl)}">在新标签页打开并登录</button>
       </div>
     </div>
   `;

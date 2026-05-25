@@ -2,6 +2,48 @@ import { CUSTOM_SITES_STORAGE_KEY } from "./storage-keys.js";
 
 const SITE_HANDLERS_PATH = "config/siteHandlers.json";
 
+/** 与设置页「AI」分类一致的内置大模型站点 id */
+export const AI_SITE_IDS = [
+  "deepseek",
+  "doubao",
+  "kimi",
+  "yuanbao",
+  "qianwen",
+  "qwen",
+  "metaso",
+  "chatglm",
+  "xiaomimimo",
+  "zhida",
+  "gemini",
+  "chatgpt",
+  "claude",
+  "grok",
+  "dots",
+  "perplexity",
+  "zai",
+  "monica",
+  "poe",
+  "copilot",
+];
+const AI_SITE_ID_SET = new Set(AI_SITE_IDS);
+
+export function isAiSiteId(siteId) {
+  return AI_SITE_ID_SET.has(String(siteId || ""));
+}
+
+/** 官网输入框旁提示词入口：内置 AI 站 + 用户自定义站 */
+export function isPromptLauncherSite(site) {
+  if (!site || site.enabled === false) return false;
+  if (site.isCustom) return true;
+  return isAiSiteId(site.id);
+}
+
+export function siteMatchesHostname(site, hostname) {
+  const normalizedHost = normalizeHost(hostname);
+  if (!normalizedHost) return false;
+  return siteMatchesHost(site, normalizedHost);
+}
+
 let builtinSites = null;
 let builtinSitesPromise = null;
 let domainIndex = null;
@@ -45,18 +87,30 @@ export function normalizeCustomSite(raw) {
     return null;
   }
 
-  return {
+  const customType = raw.customType === "ai" ? "ai" : "url";
+  const base = {
     id,
     name,
     url,
     enabled: raw.enabled !== false,
     supportIframe: raw.supportIframe !== false,
-    supportUrlQuery: raw.supportUrlQuery !== false && url.includes("{query}"),
+    supportUrlQuery: customType === "url" && url.includes("{query}"),
     matchPatterns: Array.isArray(raw.matchPatterns)
       ? raw.matchPatterns.map((pattern) => String(pattern))
       : [],
-    isCustom: true
+    isCustom: true,
+    customType
   };
+  if (customType === "ai" && raw.searchHandler && typeof raw.searchHandler === "object") {
+    base.searchHandler = raw.searchHandler;
+  }
+  if (raw.searchHandlerFallback && typeof raw.searchHandlerFallback === "object") {
+    base.searchHandlerFallback = raw.searchHandlerFallback;
+  }
+  if (raw.enableGenericFallback === false) {
+    base.enableGenericFallback = false;
+  }
+  return base;
 }
 
 export async function loadCustomSitesFromStorage() {

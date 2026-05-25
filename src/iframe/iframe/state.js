@@ -3,20 +3,31 @@
 // threading N arguments through call chains. main.js is the sole module
 // that calls cacheElements() to populate `elements`.
 
+import {
+  SEARCH_HISTORY_STORAGE_KEY,
+  PROMPT_GROUPS_STORAGE_KEY,
+  CARD_SIZE_LEVEL_KEY,
+  LAYOUT_ROWS_KEY,
+  LAYOUT_MODE_KEY,
+} from "../../shared/storage-keys.js";
+
 export const BASE_CONFIG = globalThis.QSHOT_BASE_CONFIG || {};
 
+// Single source of truth for all chrome.storage keys used by the compare page.
+// Values come from shared/storage-keys.js so they can never drift out of sync
+// with settings / popup / overlay.
 export const STORAGE_KEYS = {
-  cardSizeLevel: "cardSizeLevel",
-  layoutRows: "layoutRows",
-  layoutMode: "layoutMode",
-  searchHistory: "searchHistory",
-  promptGroups: "promptGroups"
+  cardSizeLevel: CARD_SIZE_LEVEL_KEY,
+  layoutRows: LAYOUT_ROWS_KEY,
+  layoutMode: LAYOUT_MODE_KEY,
+  searchHistory: SEARCH_HISTORY_STORAGE_KEY,
+  promptGroups: PROMPT_GROUPS_STORAGE_KEY,
 };
 
 export const SITE_CATEGORIES = [
-  { id: "ai", label: "AI", builtinIds: ["deepseek", "doubao", "kimi", "yuanbao", "qwen", "metaso", "gemini", "chatgpt", "claude", "grok"] },
-  { id: "other", label: "社媒", builtinIds: ["xiaohongshu", "bilibili", "zhihu", "douyin", "twitter", "youtube", "reddit", "tiktok"] },
-  { id: "custom", label: "自定义", builtinIds: [] }
+  { id: "ai", label: "AI", builtinIds: ["deepseek", "doubao", "kimi", "yuanbao", "qianwen", "qwen", "metaso", "chatglm", "xiaomimimo", "zhida", "zai", "gemini", "chatgpt", "claude", "grok", "dots", "perplexity", "monica", "poe", "copilot"] },
+  { id: "other", labelKey: "settings_groups_categoryOther", label: "社媒平台", builtinIds: ["xiaohongshu", "bilibili", "zhihu", "douyin", "twitter", "youtube", "reddit", "tiktok"] },
+  { id: "custom", labelKey: "settings_groups_categoryCustom", label: "自定义", builtinIds: [] }
 ];
 
 export const state = {
@@ -31,11 +42,12 @@ export const state = {
   restoreHistoryEntryId: null,
   pendingDispatches: new Map(),
   pendingFileDispatches: new Map(),
-  cardSizeLevel: "medium",
+  cardSizeLevel: "3",
   layoutRows: 1,
   layoutMode: "grid",
   activeSidebarSiteId: null,
   searchHistory: [],
+  historyDateFilter: "all",
   currentHistoryEntryId: null,
   historyEntryIdBySiteId: new Map(),
   promptGroups: [],
