@@ -6,23 +6,11 @@
   "scripts": {
     "build": "node build.mjs",
     "build:store": "node build.mjs --features=store",
-    "build:full": "node build.mjs",
     "watch": "node build.mjs --watch",
     "watch:store": "node build.mjs --watch --features=store",
-    "check:lines": "node scripts/check-lines.mjs",
-    "pack:store": "node scripts/pack-store.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:tier-a": "vitest run tests/tier-a-handlers.test.js tests/handler-fallback.test.js",
-    "test:integration": "vitest run tests/compare-dispatch.test.js tests/compare-message.test.js tests/search-handler-run.test.js",
-    "test:e2e": "playwright test --project=protocol",
-    "test:smoke": "node scripts/check-smoke-build.mjs && playwright test --project=extension-smoke",
-    "test:all": "vitest run && playwright test --project=protocol && node scripts/check-smoke-build.mjs && playwright test --project=extension-smoke"
+    "pack:store": "node scripts/pack-store.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0",
-    "esbuild": "^0.24.0",
-    "happy-dom": "^17.4.7",
-    "vitest": "^3.2.4"
+    "esbuild": "^0.24.2"
   }
 }

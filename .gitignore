@@ -36,15 +36,30 @@ desktop/native-host/
 qshot-*/
 make-zip.cjs
 
-# Experimental modules (local dev only — stubs stay tracked for build:store)
+# Experimental modules (local dev only)
 desktop/
-src/memory/*
-!src/memory/background-stub.js
-src/desktop/*
-!src/desktop/background-stub.js
+src/memory/
+src/desktop/
+src/settings/settings/sections/memory.js
+src/settings/settings/sections/memory-stub.js
 src/settings/settings/sections/memory-*.js
-!src/settings/settings/sections/memory-stub.js
 src/settings/styles/12-memory.css
 src/settings/styles/12a-memory-ai-analysis.css
 src/settings/styles/12b-memory-usage.css
 src/settings/styles/12c-memory-control.css
+
+# Local dev docs (not for public repo)
+PROJECT_CONSTRAINTS.md
+docs/
+.github/
+
+# Local dev tooling & tests (not for public repo)
+tests/
+vitest.config.js
+playwright.config.js
+scripts/check-lines.mjs
+scripts/check-smoke-build.mjs
+edge-baidu.png
+qshot-2.png
+qshot-open.png
+qshot-overlay.png

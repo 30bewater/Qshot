@@ -261,9 +261,9 @@ async function generateRules() {
 }
 
 function makeFeatureAliasPlugin(flags) {
-  const memoryBackgroundStub = path.join(SRC, "memory/background-stub.js");
-  const memorySectionStub = path.join(SRC, "settings/settings/sections/memory-stub.js");
-  const desktopBackgroundStub = path.join(SRC, "desktop/background-stub.js");
+  const memoryBackgroundStub = path.join(SRC, "build-stubs/memory-background.js");
+  const memorySectionStub = path.join(SRC, "build-stubs/memory-section.js");
+  const desktopBackgroundStub = path.join(SRC, "build-stubs/desktop-background.js");
 
   return {
     name: "qshot-feature-alias",
