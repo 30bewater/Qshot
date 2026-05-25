@@ -2,6 +2,9 @@
 _metadata/
 .claude/
 .cursor/
+.playwright-mcp/
+codex-backups/
+baidu-test.png
 
 # OS files
 .DS_Store
